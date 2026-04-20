@@ -1,0 +1,33 @@
+services:
+  tranga:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tranga-api
+    ports:
+      - "6531:6531"
+    volumes:
+      - manga-data:/Manga
+      - tranga-state:/usr/share/tranga-api
+    environment:
+      - PORT=6531
+      - DATABASE_URL=sqlite:///usr/share/tranga-api/tranga.db
+      - DOWNLOAD_LOCATION=/Manga
+      - FLARESOLVERR_URL=http://flaresolverr:8191
+    depends_on:
+      flaresolverr:
+        condition: service_started
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+    restart: unless-stopped
+
+volumes:
+  manga-data:
+  tranga-state:
