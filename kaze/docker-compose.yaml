@@ -1,0 +1,49 @@
+services:
+  kaze:
+    image: kaze:test
+    container_name: kaze
+    ports:
+      - "6531:6531"
+    volumes:
+      - manga-data:/Manga
+      - kaze-state:/usr/share/kaze
+    environment:
+      - PORT=6531
+      - DATABASE_URL=sqlite:///usr/share/kaze/kaze.db
+      - DOWNLOAD_LOCATION=/Manga
+      - FLARESOLVERR_URL=http://flaresolverr:8191
+      - CHROMIUM_NO_SANDBOX=true
+      - KOMGA_URL=http://komga:25600
+      - KOMGA_API_KEY=a30b28464f754986af1f2bf18828c0a4
+    depends_on:
+      flaresolverr:
+        condition: service_started
+      komga:
+        condition: service_started
+    restart: unless-stopped
+
+  komga:
+    image: gotson/komga:latest
+    container_name: komga
+    ports:
+      - "25600:25600"
+    volumes:
+      - komga-config:/config
+      - manga-data:/manga:ro
+    environment:
+      - KOMGA_LIBRARIES_SCAN_STARTUP=false
+    restart: unless-stopped
+
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    container_name: flaresolverr
+    ports:
+      - "8191:8191"
+    environment:
+      - LOG_LEVEL=info
+    restart: unless-stopped
+
+volumes:
+  manga-data:
+  kaze-state:
+  komga-config:
