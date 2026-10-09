@@ -31,6 +31,8 @@ pub struct Context {
 pub struct App {
     pub ctx: Arc<Context>,
     pub jobs: JobQueue,
+    /// Scheduled tasks: list them, run one now.
+    pub scheduled: scheduler::Tasks,
     shutdown: CancellationToken,
     tasks: TaskTracker,
 }
@@ -65,9 +67,12 @@ impl App {
 
         let (dispatcher, jobs) = Dispatcher::new(Arc::clone(&ctx), retry, shutdown.clone());
         tasks.spawn(dispatcher.run(jobs.clone(), leftover));
+        let (scheduled, run_now) = scheduler::channel();
         tasks.spawn(scheduler::run(
             Arc::clone(&ctx),
             jobs.clone(),
+            scheduled.clone(),
+            run_now,
             shutdown.clone(),
         ));
         tasks.spawn(events::record_history(
@@ -80,6 +85,7 @@ impl App {
         Ok(Self {
             ctx,
             jobs,
+            scheduled,
             shutdown,
             tasks,
         })

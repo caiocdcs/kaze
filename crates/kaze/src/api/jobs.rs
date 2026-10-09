@@ -6,7 +6,10 @@ use axum::{
 use serde::Deserialize;
 
 use super::{ApiError, ApiResult, AppState};
-use crate::db::{self, events::HistoryEntry, jobs::JobRecord};
+use crate::{
+    db::{self, events::HistoryEntry, jobs::JobRecord},
+    jobs::scheduler::{Task, TaskInfo},
+};
 
 #[derive(Deserialize)]
 pub struct Limit {
@@ -47,4 +50,22 @@ pub async fn history(
     Query(q): Query<Limit>,
 ) -> ApiResult<Json<Vec<HistoryEntry>>> {
     Ok(Json(db::events::recent(&app.ctx.db, q.limit).await?))
+}
+
+/// Scheduled tasks with their last and next run.
+pub async fn tasks(State(app): State<AppState>) -> Json<Vec<TaskInfo>> {
+    Json(app.scheduled.list())
+}
+
+/// Run a scheduled task now. The path segment deserializes into `Task`,
+/// so axum rejects an unknown name before this runs.
+pub async fn run_task(
+    State(app): State<AppState>,
+    Path(task): Path<Task>,
+) -> ApiResult<StatusCode> {
+    if app.scheduled.run_now(task).await {
+        Ok(StatusCode::ACCEPTED)
+    } else {
+        Err(ApiError::Internal)
+    }
 }
