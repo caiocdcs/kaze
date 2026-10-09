@@ -15,6 +15,7 @@ macro_rules! string_key {
         $(#[$doc])*
         #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         #[serde(transparent)]
+        #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
         pub struct $name(pub String);
 
         impl $name {
@@ -64,6 +65,7 @@ pub struct SeriesHit {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(rename_all = "lowercase"))]
 pub enum SeriesStatus {
     Ongoing,
     Completed,
