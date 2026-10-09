@@ -7,14 +7,20 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-default = []
+default = ["weebcentral"]
+# Each site is a feature; HTML scrapers pull in the parsing crates.
+weebcentral = ["scraping"]
+scraping = ["dep:regex", "dep:scraper"]
 
 [dependencies]
 kaze-core.workspace = true
+async-trait.workspace = true
+chrono.workspace = true
 backon.workspace = true
-bytes.workspace = true
 governor.workspace = true
+regex = { workspace = true, optional = true }
 reqwest.workspace = true
+scraper = { workspace = true, optional = true }
 serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
