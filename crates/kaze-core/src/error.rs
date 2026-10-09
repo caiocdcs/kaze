@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use url::Url;
 
 pub type Result<T, E = SourceError> = std::result::Result<T, E>;
@@ -29,6 +31,9 @@ pub enum SourceError {
     #[error("could not parse {what}: {reason}")]
     Parse { what: &'static str, reason: String },
 
+    #[error("timed out after {0:?}")]
+    Timeout(Duration),
+
     #[error("{0} is not supported by this source")]
     Unsupported(&'static str),
 }
@@ -45,7 +50,7 @@ impl SourceError {
     #[must_use]
     pub fn is_retryable(&self) -> bool {
         match self {
-            Self::Transport { .. } => true,
+            Self::Transport { .. } | Self::Timeout(_) => true,
             Self::Status { status, .. } => *status == 429 || *status >= 500,
             Self::NotFound { .. }
             | Self::Blocked { .. }
