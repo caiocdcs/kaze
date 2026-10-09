@@ -94,6 +94,18 @@ pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec
     .await
 }
 
+/// Ids of the wanted chapters of one series, in reading order.
+pub async fn wanted_ids(db: impl SqliteExecutor<'_>, series_id: i64) -> sqlx::Result<Vec<i64>> {
+    sqlx::query_scalar!(
+        r#"SELECT id AS "id!" FROM chapters
+           WHERE series_id = ? AND monitored = 1 AND file_path IS NULL
+           ORDER BY number_whole, number_frac, id"#,
+        series_id
+    )
+    .fetch_all(db)
+    .await
+}
+
 pub async fn mark_downloaded(
     db: impl SqliteExecutor<'_>,
     id: i64,

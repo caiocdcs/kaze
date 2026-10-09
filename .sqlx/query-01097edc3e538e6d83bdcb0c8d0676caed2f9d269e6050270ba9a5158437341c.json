@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM chapters\n           WHERE series_id = ? AND monitored = 1 AND file_path IS NULL\n           ORDER BY number_whole, number_frac, id",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "01097edc3e538e6d83bdcb0c8d0676caed2f9d269e6050270ba9a5158437341c"
+}

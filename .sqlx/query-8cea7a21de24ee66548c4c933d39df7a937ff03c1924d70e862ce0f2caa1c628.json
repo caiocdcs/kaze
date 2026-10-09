@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(SELECT 1 FROM series WHERE folder = ?) AS \"taken: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "taken: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8cea7a21de24ee66548c4c933d39df7a937ff03c1924d70e862ce0f2caa1c628"
+}

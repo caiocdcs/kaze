@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO jobs (kind, payload, dedupe_key, run_after, created_at, updated_at)\n           VALUES (?, ?, ?, ?, ?, ?)\n           ON CONFLICT DO NOTHING\n           RETURNING id AS \"id!\"\n        ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e9fddd5b711f7c1aa2fea1f6289dcd5a63a72bb9bcac8189f3efa9893f589717"
+}
