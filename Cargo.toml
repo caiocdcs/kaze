@@ -21,6 +21,7 @@ backon = { version = "1", default-features = false }
 bytes = "1"
 chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 clap = { version = "4", features = ["derive", "env"] }
+futures-util = "0.3"
 regex = "1"
 scraper = "0.27"
 governor = "0.10"
@@ -32,8 +33,11 @@ thiserror = "2"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tempfile = "3"
 url = { version = "2", features = ["serde"] }
 wiremock = "0.6"
+# Store-only: page images are already compressed.
+zip = { version = "9", default-features = false }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
