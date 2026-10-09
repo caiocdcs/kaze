@@ -1,29 +1,14 @@
-use clap::{Parser, Subcommand};
+mod cli;
+
+use clap::Parser;
 use tracing_subscriber::EnvFilter;
 
-/// Light, self-hosted manga downloader.
-#[derive(Debug, Parser)]
-#[command(version, about)]
-struct Cli {
-    #[command(subcommand)]
-    command: Command,
-}
-
-#[derive(Debug, Subcommand)]
-enum Command {
-    /// Run the server (API, UI and download workers).
-    Serve,
-}
-
-fn main() {
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt()
         .with_env_filter(EnvFilter::try_from_default_env().unwrap_or_else(|_| "kaze=info".into()))
+        .with_writer(std::io::stderr) // keep stdout clean for `--json`
         .init();
 
-    let cli = Cli::parse();
-    match cli.command {
-        Command::Serve => {
-            tracing::info!("kaze {} — nothing to serve yet", env!("CARGO_PKG_VERSION"));
-        }
-    }
+    cli::Cli::parse().run().await
 }
