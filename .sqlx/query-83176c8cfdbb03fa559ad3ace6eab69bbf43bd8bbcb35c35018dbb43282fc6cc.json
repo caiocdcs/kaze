@@ -1,0 +1,194 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "series_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "series_id"
+          }
+        }
+      },
+      {
+        "name": "source",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "name": "source_key: ChapterKey",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "source_key"
+          }
+        }
+      },
+      {
+        "name": "number: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "volume",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "volume"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "url",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "language",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "scanlator",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "scanlator"
+          }
+        }
+      },
+      {
+        "name": "published_at: _",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "published_at"
+          }
+        }
+      },
+      {
+        "name": "monitored: bool",
+        "ordinal": 11,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "monitored"
+          }
+        }
+      },
+      {
+        "name": "file_path",
+        "ordinal": 12,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "file_path"
+          }
+        }
+      },
+      {
+        "name": "downloaded_at: _",
+        "ordinal": 13,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "downloaded_at"
+          }
+        }
+      },
+      {
+        "name": "discovered_at: _",
+        "ordinal": 14,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "discovered_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      false,
+      true,
+      true,
+      true,
+      false,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "83176c8cfdbb03fa559ad3ace6eab69bbf43bd8bbcb35c35018dbb43282fc6cc"
+}

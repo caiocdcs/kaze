@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT series_id FROM series_sources WHERE source = ? AND source_key = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "series_id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "series_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f447694b3a9276fdca14ab0a725cc2ca643cedef9bd274286d02dff3f0c2fb4c"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO chapters\n                   (series_id, source, source_key, number, volume, title, url, language, scanlator, published_at, monitored)\n               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n               ON CONFLICT (source, source_key) DO NOTHING\n               RETURNING id AS \"id!\"\n               ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "f424f1392d2098c98d7ed5732877fc4e6357c95283e9411ae5a72dce4413e7e1"
+}
