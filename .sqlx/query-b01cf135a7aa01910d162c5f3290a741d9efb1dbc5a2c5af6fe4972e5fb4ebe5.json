@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               WHERE s.id = ?",
+  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               WHERE s.id = ?",
   "describe": {
     "columns": [
       {
@@ -178,6 +178,17 @@
             "name": "last_checked_at"
           }
         }
+      },
+      {
+        "name": "refresh_hours",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "refresh_hours"
+          }
+        }
       }
     ],
     "parameters": {
@@ -199,8 +210,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "7c9092c682a9ec7474eeeaeecc50e7ecdb322c6a30105c226441e60a054b5916"
+  "hash": "b01cf135a7aa01910d162c5f3290a741d9efb1dbc5a2c5af6fe4972e5fb4ebe5"
 }

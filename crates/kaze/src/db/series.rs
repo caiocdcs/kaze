@@ -69,7 +69,8 @@ macro_rules! select_series {
                       s.monitor_from AS "monitor_from: _",
                       ss.source, ss.source_key AS "source_key: SeriesKey", ss.url,
                       s.added_at AS "added_at: _",
-                      s.last_checked_at AS "last_checked_at: _"
+                      s.last_checked_at AS "last_checked_at: _",
+                      s.refresh_hours
                FROM series s
                JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
                "# + $where,
@@ -167,20 +168,61 @@ pub async fn mark_checked(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<
     Ok(())
 }
 
-/// Monitored series not checked since `before`, with their source.
-pub async fn stale(
+/// Monitored series whose full refresh is due, with their source.
+///
+/// Each series uses its own `refresh_hours` or the global `default_hours`;
+/// `0` turns refreshing off. Few rows, so the date math happens in Rust.
+pub async fn due_for_refresh(
     db: impl SqliteExecutor<'_>,
-    before: chrono::DateTime<chrono::Utc>,
+    default_hours: u64,
+    now: chrono::DateTime<chrono::Utc>,
 ) -> sqlx::Result<Vec<(i64, String)>> {
+    let rows = sqlx::query!(
+        r#"SELECT s.id AS "id!", ss.source, s.refresh_hours,
+                  s.last_checked_at AS "last_checked_at: chrono::DateTime<chrono::Utc>"
+           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
+           WHERE s.monitor != 'none'"#
+    )
+    .fetch_all(db)
+    .await?;
+    let default_hours = i64::try_from(default_hours).unwrap_or(i64::MAX);
+    Ok(rows
+        .into_iter()
+        .filter(|r| {
+            let hours = r.refresh_hours.unwrap_or(default_hours);
+            hours > 0
+                && r.last_checked_at
+                    .is_none_or(|checked| now - checked >= chrono::Duration::hours(hours))
+        })
+        .map(|r| (r.id, r.source))
+        .collect())
+}
+
+/// Every monitored series with its source ("refresh everything now").
+pub async fn monitored(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<(i64, String)>> {
     let rows = sqlx::query!(
         r#"SELECT s.id AS "id!", ss.source
            FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
-           WHERE s.monitor != 'none' AND (s.last_checked_at IS NULL OR s.last_checked_at < ?)"#,
-        before
+           WHERE s.monitor != 'none'"#
     )
     .fetch_all(db)
     .await?;
     Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+}
+
+pub async fn set_refresh_hours(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    hours: Option<i64>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE series SET refresh_hours = ? WHERE id = ?",
+        hours,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
 }
 
 /// Delete a series with its chapters (files on disk are left alone).

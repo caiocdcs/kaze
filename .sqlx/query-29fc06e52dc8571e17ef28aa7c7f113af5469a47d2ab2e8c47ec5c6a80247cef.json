@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.id AS \"id!\", ss.source, s.refresh_hours,\n                  s.last_checked_at AS \"last_checked_at: chrono::DateTime<chrono::Utc>\"\n           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           WHERE s.monitor != 'none'",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "source",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "name": "refresh_hours",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "refresh_hours"
+          }
+        }
+      },
+      {
+        "name": "last_checked_at: chrono::DateTime<chrono::Utc>",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "last_checked_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "29fc06e52dc8571e17ef28aa7c7f113af5469a47d2ab2e8c47ec5c6a80247cef"
+}

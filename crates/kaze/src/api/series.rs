@@ -8,7 +8,7 @@ use kaze_core::{ChapterNumber, SeriesKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
-use super::{ApiError, ApiResult, AppState};
+use super::{ApiError, ApiResult, AppState, patch::Patch};
 use crate::{
     db,
     jobs::Job,
@@ -65,28 +65,50 @@ pub async fn get(
     Ok(Json(SeriesDetail { series, chapters }))
 }
 
+/// Partial update: fields left out stay as they are.
 #[derive(Deserialize)]
 pub struct UpdateSeries {
-    monitor: Monitor,
-    monitor_from: Option<ChapterNumber>,
+    monitor: Option<Monitor>,
+    #[serde(default)]
+    monitor_from: Patch<ChapterNumber>,
+    #[serde(default)]
+    refresh_hours: Patch<u32>,
 }
 
-/// Change monitoring. Chapters without a file are re-evaluated with the
-/// new setting (as if just added), and newly wanted ones are queued.
+/// Change monitoring or the refresh interval. When monitoring changes,
+/// chapters without a file are re-evaluated (as if just added) and newly
+/// wanted ones are queued.
 pub async fn update(
     State(app): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateSeries>,
 ) -> ApiResult<Json<SeriesDetail>> {
     let series = load(&app, id).await?;
-    let from = req.monitor_from.as_ref();
-    db::series::set_monitor(&app.ctx.db, id, req.monitor, from).await?;
+    if !req.refresh_hours.is_keep() {
+        let current = series.refresh_hours.and_then(|h| u32::try_from(h).ok());
+        let hours = req.refresh_hours.apply(current).map(i64::from);
+        db::series::set_refresh_hours(&app.ctx.db, id, hours).await?;
+    }
+    if req.monitor.is_some() || !req.monitor_from.is_keep() {
+        let monitor = req.monitor.unwrap_or(series.monitor);
+        let from = req.monitor_from.apply(series.monitor_from.clone());
+        remonitor(&app, &series, monitor, from.as_ref()).await?;
+    }
+    get(State(app), Path(id)).await
+}
 
-    let chapters = db::chapters::for_series(&app.ctx.db, id).await?;
+async fn remonitor(
+    app: &AppState,
+    series: &SeriesRecord,
+    monitor: Monitor,
+    from: Option<&ChapterNumber>,
+) -> ApiResult<()> {
+    db::series::set_monitor(&app.ctx.db, series.id, monitor, from).await?;
+    let chapters = db::chapters::for_series(&app.ctx.db, series.id).await?;
     let (wanted, unwanted): (Vec<_>, Vec<_>) = chapters
         .iter()
         .filter(|c| c.file_path.is_none())
-        .partition(|c| req.monitor.wants(&c.number, from, true));
+        .partition(|c| monitor.wants(&c.number, from, true));
     let ids = |list: Vec<&ChapterRecord>| list.iter().map(|c| c.id).collect::<Vec<_>>();
     let wanted = ids(wanted);
     db::chapters::set_monitored(&app.ctx.db, &wanted, true).await?;
@@ -99,7 +121,7 @@ pub async fn update(
             })
             .await?;
     }
-    get(State(app), Path(id)).await
+    Ok(())
 }
 
 /// Stop following; files already downloaded stay on disk.

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
+  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -178,6 +178,17 @@
             "name": "last_checked_at"
           }
         }
+      },
+      {
+        "name": "refresh_hours",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "refresh_hours"
+          }
+        }
       }
     ],
     "parameters": {
@@ -199,8 +210,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "de19f1efdbc894dddb8a587b8b9526e1800a00b92f962127317ac1f4611bd8da"
+  "hash": "6faa66691815ab0e565a799cf52b0bb7110ed834144d46f5874b581acd59c0e8"
 }
