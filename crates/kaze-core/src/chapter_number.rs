@@ -8,7 +8,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 /// zeros. That makes `12.50 == 12.5` and gives decimal ordering
 /// (`12.15 < 12.5`) without floating-point surprises, so it can be `Eq`,
 /// `Ord` and `Hash` and used as a map key.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// The default is chapter `0`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
 pub struct ChapterNumber {
     whole: u32,
     frac: String,
