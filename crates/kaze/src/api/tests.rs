@@ -118,14 +118,20 @@ async fn follow_then_inspect_series() {
     let (_, list) = api.get("/api/v1/series").await;
     assert_eq!(list[0]["chapters"], 2);
 
-    let (status, _) = api
-        .call(
-            Method::PATCH,
-            &format!("/api/v1/series/{id}"),
-            Some(json!({ "monitor": "none" })),
-        )
-        .await;
+    let uri = format!("/api/v1/series/{id}");
+    let patch = |body: Value| api.call(Method::PATCH, &uri, Some(body));
+    let (status, detail) = patch(json!({ "refresh_hours": 0 })).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["refresh_hours"], 0);
+    let (_, detail) = patch(json!({ "monitor": "none" })).await;
+    assert_eq!(detail["monitor"], "none");
+    assert_eq!(detail["refresh_hours"], 0, "untouched by a partial update");
+    let (_, detail) = patch(json!({ "refresh_hours": null })).await;
+    assert_eq!(
+        detail["refresh_hours"],
+        Value::Null,
+        "null means the global interval"
+    );
     assert_eq!(
         api.call(Method::DELETE, &format!("/api/v1/series/{id}"), None)
             .await
@@ -247,5 +253,22 @@ async fn locked_settings_cannot_be_changed() {
         )
         .await;
     assert_eq!(status, StatusCode::CONFLICT);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn scheduled_tasks_can_be_listed_and_run() {
+    let api = api(None).await;
+    let (status, tasks) = api.get("/api/v1/tasks").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(tasks[0]["task"], "sync_latest");
+    assert_eq!(tasks[1]["task"], "refresh_series");
+
+    let (status, _) = api
+        .call(Method::POST, "/api/v1/tasks/refresh_series/run", None)
+        .await;
+    assert_eq!(status, StatusCode::ACCEPTED);
+    let (status, _) = api.call(Method::POST, "/api/v1/tasks/nope/run", None).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
     api.app.shutdown().await;
 }

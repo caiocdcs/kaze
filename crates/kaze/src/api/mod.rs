@@ -5,6 +5,7 @@ mod chapters;
 mod error;
 mod events;
 mod jobs;
+mod patch;
 mod series;
 mod settings;
 mod sources;
@@ -49,6 +50,8 @@ pub fn router(app: AppState) -> Router {
         .route("/jobs/{id}/retry", post(jobs::retry))
         .route("/history", get(jobs::history))
         .route("/settings", get(settings::get).patch(settings::update))
+        .route("/tasks", get(jobs::tasks))
+        .route("/tasks/{task}/run", post(jobs::run_task))
         // Compressing an event stream would buffer it; only compress the rest.
         .layer(CompressionLayer::new())
         .route("/events", get(events::stream))
