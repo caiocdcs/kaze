@@ -2,4 +2,5 @@
 //! `main.rs` is a thin CLI on top of this library.
 
 pub mod db;
+pub mod download;
 pub mod library;
