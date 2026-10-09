@@ -128,12 +128,14 @@ pub async fn chapter(
     }
 
     // `buffered` runs up to N fetches at once but yields results in the
-    // original order, so pages stay in reading order.
+    // original order, so pages stay in reading order. The stream owns the
+    // URLs: closures over borrowed items trip up the compiler's lifetime
+    // inference once this future is moved into `tokio::spawn`.
     let total = urls.len();
     let done = AtomicUsize::new(0);
-    let pages: Vec<Page> = stream::iter(urls.iter().enumerate())
+    let pages: Vec<Page> = stream::iter(urls.into_iter().enumerate())
         .map(|(index, url)| async move {
-            let image = source.fetch_image(url).await?;
+            let image = source.fetch_image(&url).await?;
             let format =
                 ImageFormat::sniff(&image.bytes).ok_or_else(|| DownloadError::NotAnImage {
                     page: index + 1,
@@ -201,71 +203,8 @@ pub async fn cover(
 mod tests {
     use std::{io::Read as _, sync::Mutex};
 
-    use async_trait::async_trait;
-    use bytes::Bytes;
-    use kaze_core::{Image, RateLimit, Result, SeriesHit, SeriesKey, SourceMeta, UrlTarget};
-
     use super::*;
-
-    const JPEG: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
-    const PNG: &[u8] = b"\x89PNG\r\n\x1a\nrest";
-
-    /// A source that serves pages from memory.
-    struct FakeSource {
-        meta: SourceMeta,
-        pages: Vec<(Url, &'static [u8])>,
-        fetches: Mutex<usize>,
-    }
-
-    impl FakeSource {
-        fn new(pages: &[&'static [u8]]) -> Self {
-            Self {
-                meta: SourceMeta {
-                    id: "fake",
-                    name: "Fake",
-                    base_url: Url::parse("https://fake.test").unwrap(),
-                    languages: &["en"],
-                    rate_limit: RateLimit::per_second(100),
-                },
-                pages: pages
-                    .iter()
-                    .enumerate()
-                    .map(|(i, b)| (Url::parse(&format!("https://fake.test/{i}")).unwrap(), *b))
-                    .collect(),
-                fetches: Mutex::new(0),
-            }
-        }
-    }
-
-    #[async_trait]
-    impl Source for FakeSource {
-        fn meta(&self) -> &SourceMeta {
-            &self.meta
-        }
-        fn parse_url(&self, _: &Url) -> Option<UrlTarget> {
-            None
-        }
-        async fn search(&self, _: &str) -> Result<Vec<SeriesHit>> {
-            Ok(vec![])
-        }
-        async fn series(&self, _: &SeriesKey) -> Result<Series> {
-            unimplemented!()
-        }
-        async fn chapters(&self, _: &SeriesKey) -> Result<Vec<ChapterInfo>> {
-            Ok(vec![])
-        }
-        async fn pages(&self, _: &ChapterKey) -> Result<Vec<Url>> {
-            Ok(self.pages.iter().map(|(u, _)| u.clone()).collect())
-        }
-        async fn fetch_image(&self, url: &Url) -> Result<Image> {
-            *self.fetches.lock().unwrap() += 1;
-            let (_, bytes) = self.pages.iter().find(|(u, _)| u == url).unwrap();
-            Ok(Image {
-                bytes: Bytes::from_static(bytes),
-                content_type: None,
-            })
-        }
-    }
+    use crate::testing::{FakeSource, JPEG, PNG};
 
     fn meta() -> ChapterMeta {
         ChapterMeta {
@@ -278,7 +217,7 @@ mod tests {
     #[tokio::test]
     async fn writes_a_cbz_with_sniffed_extensions() {
         let dir = tempfile::tempdir().unwrap();
-        let source = FakeSource::new(&[JPEG, PNG, JPEG]);
+        let source = FakeSource::new().with_pages(&[JPEG, PNG, JPEG]);
         let calls = Mutex::new(Vec::new());
         let outcome = chapter(
             &source,
@@ -317,7 +256,7 @@ mod tests {
     async fn existing_file_is_not_downloaded_again() {
         let dir = tempfile::tempdir().unwrap();
         std::fs::write(dir.path().join("Test - Ch.7.cbz"), b"x").unwrap();
-        let source = FakeSource::new(&[JPEG]);
+        let source = FakeSource::new();
         let outcome = chapter(
             &source,
             &"c".into(),
@@ -329,13 +268,13 @@ mod tests {
         .await
         .unwrap();
         assert!(matches!(outcome, Outcome::AlreadyExists(_)));
-        assert_eq!(*source.fetches.lock().unwrap(), 0);
+        assert_eq!(source.fetches(), 0);
     }
 
     #[tokio::test]
     async fn html_instead_of_image_fails_without_leaving_files() {
         let dir = tempfile::tempdir().unwrap();
-        let source = FakeSource::new(&[JPEG, b"<html>rate limited</html>"]);
+        let source = FakeSource::new().with_pages(&[JPEG, b"<html>rate limited</html>"]);
         let err = chapter(
             &source,
             &"c".into(),
@@ -356,8 +295,8 @@ mod tests {
     #[tokio::test]
     async fn saves_cover_once() {
         let dir = tempfile::tempdir().unwrap();
-        let source = FakeSource::new(&[PNG]);
-        let url = source.pages[0].0.clone();
+        let source = FakeSource::new().with_pages(&[PNG]);
+        let url = source.series.cover_url.clone().unwrap();
         let saved = cover(&source, &url, &dir.path().join("Series"))
             .await
             .unwrap();
@@ -368,5 +307,6 @@ mod tests {
                 .unwrap(),
             None
         );
+        assert_eq!(source.fetches(), 1);
     }
 }

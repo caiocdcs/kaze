@@ -1,0 +1,191 @@
+//! What each kind of job actually does.
+
+use kaze_core::{Source, SourceError};
+
+use super::{Job, JobQueue, QueueError};
+use crate::{
+    app::Context,
+    db,
+    download::{self, ChapterMeta, DownloadError, Outcome},
+    events::Event,
+    library::SeriesRecord,
+};
+
+#[derive(Debug, thiserror::Error)]
+pub enum JobError {
+    #[error(transparent)]
+    Source(#[from] SourceError),
+    #[error(transparent)]
+    Download(#[from] DownloadError),
+    #[error("database: {0}")]
+    Db(#[from] sqlx::Error),
+    #[error(transparent)]
+    Queue(#[from] QueueError),
+    /// Something the job needs no longer exists; retrying will not help.
+    #[error("{0}")]
+    Gone(String),
+}
+
+impl JobError {
+    pub fn is_retryable(&self) -> bool {
+        match self {
+            Self::Source(e) | Self::Download(DownloadError::Source(e)) => e.is_retryable(),
+            // A page that is not an image is usually a transient CDN error.
+            Self::Download(DownloadError::NotAnImage { .. }) | Self::Db(_) => true,
+            Self::Download(_) | Self::Queue(_) | Self::Gone(_) => false,
+        }
+    }
+}
+
+pub async fn run(ctx: &Context, queue: &JobQueue, job_id: i64, job: &Job) -> Result<(), JobError> {
+    match job {
+        Job::RefreshSeries { series_id, .. } => refresh_series(ctx, queue, *series_id).await,
+        Job::DownloadChapter { chapter_id, .. } => download_chapter(ctx, job_id, *chapter_id).await,
+        Job::SyncLatest { source } => sync_latest(ctx, queue, source).await,
+    }
+}
+
+fn source<'a>(ctx: &'a Context, id: &str) -> Result<&'a dyn Source, JobError> {
+    ctx.sources
+        .get(id)
+        .map(AsRef::as_ref)
+        .ok_or_else(|| JobError::Gone(format!("source {id:?} is not available")))
+}
+
+async fn load_series(ctx: &Context, id: i64) -> Result<SeriesRecord, JobError> {
+    db::series::get(&ctx.db, id)
+        .await?
+        .ok_or_else(|| JobError::Gone(format!("series {id} was removed")))
+}
+
+/// Pull metadata and chapters, store new chapters and queue every wanted one.
+async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Result<(), JobError> {
+    let record = load_series(ctx, series_id).await?;
+    let source = source(ctx, &record.source)?;
+    let (series, chapters) = tokio::try_join!(
+        source.series(&record.source_key),
+        source.chapters(&record.source_key)
+    )?;
+
+    db::series::update_metadata(&ctx.db, series_id, &series).await?;
+    // The first check after following decides between `All` and `Future`.
+    let initial = record.last_checked_at.is_none();
+    let from = record.monitor_from.as_ref();
+    let new = db::chapters::insert_new(&ctx.db, series_id, &record.source, &chapters, |c| {
+        record.monitor.wants(&c.number, from, initial)
+    })
+    .await?;
+    db::series::mark_checked(&ctx.db, series_id).await?;
+
+    if !new.is_empty() {
+        ctx.events.emit(Event::ChaptersFound {
+            series_id,
+            series: series.title.clone(),
+            count: new.len(),
+        });
+    }
+    // Queue all wanted chapters, not only new ones, so earlier failures
+    // get another chance; duplicates are ignored by the queue.
+    for chapter_id in db::chapters::wanted_ids(&ctx.db, series_id).await? {
+        queue
+            .submit(Job::DownloadChapter {
+                chapter_id,
+                source: record.source.clone(),
+            })
+            .await?;
+    }
+    Ok(())
+}
+
+async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result<(), JobError> {
+    let chapter = db::chapters::get(&ctx.db, chapter_id)
+        .await?
+        .ok_or_else(|| JobError::Gone(format!("chapter {chapter_id} was removed")))?;
+    if chapter.file_path.is_some() {
+        return Ok(());
+    }
+    let series = load_series(ctx, chapter.series_id).await?;
+    let source = source(ctx, &chapter.source)?;
+    let dir = ctx.library.join(&series.folder);
+
+    if let Some(cover) = series.cover_url.as_deref().and_then(|u| u.parse().ok())
+        && let Err(err) = download::cover(source, &cover, &dir).await
+    {
+        tracing::warn!(series = series.title, "could not save cover: {err}");
+    }
+
+    let meta = ChapterMeta {
+        series_title: series.title.clone(),
+        number: chapter.number.clone(),
+        volume: chapter.volume.and_then(|v| u32::try_from(v).ok()),
+        title: chapter.title.clone(),
+        authors: series.authors.0.clone(),
+        tags: series.tags.0.clone(),
+        year: series.year.and_then(|y| u16::try_from(y).ok()),
+        summary: series.description.clone(),
+        language: chapter.language.clone(),
+        url: Some(chapter.url.clone()),
+    };
+    let progress = |done, total| {
+        ctx.events.emit(Event::JobProgress {
+            job_id,
+            done,
+            total,
+        });
+    };
+    let result = download::chapter(
+        source,
+        &chapter.source_key,
+        &meta,
+        &dir,
+        &ctx.download,
+        &progress,
+    )
+    .await;
+
+    let outcome = match result {
+        Ok(outcome) => outcome,
+        Err(err) => {
+            ctx.events.emit(Event::ChapterFailed {
+                series_id: series.id,
+                chapter_id,
+                series: series.title.clone(),
+                chapter: chapter.number.to_string(),
+                error: err.to_string(),
+            });
+            return Err(err.into());
+        }
+    };
+    let path = outcome.path().to_string_lossy().into_owned();
+    db::chapters::mark_downloaded(&ctx.db, chapter_id, &path).await?;
+    if matches!(outcome, Outcome::Downloaded { .. }) {
+        ctx.events.emit(Event::ChapterDownloaded {
+            series_id: series.id,
+            chapter_id,
+            series: series.title,
+            chapter: chapter.number.to_string(),
+            path,
+        });
+    }
+    Ok(())
+}
+
+/// One request to the source's "latest updates" instead of one per series.
+async fn sync_latest(ctx: &Context, queue: &JobQueue, source_id: &str) -> Result<(), JobError> {
+    let keys = match source(ctx, source_id)?.latest_updates().await {
+        Ok(keys) => keys,
+        Err(SourceError::Unsupported(_)) => return Ok(()),
+        Err(err) => return Err(err.into()),
+    };
+    for key in keys {
+        if let Some(series_id) = db::series::find_by_source(&ctx.db, source_id, &key).await? {
+            queue
+                .submit(Job::RefreshSeries {
+                    series_id,
+                    source: source_id.to_owned(),
+                })
+                .await?;
+        }
+    }
+    Ok(())
+}
