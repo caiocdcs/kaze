@@ -16,9 +16,21 @@ kaze-sources = { path = "crates/kaze-sources" }
 
 # shared third-party (added milestone by milestone)
 anyhow = "1"
+async-trait = "0.1"
+backon = { version = "1", default-features = false }
+bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["std", "serde"] }
 clap = { version = "4", features = ["derive", "env"] }
+governor = "0.10"
+reqwest = { version = "0.13", features = ["brotli", "cookies", "gzip", "json", "query"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+url = { version = "2", features = ["serde"] }
+wiremock = "0.6"
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
@@ -29,6 +41,7 @@ pedantic = { level = "warn", priority = -1 }
 module_name_repetitions = "allow"
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
+doc_markdown = "allow" # flags proper names like WeebCentral
 
 [profile.release]
 lto = "thin"
