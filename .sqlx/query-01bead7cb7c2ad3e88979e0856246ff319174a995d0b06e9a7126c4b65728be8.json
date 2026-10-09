@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series SET monitor = ?, monitor_from = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "01bead7cb7c2ad3e88979e0856246ff319174a995d0b06e9a7126c4b65728be8"
+}

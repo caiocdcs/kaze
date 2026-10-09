@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO series (title, description, authors, tags, status, year, cover_url, folder, monitor, monitor_from)\n           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n           RETURNING id AS \"id!\"\n           ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 10
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0a6b8bb1c336420ba5c0e6d884bcb8c2703857d6ffb0ec6e6a75b9a5a9201629"
+}
