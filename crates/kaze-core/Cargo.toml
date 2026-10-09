@@ -6,11 +6,16 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Store core types directly in sqlx queries.
+sqlx = ["dep:sqlx"]
+
 [dependencies]
 async-trait.workspace = true
 bytes.workspace = true
 chrono.workspace = true
 serde.workspace = true
+sqlx = { version = "0.9", default-features = false, features = ["derive"], optional = true }
 thiserror.workspace = true
 url.workspace = true
 

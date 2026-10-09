@@ -7,6 +7,8 @@ mod chapter_number;
 mod error;
 mod model;
 mod source;
+#[cfg(feature = "sqlx")]
+mod sqlx_impls;
 
 pub use chapter_number::{ChapterNumber, ParseChapterNumberError};
 pub use error::{Result, SourceError};
