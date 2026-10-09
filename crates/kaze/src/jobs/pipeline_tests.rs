@@ -7,12 +7,11 @@ use tokio::sync::broadcast;
 
 use super::*;
 use crate::{
-    app::{App, Context, Settings},
+    app::{App, Context},
     db::{self, jobs::JobState},
-    download,
     events::{Event, Events},
-    jobs::scheduler::Schedule,
     library::Monitor,
+    settings::SettingsStore,
     testing::FakeSource,
 };
 
@@ -28,28 +27,23 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
     let library = tempfile::tempdir().unwrap();
     let events = Events::new(1024);
     let receiver = events.subscribe();
+    // Keep the scheduler quiet after its startup run; tests queue work themselves.
+    let quiet = serde_json::json!({ "sync_latest_minutes": 600, "refresh_hours": 2000 });
     let ctx = Context {
+        settings: SettingsStore::load(db.clone(), quiet.as_object().unwrap().clone())
+            .await
+            .unwrap(),
         db,
         sources: kaze_sources::Registry::from_sources(vec![source.clone()]),
         events,
         library: library.path().to_owned(),
-        download: download::Options::default(),
     };
-    let settings = Settings {
-        retry: RetryPolicy {
-            base: Duration::from_millis(20),
-            max: Duration::from_millis(100),
-        },
-        // Keep the scheduler quiet; tests queue work themselves.
-        schedule: Schedule {
-            sync_latest_every: Duration::from_secs(3600),
-            refresh_after: Duration::from_secs(3600),
-            refresh_check_every: Duration::from_secs(3600),
-        },
-        ..Settings::default()
+    let retry = RetryPolicy {
+        base: Duration::from_millis(20),
+        max: Duration::from_millis(100),
     };
     Harness {
-        app: App::start(ctx, settings).await.unwrap(),
+        app: App::start(ctx, retry).await.unwrap(),
         source,
         events: receiver,
         library,

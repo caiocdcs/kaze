@@ -16,6 +16,8 @@ use kaze::{
         select::Selection,
     },
     events::Events,
+    jobs::RetryPolicy,
+    settings::SettingsStore,
 };
 use kaze_core::{ChapterInfo, Series, SeriesHit, Source, UrlTarget};
 use kaze_sources::{
@@ -118,7 +120,6 @@ impl Cli {
 
 async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     let config = Config::load(config_file).context("reading configuration")?;
-    let template = config.template().context("invalid naming_template")?;
     for dir in [&config.data_dir, &config.library_dir] {
         tokio::fs::create_dir_all(dir)
             .await
@@ -129,18 +130,18 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         .await
         .context("opening database")?;
     let http = Http::new(config.http()).context("building HTTP client")?;
+    let settings = SettingsStore::load(db.clone(), config.settings.clone())
+        .await
+        .context("invalid [settings] in the configuration")?;
     let ctx = Context {
         db,
         sources: Registry::new(&http),
         events: Events::new(1024),
         library: config.library_dir.clone(),
-        download: download::Options {
-            template,
-            concurrency: config.jobs.page_concurrency.max(1),
-        },
+        settings,
     };
     let app = Arc::new(
-        App::start(ctx, config.settings())
+        App::start(ctx, RetryPolicy::default())
             .await
             .context("starting jobs")?,
     );
@@ -156,17 +157,14 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     );
 
     let shutdown = app.shutdown_token();
-    axum::serve(
-        listener,
-        api::router(Arc::clone(&app), config.api_key.clone()),
-    )
-    .with_graceful_shutdown(async move {
-        shutdown_signal().await;
-        tracing::info!("shutting down");
-        // Ends SSE streams so the server can finish draining.
-        shutdown.cancel();
-    })
-    .await?;
+    axum::serve(listener, api::router(Arc::clone(&app)))
+        .with_graceful_shutdown(async move {
+            shutdown_signal().await;
+            tracing::info!("shutting down");
+            // Ends SSE streams so the server can finish draining.
+            shutdown.cancel();
+        })
+        .await?;
     app.shutdown().await;
     Ok(())
 }

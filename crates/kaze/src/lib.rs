@@ -9,5 +9,6 @@ pub mod download;
 pub mod events;
 pub mod jobs;
 pub mod library;
+pub mod settings;
 #[cfg(test)]
 mod testing;
