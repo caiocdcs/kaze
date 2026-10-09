@@ -1,28 +1,24 @@
-bin/
-obj/
-/packages/
-riderModule.iml
-/_ReSharper.Caches/
-# Default ignored files
-/shelf/
-/workspace.xml
-# Rider ignored files
-/projectSettingsUpdater.xml
-/.idea.Tranga.iml
-/contentModel.xml
-/modules.xml
-# Editor-based HTTP Client requests
-/httpRequests/
-# Datasource local storage ignored files
-/dataSources/
-/dataSources.local.xml
+# Rust
+/target
+
+# Nix / direnv
+/result
+/result-*
+/.direnv
+
+# Local runtime data
+/data
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Web (SvelteKit)
+/web/node_modules
+/web/build
+/web/.svelte-kit
+
+# Editors
 /.idea
 /.vscode
-/.vs/
-Tranga/Properties/launchSettings.json
-*.DotSettings.user
-
-Manga/
-debug/
-cover.jpg
-cover.png
+.DS_Store

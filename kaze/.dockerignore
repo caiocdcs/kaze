@@ -1,6 +1,0 @@
-/target
-/debug
-.env
-*.db
-settings.json
-.local
