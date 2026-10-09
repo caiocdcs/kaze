@@ -7,12 +7,20 @@ pub mod http;
 #[cfg(feature = "weebcentral")]
 pub mod weebcentral;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
-use kaze_core::{Source, UrlTarget};
+use kaze_core::{Result, SeriesHit, Source, SourceError, UrlTarget};
+use tokio::task::JoinSet;
 use url::Url;
 
 use crate::http::Http;
+
+/// What one source answered to a global search.
+#[derive(Debug)]
+pub struct SearchOutcome {
+    pub source: &'static str,
+    pub result: Result<Vec<SeriesHit>>,
+}
 
 /// All sources compiled into this build, looked up by id or URL.
 #[derive(Clone)]
@@ -49,5 +57,38 @@ impl Registry {
         self.sources
             .iter()
             .find_map(|s| s.parse_url(url).map(|target| (s, target)))
+    }
+
+    /// Search every source concurrently. A slow or failing source only
+    /// affects its own entry; results come back in registry order.
+    pub async fn search_all(&self, query: &str, timeout: Duration) -> Vec<SearchOutcome> {
+        let mut tasks = JoinSet::new();
+        for (index, source) in self.sources.iter().enumerate() {
+            // Spawned tasks must be 'static: give each its own handles.
+            let source = Arc::clone(source);
+            let query = query.to_owned();
+            tasks.spawn(async move {
+                let result = tokio::time::timeout(timeout, source.search(&query))
+                    .await
+                    .unwrap_or(Err(SourceError::Timeout(timeout)));
+                (
+                    index,
+                    SearchOutcome {
+                        source: source.meta().id,
+                        result,
+                    },
+                )
+            });
+        }
+
+        let mut outcomes = Vec::with_capacity(self.sources.len());
+        while let Some(joined) = tasks.join_next().await {
+            match joined {
+                Ok(outcome) => outcomes.push(outcome),
+                Err(err) => tracing::error!("search task panicked: {err}"),
+            }
+        }
+        outcomes.sort_by_key(|(index, _)| *index);
+        outcomes.into_iter().map(|(_, outcome)| outcome).collect()
     }
 }
