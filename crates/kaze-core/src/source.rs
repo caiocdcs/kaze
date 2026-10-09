@@ -3,7 +3,7 @@ use std::{num::NonZeroU32, time::Duration};
 use async_trait::async_trait;
 use url::Url;
 
-use crate::{ChapterInfo, ChapterKey, Result, Series, SeriesHit, SeriesKey, SourceError};
+use crate::{ChapterInfo, ChapterKey, Image, Result, Series, SeriesHit, SeriesKey, SourceError};
 
 /// How many requests a source tolerates in a time window.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,8 +46,6 @@ pub struct SourceMeta {
     /// ISO 639-1 codes of languages the source offers.
     pub languages: &'static [&'static str],
     pub rate_limit: RateLimit,
-    /// Sent as `Referer` when downloading page images (many CDNs require it).
-    pub referer: Option<Url>,
 }
 
 /// What a pasted URL points to.
@@ -77,6 +75,10 @@ pub trait Source: Send + Sync + 'static {
 
     /// Image URLs of a chapter's pages, in reading order.
     async fn pages(&self, chapter: &ChapterKey) -> Result<Vec<Url>>;
+
+    /// Download one page image. Lives on the source because image hosts
+    /// often need their own referer or rate limit.
+    async fn fetch_image(&self, url: &Url) -> Result<Image>;
 
     /// Series updated recently, from the site's "latest updates" page.
     /// Lets kaze notice new chapters with one request instead of one per

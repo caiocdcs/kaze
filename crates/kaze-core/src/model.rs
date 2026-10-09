@@ -1,5 +1,6 @@
 use std::fmt;
 
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -100,4 +101,13 @@ pub struct ChapterInfo {
     pub language: Option<String>,
     pub scanlator: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
+}
+
+/// A downloaded page image, exactly as the server sent it.
+#[derive(Debug, Clone)]
+pub struct Image {
+    pub bytes: Bytes,
+    /// The `Content-Type` header; often wrong (WeebCentral serves JPEGs as
+    /// `.png`), so writers should sniff `bytes` before trusting it.
+    pub content_type: Option<String>,
 }

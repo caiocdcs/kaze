@@ -10,5 +10,5 @@ mod source;
 
 pub use chapter_number::{ChapterNumber, ParseChapterNumberError};
 pub use error::{Result, SourceError};
-pub use model::{ChapterInfo, ChapterKey, Series, SeriesHit, SeriesKey, SeriesStatus};
+pub use model::{ChapterInfo, ChapterKey, Image, Series, SeriesHit, SeriesKey, SeriesStatus};
 pub use source::{RateLimit, Source, SourceMeta, UrlTarget};
