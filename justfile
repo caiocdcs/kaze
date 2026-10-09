@@ -10,13 +10,29 @@ default:
 fmt:
     cargo fmt --all
 
-# Formatting + lints, as CI runs them
-check:
+migrations := "crates/kaze/migrations"
+
+# Create/migrate the dev database that sqlx checks queries against
+db:
+    @mkdir -p target
+    sqlx database setup --source {{migrations}}
+
+# Drop and recreate the dev database
+db-reset:
+    sqlx database reset -y --source {{migrations}}
+
+# Refresh .sqlx/ (offline query metadata used by Nix and CI); commit the result
+sqlx-prepare: db
+    cargo sqlx prepare --workspace -- --all-targets
+
+# Formatting + lints + up-to-date query metadata, as CI runs them
+check: db
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- --deny warnings
+    cargo sqlx prepare --workspace --check -- --all-targets
 
 # Run the test suite
-test *args:
+test *args: db
     cargo nextest run --workspace --no-tests=pass {{args}}
 
 # Run tests that hit real websites (ignored by default)
