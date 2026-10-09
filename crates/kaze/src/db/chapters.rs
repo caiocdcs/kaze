@@ -1,7 +1,7 @@
 use kaze_core::{ChapterInfo, ChapterKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::ChapterRecord;
+use crate::library::{ChapterRecord, WantedChapter};
 
 /// Store chapters found on the source; returns the ids of the ones that
 /// were new. Known chapters (same source key) are left untouched, so a
@@ -101,6 +101,25 @@ pub async fn wanted_ids(db: impl SqliteExecutor<'_>, series_id: i64) -> sqlx::Re
            WHERE series_id = ? AND monitored = 1 AND file_path IS NULL
            ORDER BY number_whole, number_frac, id"#,
         series_id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// The wanted list with series titles, for the "Wanted" page.
+pub async fn wanted_with_series(
+    db: impl SqliteExecutor<'_>,
+    limit: i64,
+) -> sqlx::Result<Vec<WantedChapter>> {
+    sqlx::query_as!(
+        WantedChapter,
+        r#"SELECT c.id AS "id!", c.series_id, s.title AS series_title, c.source,
+                  c.number AS "number: _", c.volume, c.title, c.published_at AS "published_at: _"
+           FROM chapters c JOIN series s ON s.id = c.series_id
+           WHERE c.monitored = 1 AND c.file_path IS NULL
+           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac
+           LIMIT ?"#,
+        limit
     )
     .fetch_all(db)
     .await

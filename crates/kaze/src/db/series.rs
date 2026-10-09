@@ -1,7 +1,7 @@
 use kaze_core::{ChapterNumber, Series, SeriesKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{Monitor, SeriesRecord};
+use crate::library::{Monitor, SeriesRecord, SeriesSummary};
 
 /// A series about to be followed.
 #[derive(Debug)]
@@ -189,4 +189,27 @@ pub async fn delete(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<bool> 
         .execute(db)
         .await?;
     Ok(result.rows_affected() == 1)
+}
+
+/// Every followed series with chapter counts, for the library grid.
+pub async fn summaries(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesSummary>> {
+    sqlx::query_as!(
+        SeriesSummary,
+        // Aggregates over a LEFT JOIN make sqlx assume every column may be
+        // NULL; `!` asserts the ones that cannot be.
+        r#"SELECT s.id AS "id!", s.title AS "title!", s.status AS "status!: _", s.monitor AS "monitor!: Monitor",
+                  ss.source AS "source!", ss.url AS "url!",
+                  COUNT(c.id) AS "chapters!: i64",
+                  COALESCE(SUM(c.file_path IS NOT NULL), 0) AS "downloaded!: i64",
+                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS "wanted!: i64",
+                  MAX(c.published_at) AS "latest_chapter_at: _",
+                  s.added_at AS "added_at!: _"
+           FROM series s
+           JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
+           LEFT JOIN chapters c ON c.series_id = s.id
+           GROUP BY s.id
+           ORDER BY s.title COLLATE NOCASE"#
+    )
+    .fetch_all(db)
+    .await
 }

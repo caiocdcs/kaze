@@ -1,0 +1,110 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.id AS \"id!\", c.series_id, s.title AS series_title, c.source,\n                  c.number AS \"number: _\", c.volume, c.title, c.published_at AS \"published_at: _\"\n           FROM chapters c JOIN series s ON s.id = c.series_id\n           WHERE c.monitored = 1 AND c.file_path IS NULL\n           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac\n           LIMIT ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "series_id",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "series_id"
+          }
+        }
+      },
+      {
+        "name": "series_title",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "source",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "name": "number: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "volume",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "volume"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "published_at: _",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "published_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "db9e0945ec53a4faa80486a6a14268c8da75d538908c904afdee84c26234dbe7"
+}

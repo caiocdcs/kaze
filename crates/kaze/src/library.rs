@@ -60,6 +60,35 @@ pub struct SeriesRecord {
     pub last_checked_at: Option<DateTime<Utc>>,
 }
 
+/// A row of the library grid.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct SeriesSummary {
+    pub id: i64,
+    pub title: String,
+    pub status: SeriesStatus,
+    pub monitor: Monitor,
+    pub source: String,
+    pub url: String,
+    pub chapters: i64,
+    pub downloaded: i64,
+    pub wanted: i64,
+    pub latest_chapter_at: Option<DateTime<Utc>>,
+    pub added_at: DateTime<Utc>,
+}
+
+/// A row of the wanted list.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct WantedChapter {
+    pub id: i64,
+    pub series_id: i64,
+    pub series_title: String,
+    pub source: String,
+    pub number: ChapterNumber,
+    pub volume: Option<i64>,
+    pub title: Option<String>,
+    pub published_at: Option<DateTime<Utc>>,
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct ChapterRecord {
     pub id: i64,
