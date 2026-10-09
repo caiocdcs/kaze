@@ -57,8 +57,13 @@ pub enum FollowError {
 
 impl App {
     /// Start the dispatcher, scheduler and history writer.
-    #[must_use]
-    pub fn start(ctx: Context, settings: Settings) -> Self {
+    pub async fn start(ctx: Context, settings: Settings) -> sqlx::Result<Self> {
+        // Before anything can queue new work: whatever is queued now was
+        // left over from the previous run.
+        let leftover = db::jobs::recover(&ctx.db).await?;
+        if !leftover.is_empty() {
+            tracing::info!(count = leftover.len(), "resuming queued jobs");
+        }
         let ctx = Arc::new(ctx);
         let shutdown = CancellationToken::new();
         // TaskTracker: spawn background tasks, later wait for all of them.
@@ -70,7 +75,7 @@ impl App {
             settings.retry,
             shutdown.clone(),
         );
-        tasks.spawn(dispatcher.run(jobs.clone()));
+        tasks.spawn(dispatcher.run(jobs.clone(), leftover));
         tasks.spawn(scheduler::run(
             Arc::clone(&ctx),
             jobs.clone(),
@@ -84,12 +89,12 @@ impl App {
         ));
         tasks.close();
 
-        Self {
+        Ok(Self {
             ctx,
             jobs,
             shutdown,
             tasks,
-        }
+        })
     }
 
     /// Follow a series and queue its first refresh. Returns the series id.
@@ -135,8 +140,14 @@ impl App {
         Ok(id)
     }
 
+    /// Fires when shutdown starts; long-lived responses (SSE) end with it.
+    #[must_use]
+    pub fn shutdown_token(&self) -> CancellationToken {
+        self.shutdown.clone()
+    }
+
     /// Stop background work and wait for it; running jobs are re-queued.
-    pub async fn shutdown(self) {
+    pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.tasks.wait().await;
     }

@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use futures_util::StreamExt as _;
 use tokio::{
     sync::{Semaphore, mpsc},
@@ -109,9 +109,14 @@ impl Dispatcher {
     }
 
     /// Run until shutdown. The `queue` handle is needed so jobs can queue
-    /// follow-up jobs (a refresh queues downloads).
-    pub async fn run(mut self, queue: JobQueue) {
-        self.recover().await;
+    /// follow-up jobs (a refresh queues downloads); `leftover` are the jobs
+    /// still queued from the previous run, with their due times.
+    pub async fn run(mut self, queue: JobQueue, leftover: Vec<(i64, DateTime<Utc>)>) {
+        let now = Utc::now();
+        for (id, run_after) in leftover {
+            let delay = (run_after - now).to_std().unwrap_or(Duration::ZERO);
+            self.delayed.insert(id, delay);
+        }
 
         loop {
             // `select!` waits on all branches at once and runs the first
@@ -144,23 +149,6 @@ impl Dispatcher {
             if let Ok((id, outcome)) = joined {
                 self.finished(id, outcome).await;
             }
-        }
-    }
-
-    /// Re-queue jobs left over from the previous run.
-    async fn recover(&mut self) {
-        match db::jobs::recover(&self.ctx.db).await {
-            Ok(jobs) => {
-                if !jobs.is_empty() {
-                    tracing::info!(count = jobs.len(), "resuming queued jobs");
-                }
-                let now = Utc::now();
-                for (id, run_after) in jobs {
-                    let delay = (run_after - now).to_std().unwrap_or(Duration::ZERO);
-                    self.delayed.insert(id, delay);
-                }
-            }
-            Err(err) => tracing::error!("could not load queued jobs: {err}"),
         }
     }
 
