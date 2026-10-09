@@ -7,9 +7,8 @@
 use std::{sync::Arc, time::Duration};
 
 use backon::{ExponentialBuilder, Retryable};
-use bytes::Bytes;
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
-use kaze_core::{RateLimit, Result, SourceError};
+use kaze_core::{Image, RateLimit, Result, SourceError};
 use reqwest::{Client, Response, StatusCode, header};
 use serde::de::DeserializeOwned;
 use url::Url;
@@ -75,13 +74,6 @@ impl Http {
     }
 }
 
-/// A fetched binary body, e.g. a page image.
-#[derive(Debug, Clone)]
-pub struct Fetched {
-    pub bytes: Bytes,
-    pub content_type: Option<String>,
-}
-
 /// Per-source client: shared pool + this source's rate limiter and referer.
 #[derive(Debug, Clone)]
 pub struct SourceHttp {
@@ -107,7 +99,7 @@ impl SourceHttp {
             .map_err(|e| SourceError::parse("JSON response", e.to_string()))
     }
 
-    pub async fn get_bytes(&self, url: &Url) -> Result<Fetched> {
+    pub async fn get_image(&self, url: &Url) -> Result<Image> {
         let response = self.get(url).await?;
         let content_type = response
             .headers()
@@ -115,7 +107,7 @@ impl SourceHttp {
             .and_then(|v| v.to_str().ok())
             .map(ToOwned::to_owned);
         let bytes = response.bytes().await.map_err(|e| transport(url, e))?;
-        Ok(Fetched {
+        Ok(Image {
             bytes,
             content_type,
         })
@@ -295,7 +287,7 @@ mod tests {
             .await;
 
         let fetched = client(RateLimit::per_second(1000), Some(&referer))
-            .get_bytes(&url(&server, "/img"))
+            .get_image(&url(&server, "/img"))
             .await
             .unwrap();
         assert_eq!(fetched.bytes.as_ref(), [1, 2, 3]);
