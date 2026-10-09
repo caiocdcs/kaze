@@ -39,13 +39,17 @@ test *args: db
 test-live *args:
     cargo nextest run --workspace --run-ignored only {{args}}
 
-# Run the kaze CLI, e.g. `just run serve`
+# Run the kaze CLI, e.g. `just run search one piece`
 run *args:
     cargo run --package kaze -- {{args}}
 
+# Run the server with data and library under target/dev
+serve:
+    KAZE_DATA_DIR=target/dev/data KAZE_LIBRARY_DIR=target/dev/library cargo run --package kaze -- serve
+
 # Rebuild and restart the server on change
 watch:
-    cargo watch --exec 'run --package kaze -- serve'
+    KAZE_DATA_DIR=target/dev/data KAZE_LIBRARY_DIR=target/dev/library cargo watch --exec 'run --package kaze -- serve'
 
 # Release build of the binary
 build:
