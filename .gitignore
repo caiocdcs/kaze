@@ -1,0 +1,24 @@
+# Rust
+/target
+
+# Nix / direnv
+/result
+/result-*
+/.direnv
+
+# Local runtime data
+/data
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Web (SvelteKit)
+/web/node_modules
+/web/build
+/web/.svelte-kit
+
+# Editors
+/.idea
+/.vscode
+.DS_Store

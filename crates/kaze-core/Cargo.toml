@@ -1,0 +1,12 @@
+[package]
+name = "kaze-core"
+description = "Domain types and the Source trait shared by kaze and its sources"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+
+[lints]
+workspace = true

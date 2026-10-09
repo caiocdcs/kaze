@@ -1,0 +1,16 @@
+[package]
+name = "kaze-sources"
+description = "Site implementations of the kaze Source trait"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[features]
+default = []
+
+[dependencies]
+kaze-core.workspace = true
+
+[lints]
+workspace = true
