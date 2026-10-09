@@ -9,10 +9,11 @@ use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
     db::{self, series::NewSeries},
-    download::{self, naming::sanitize_file_name},
+    download::naming::sanitize_file_name,
     events::{self, Events},
-    jobs::{Dispatcher, Job, JobQueue, Limits, QueueError, RetryPolicy, scheduler},
+    jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
     library::Monitor,
+    settings::SettingsStore,
 };
 
 /// Everything a job or request handler needs, shared behind an `Arc`.
@@ -23,14 +24,7 @@ pub struct Context {
     pub events: Events,
     /// Library root: each series gets a folder inside.
     pub library: PathBuf,
-    pub download: download::Options,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Settings {
-    pub limits: Limits,
-    pub retry: RetryPolicy,
-    pub schedule: scheduler::Schedule,
+    pub settings: SettingsStore,
 }
 
 /// The running application.
@@ -57,7 +51,7 @@ pub enum FollowError {
 
 impl App {
     /// Start the dispatcher, scheduler and history writer.
-    pub async fn start(ctx: Context, settings: Settings) -> sqlx::Result<Self> {
+    pub async fn start(ctx: Context, retry: RetryPolicy) -> sqlx::Result<Self> {
         // Before anything can queue new work: whatever is queued now was
         // left over from the previous run.
         let leftover = db::jobs::recover(&ctx.db).await?;
@@ -69,17 +63,11 @@ impl App {
         // TaskTracker: spawn background tasks, later wait for all of them.
         let tasks = TaskTracker::new();
 
-        let (dispatcher, jobs) = Dispatcher::new(
-            Arc::clone(&ctx),
-            settings.limits,
-            settings.retry,
-            shutdown.clone(),
-        );
+        let (dispatcher, jobs) = Dispatcher::new(Arc::clone(&ctx), retry, shutdown.clone());
         tasks.spawn(dispatcher.run(jobs.clone(), leftover));
         tasks.spawn(scheduler::run(
             Arc::clone(&ctx),
             jobs.clone(),
-            settings.schedule,
             shutdown.clone(),
         ));
         tasks.spawn(events::record_history(

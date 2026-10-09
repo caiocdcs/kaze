@@ -18,6 +18,8 @@
 
 use std::{fmt, iter::Peekable, str::Chars, str::FromStr};
 
+use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+
 use super::ChapterMeta;
 
 pub const DEFAULT_TEMPLATE: &str = "%M - ?V(Vol.%V )Ch.%C?T( - %T)";
@@ -107,6 +109,21 @@ impl Default for Template {
 impl fmt::Display for Template {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.write_str(&self.source)
+    }
+}
+
+/// Stored and sent as the template text; parsing on deserialize means an
+/// invalid template never makes it into settings.
+impl Serialize for Template {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.source)
+    }
+}
+
+impl<'de> Deserialize<'de> for Template {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let s = String::deserialize(deserializer)?;
+        s.parse().map_err(de::Error::custom)
     }
 }
 

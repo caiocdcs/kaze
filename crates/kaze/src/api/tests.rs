@@ -13,9 +13,11 @@ use tower::ServiceExt as _;
 
 use super::router;
 use crate::{
-    app::{App, Context, Settings},
-    db, download,
+    app::{App, Context},
+    db,
     events::Events,
+    jobs::RetryPolicy,
+    settings::SettingsStore,
     testing::FakeSource,
 };
 
@@ -28,16 +30,23 @@ struct Api {
 async fn api(api_key: Option<&str>) -> Api {
     let library = tempfile::tempdir().unwrap();
     let source = Arc::new(FakeSource::new().with_chapters(&["1", "2"]));
+    let db = db::memory().await;
+    let locked = match api_key {
+        Some(key) => json!({ "api_key": key }),
+        None => json!({}),
+    };
     let ctx = Context {
-        db: db::memory().await,
+        settings: SettingsStore::load(db.clone(), locked.as_object().unwrap().clone())
+            .await
+            .unwrap(),
+        db,
         sources: kaze_sources::Registry::from_sources(vec![source]),
         events: Events::new(256),
         library: library.path().to_owned(),
-        download: download::Options::default(),
     };
-    let app = Arc::new(App::start(ctx, Settings::default()).await.unwrap());
+    let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
-        router: router(Arc::clone(&app), api_key.map(ToOwned::to_owned)),
+        router: router(Arc::clone(&app)),
         app,
         _library: library,
     }
@@ -154,19 +163,19 @@ async fn bad_requests() {
 
 #[tokio::test]
 async fn api_key_is_enforced_when_configured() {
-    let api = api(Some("s3cret")).await;
+    let api = api(Some("s3cret-key")).await;
     assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::UNAUTHORIZED);
     assert_eq!(
         api.get("/api/v1/sources?apikey=wrong").await.0,
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
-        api.get("/api/v1/sources?apikey=s3cret").await.0,
+        api.get("/api/v1/sources?apikey=s3cret-key").await.0,
         StatusCode::OK
     );
 
     let request = Request::get("/api/v1/sources")
-        .header("x-api-key", "s3cret")
+        .header("x-api-key", "s3cret-key")
         .body(Body::empty())
         .unwrap();
     assert_eq!(
@@ -178,5 +187,65 @@ async fn api_key_is_enforced_when_configured() {
         StatusCode::OK,
         "health stays public"
     );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn settings_can_be_read_and_changed() {
+    let api = api(None).await;
+    let (status, view) = api.get("/api/v1/settings").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(view["settings"]["concurrency"], 4);
+    assert_eq!(view["locked"], json!([]));
+
+    let (status, view) = api
+        .call(
+            Method::PATCH,
+            "/api/v1/settings",
+            Some(json!({ "concurrency": 6 })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(view["settings"]["concurrency"], 6);
+
+    let (status, body) = api
+        .call(
+            Method::PATCH,
+            "/api/v1/settings",
+            Some(json!({ "naming_template": "%M" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"].as_str().unwrap().contains("%C"));
+
+    // Setting a key in the UI turns authentication on immediately.
+    api.call(
+        Method::PATCH,
+        "/api/v1/settings",
+        Some(json!({ "api_key": "new-secret" })),
+    )
+    .await;
+    assert_eq!(
+        api.get("/api/v1/settings").await.0,
+        StatusCode::UNAUTHORIZED
+    );
+    assert_eq!(
+        api.get("/api/v1/settings?apikey=new-secret").await.0,
+        StatusCode::OK
+    );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn locked_settings_cannot_be_changed() {
+    let api = api(Some("s3cret-key")).await;
+    let (status, _) = api
+        .call(
+            Method::PATCH,
+            "/api/v1/settings?apikey=s3cret-key",
+            Some(json!({ "api_key": null })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
     api.app.shutdown().await;
 }

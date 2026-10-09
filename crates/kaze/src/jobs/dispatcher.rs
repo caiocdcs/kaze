@@ -1,35 +1,24 @@
 //! The actor that runs jobs.
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
+    time::Duration,
+};
 
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt as _;
 use tokio::{
-    sync::{Semaphore, mpsc},
+    sync::{Semaphore, mpsc, watch},
     task::JoinSet,
 };
 use tokio_util::{sync::CancellationToken, time::DelayQueue};
 
 use super::{Command, JobQueue, RetryPolicy, handlers};
-use crate::{app::Context, db, db::jobs::JobState, events::Event};
-
-/// How much runs at once.
-#[derive(Debug, Clone, Copy)]
-pub struct Limits {
-    /// Jobs running at the same time, across all sources.
-    pub global: usize,
-    /// Jobs running at the same time against one source.
-    pub per_source: usize,
-}
-
-impl Default for Limits {
-    fn default() -> Self {
-        Self {
-            global: 4,
-            per_source: 2,
-        }
-    }
-}
+use crate::{app::Context, db, db::jobs::JobState, events::Event, settings::Settings};
 
 /// How a job attempt ended.
 #[derive(Debug)]
@@ -47,16 +36,58 @@ enum Outcome {
     },
 }
 
+/// A semaphore whose number of permits can change while jobs hold some.
+struct Lane {
+    semaphore: Arc<Semaphore>,
+    size: AtomicUsize,
+}
+
+impl Lane {
+    fn new(size: usize) -> Self {
+        Self {
+            semaphore: Arc::new(Semaphore::new(size)),
+            size: AtomicUsize::new(size),
+        }
+    }
+
+    fn resize(&self, size: usize) {
+        let old = self.size.swap(size, Ordering::Relaxed);
+        if size > old {
+            self.semaphore.add_permits(size - old);
+        } else if size < old {
+            // Permits held by running jobs cannot be taken back; instead
+            // wait for them to be returned and then throw them away.
+            let surplus = u32::try_from(old - size).unwrap_or(u32::MAX);
+            let semaphore = Arc::clone(&self.semaphore);
+            tokio::spawn(async move {
+                if let Ok(permits) = semaphore.acquire_many_owned(surplus).await {
+                    permits.forget();
+                }
+            });
+        }
+    }
+}
+
 /// Concurrency permits, shared with the job tasks.
 struct Lanes {
-    global: Arc<Semaphore>,
-    per_source: HashMap<String, Arc<Semaphore>>,
+    global: Lane,
+    per_source: HashMap<String, Lane>,
+}
+
+impl Lanes {
+    fn resize(&self, settings: &Settings) {
+        self.global.resize(settings.concurrency);
+        for lane in self.per_source.values() {
+            lane.resize(settings.per_source);
+        }
+    }
 }
 
 pub struct Dispatcher {
     ctx: Arc<Context>,
     commands: mpsc::Receiver<Command>,
     lanes: Arc<Lanes>,
+    settings: watch::Receiver<Arc<Settings>>,
     retry: RetryPolicy,
     shutdown: CancellationToken,
     /// Jobs in flight; each task returns its id and outcome.
@@ -72,7 +103,6 @@ impl Dispatcher {
     #[must_use]
     pub fn new(
         ctx: Arc<Context>,
-        limits: Limits,
         retry: RetryPolicy,
         shutdown: CancellationToken,
     ) -> (Self, JobQueue) {
@@ -82,23 +112,21 @@ impl Dispatcher {
             events: ctx.events.clone(),
             commands: tx,
         };
+        let settings = ctx.settings.subscribe();
+        let current = settings.borrow().clone();
         let lanes = Arc::new(Lanes {
-            global: Arc::new(Semaphore::new(limits.global)),
+            global: Lane::new(current.concurrency),
             per_source: ctx
                 .sources
                 .iter()
-                .map(|s| {
-                    (
-                        s.meta().id.to_owned(),
-                        Arc::new(Semaphore::new(limits.per_source)),
-                    )
-                })
+                .map(|s| (s.meta().id.to_owned(), Lane::new(current.per_source)))
                 .collect(),
         });
         let dispatcher = Self {
             ctx,
             commands: rx,
             lanes,
+            settings,
             retry,
             shutdown,
             tasks: JoinSet::new(),
@@ -139,6 +167,11 @@ impl Dispatcher {
                     Ok((id, outcome)) => self.finished(id, outcome).await,
                     Err(err) => tracing::error!("job task panicked: {err}"),
                 },
+                // Settings changed in the UI: apply new concurrency limits.
+                Ok(()) = self.settings.changed() => {
+                    let settings = self.settings.borrow_and_update().clone();
+                    self.lanes.resize(&settings);
+                }
             }
         }
 
@@ -238,9 +271,9 @@ async fn run_one(
     // Wait for a free slot, globally and for this source. Permits are
     // released when the guards drop at the end of this function.
     let permits = async {
-        let global = Arc::clone(&lanes.global).acquire_owned().await;
+        let global = Arc::clone(&lanes.global.semaphore).acquire_owned().await;
         let source = match lanes.per_source.get(claimed.job.source()) {
-            Some(lane) => Some(Arc::clone(lane).acquire_owned().await),
+            Some(lane) => Some(Arc::clone(&lane.semaphore).acquire_owned().await),
             None => None,
         };
         (global, source)

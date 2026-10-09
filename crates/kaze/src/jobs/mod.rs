@@ -18,7 +18,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
 use tokio::sync::mpsc;
 
-pub use self::dispatcher::{Dispatcher, Limits};
+pub use self::dispatcher::Dispatcher;
 use crate::{
     db,
     events::{Event, Events},

@@ -6,7 +6,7 @@ use axum::{
 use kaze_core::SourceError;
 use serde_json::json;
 
-use crate::{app::FollowError, jobs::QueueError};
+use crate::{app::FollowError, jobs::QueueError, settings::SettingsError};
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -73,6 +73,16 @@ impl From<FollowError> for ApiError {
             FollowError::Source(e) => e.into(),
             FollowError::Db(e) => e.into(),
             FollowError::Queue(e) => e.into(),
+        }
+    }
+}
+
+impl From<SettingsError> for ApiError {
+    fn from(err: SettingsError) -> Self {
+        match err {
+            SettingsError::Locked(_) => Self::Conflict(err.to_string()),
+            SettingsError::Invalid(_) => Self::BadRequest(err.to_string()),
+            SettingsError::Db(e) => e.into(),
         }
     }
 }

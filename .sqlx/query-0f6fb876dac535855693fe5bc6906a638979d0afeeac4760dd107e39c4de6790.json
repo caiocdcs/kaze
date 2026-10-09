@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT key AS \"key!\", value AS \"value: Json<Value>\" FROM settings",
+  "describe": {
+    "columns": [
+      {
+        "name": "key!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "settings",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "name": "value: Json<Value>",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "settings",
+            "name": "value"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "0f6fb876dac535855693fe5bc6906a638979d0afeeac4760dd107e39c4de6790"
+}

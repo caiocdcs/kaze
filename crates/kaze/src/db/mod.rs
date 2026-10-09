@@ -9,6 +9,7 @@ pub mod chapters;
 pub mod events;
 pub mod jobs;
 pub mod series;
+pub mod settings;
 
 use std::{path::Path, time::Duration};
 

@@ -1,20 +1,20 @@
-use std::sync::Arc;
-
 use axum::{
     extract::{Request, State},
     middleware::Next,
     response::{IntoResponse, Response},
 };
 
-/// When an API key is configured, require it as the `X-Api-Key` header or
-/// an `apikey` query parameter (for `<img>` and `EventSource`, which cannot
-/// set headers).
+use super::AppState;
+
+/// When an API key is set, require it as the `X-Api-Key` header or an
+/// `apikey` query parameter (for `<img>` and `EventSource`, which cannot
+/// set headers). Read per request, so a key set in the UI applies at once.
 pub async fn require_api_key(
-    State(expected): State<Option<Arc<str>>>,
+    State(app): State<AppState>,
     request: Request,
     next: Next,
 ) -> Response {
-    let Some(expected) = expected else {
+    let Some(expected) = app.ctx.settings.current().api_key.clone() else {
         return next.run(request).await;
     };
     let from_header = request
@@ -27,7 +27,7 @@ pub async fn require_api_key(
             .map(|(_, v)| v.into_owned())
     });
     let given = from_header.map(ToOwned::to_owned).or(from_query);
-    if given.as_deref() == Some(&*expected) {
+    if given.as_deref() == Some(expected.as_str()) {
         next.run(request).await
     } else {
         (

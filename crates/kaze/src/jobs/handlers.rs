@@ -133,12 +133,17 @@ async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result
             total,
         });
     };
+    let settings = ctx.settings.current();
+    let options = download::Options {
+        template: settings.naming_template.clone(),
+        concurrency: settings.page_concurrency,
+    };
     let result = download::chapter(
         source,
         &chapter.source_key,
         &meta,
         &dir,
-        &ctx.download,
+        &options,
         &progress,
     )
     .await;
