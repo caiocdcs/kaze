@@ -1,14 +1,21 @@
 //! Command line interface. Besides `serve`, the commands talk to sources
 //! directly, which is handy for trying out a source without the UI.
 
-use std::{fmt::Write as _, path::PathBuf, time::Duration};
+use std::{fmt::Write as _, path::PathBuf, sync::Arc, time::Duration};
 
-use anyhow::{Context, bail};
+use anyhow::{Context as _, bail};
 use clap::{Parser, Subcommand};
-use kaze::download::{
-    self, ChapterMeta, Outcome,
-    naming::{Template, sanitize_file_name},
-    select::Selection,
+use kaze::{
+    api,
+    app::{App, Context},
+    config::Config,
+    db,
+    download::{
+        self, ChapterMeta, Outcome,
+        naming::{Template, sanitize_file_name},
+        select::Selection,
+    },
+    events::Events,
 };
 use kaze_core::{ChapterInfo, Series, SeriesHit, Source, UrlTarget};
 use kaze_sources::{
@@ -28,7 +35,11 @@ pub struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Run the server (API, UI and download workers).
-    Serve,
+    Serve {
+        /// Config file (TOML). Settings can also come from KAZE_* variables.
+        #[arg(long, short, env = "KAZE_CONFIG")]
+        config: Option<PathBuf>,
+    },
 
     /// List the sources built into this binary.
     Sources,
@@ -72,13 +83,14 @@ enum Command {
 
 impl Cli {
     pub async fn run(self) -> anyhow::Result<()> {
+        if let Command::Serve { config } = &self.command {
+            return serve(config.as_deref()).await;
+        }
         let http = Http::new(HttpConfig::default()).context("building HTTP client")?;
         let registry = Registry::new(&http);
 
         match self.command {
-            Command::Serve => {
-                tracing::info!("kaze {} — nothing to serve yet", env!("CARGO_PKG_VERSION"));
-            }
+            Command::Serve { .. } => unreachable!("handled above"),
             Command::Sources => {
                 for source in registry.iter() {
                     let meta = source.meta();
@@ -101,6 +113,83 @@ impl Cli {
             } => download(&registry, &url, &chapters, &out, template).await?,
         }
         Ok(())
+    }
+}
+
+async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
+    let config = Config::load(config_file).context("reading configuration")?;
+    let template = config.template().context("invalid naming_template")?;
+    for dir in [&config.data_dir, &config.library_dir] {
+        tokio::fs::create_dir_all(dir)
+            .await
+            .with_context(|| format!("creating {}", dir.display()))?;
+    }
+
+    let db = db::connect(&config.database_path())
+        .await
+        .context("opening database")?;
+    let http = Http::new(config.http()).context("building HTTP client")?;
+    let ctx = Context {
+        db,
+        sources: Registry::new(&http),
+        events: Events::new(1024),
+        library: config.library_dir.clone(),
+        download: download::Options {
+            template,
+            concurrency: config.jobs.page_concurrency.max(1),
+        },
+    };
+    let app = Arc::new(
+        App::start(ctx, config.settings())
+            .await
+            .context("starting jobs")?,
+    );
+
+    let listener = tokio::net::TcpListener::bind(config.listen)
+        .await
+        .with_context(|| format!("listening on {}", config.listen))?;
+    tracing::info!(
+        "kaze {} listening on http://{}, library at {}",
+        env!("CARGO_PKG_VERSION"),
+        config.listen,
+        config.library_dir.display()
+    );
+
+    let shutdown = app.shutdown_token();
+    axum::serve(
+        listener,
+        api::router(Arc::clone(&app), config.api_key.clone()),
+    )
+    .with_graceful_shutdown(async move {
+        shutdown_signal().await;
+        tracing::info!("shutting down");
+        // Ends SSE streams so the server can finish draining.
+        shutdown.cancel();
+    })
+    .await?;
+    app.shutdown().await;
+    Ok(())
+}
+
+/// Ctrl-C, or SIGTERM from `docker stop` / systemd.
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        let _ = tokio::signal::ctrl_c().await;
+    };
+    #[cfg(unix)]
+    let terminate = async {
+        match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(mut signal) => {
+                signal.recv().await;
+            }
+            Err(_) => std::future::pending().await,
+        }
+    };
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+    tokio::select! {
+        () = ctrl_c => {}
+        () = terminate => {}
     }
 }
 

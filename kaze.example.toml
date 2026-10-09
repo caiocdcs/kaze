@@ -1,0 +1,29 @@
+# kaze configuration. Every key is optional; shown values are the defaults.
+# Any key can also be set from the environment: KAZE_LISTEN, KAZE_LIBRARY_DIR,
+# KAZE_JOBS__CONCURRENCY (nested keys use a double underscore), ...
+
+listen = "0.0.0.0:6531"
+
+# Database and other state.
+data_dir = "data"
+
+# Library root (point Komga/Kavita here). Each series gets a folder.
+library_dir = "library"
+
+# Chapter file names: %M series, %V volume, %C chapter, %T title, %A author,
+# %Y year; ?X(...) only renders when X has a value.
+naming_template = "%M - ?V(Vol.%V )Ch.%C?T( - %T)"
+
+# Require this key on API requests (X-Api-Key header or ?apikey=).
+# api_key = "change-me"
+
+[jobs]
+concurrency = 4          # jobs at once
+per_source = 2           # jobs at once against one site
+page_concurrency = 4     # pages of one chapter fetched at once
+sync_latest_minutes = 15 # poll each site's latest updates
+refresh_hours = 24       # full chapter list refresh per series
+
+[http]
+timeout_secs = 30
+# user_agent = "..."
