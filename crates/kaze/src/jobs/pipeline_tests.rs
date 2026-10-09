@@ -23,7 +23,7 @@ struct Harness {
     library: tempfile::TempDir,
 }
 
-fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
+async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
     let source = Arc::new(source);
     let library = tempfile::tempdir().unwrap();
     let events = Events::new(1024);
@@ -49,7 +49,7 @@ fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         ..Settings::default()
     };
     Harness {
-        app: App::start(ctx, settings),
+        app: App::start(ctx, settings).await.unwrap(),
         source,
         events: receiver,
         library,
@@ -57,7 +57,7 @@ fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
 }
 
 async fn start(source: FakeSource) -> Harness {
-    start_with(source, db::memory().await)
+    start_with(source, db::memory().await).await
 }
 
 impl Harness {
@@ -278,7 +278,7 @@ async fn interrupted_jobs_resume_after_restart() {
     let job_id = db::jobs::insert(&db, &job).await.unwrap().unwrap();
     db::jobs::claim(&db, job_id).await.unwrap().unwrap();
 
-    let mut h = start_with(source, db);
+    let mut h = start_with(source, db).await;
     assert_eq!(h.downloaded(1).await, ["1"]);
     h.wait_for(|e| matches!(e, Event::JobFinished { job_id: id } if *id == job_id))
         .await;
