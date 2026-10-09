@@ -28,6 +28,14 @@ pub struct Registry {
     sources: Vec<Arc<dyn Source>>,
 }
 
+impl std::fmt::Debug for Registry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_list()
+            .entries(self.sources.iter().map(|s| s.meta().id))
+            .finish()
+    }
+}
+
 impl Registry {
     /// Every source enabled by cargo features.
     #[must_use]
@@ -39,6 +47,12 @@ impl Registry {
             Arc::new(weebcentral::WeebCentral::new(http)),
         ];
         let _ = http; // unused when built without any source feature
+        Self { sources }
+    }
+
+    /// A registry of exactly these sources (handy in tests).
+    #[must_use]
+    pub fn from_sources(sources: Vec<Arc<dyn Source>>) -> Self {
         Self { sources }
     }
 
