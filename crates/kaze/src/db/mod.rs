@@ -6,6 +6,8 @@
 //! statements take the pool and open their own transaction.
 
 pub mod chapters;
+pub mod events;
+pub mod jobs;
 pub mod series;
 
 use std::{path::Path, time::Duration};

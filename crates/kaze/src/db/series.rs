@@ -105,6 +105,16 @@ pub async fn find_by_source(
     .await
 }
 
+pub async fn folder_taken(db: impl SqliteExecutor<'_>, folder: &str) -> sqlx::Result<bool> {
+    let taken = sqlx::query_scalar!(
+        r#"SELECT EXISTS(SELECT 1 FROM series WHERE folder = ?) AS "taken: bool""#,
+        folder
+    )
+    .fetch_one(db)
+    .await?;
+    Ok(taken)
+}
+
 /// Refresh metadata from the source; keeps the folder and monitor settings.
 pub async fn update_metadata(db: impl SqliteExecutor<'_>, id: i64, s: &Series) -> sqlx::Result<()> {
     let authors = Json(&s.authors);
@@ -146,13 +156,31 @@ pub async fn set_monitor(
 }
 
 pub async fn mark_checked(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<()> {
+    let now = chrono::Utc::now();
     sqlx::query!(
-        "UPDATE series SET last_checked_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        "UPDATE series SET last_checked_at = ? WHERE id = ?",
+        now,
         id
     )
     .execute(db)
     .await?;
     Ok(())
+}
+
+/// Monitored series not checked since `before`, with their source.
+pub async fn stale(
+    db: impl SqliteExecutor<'_>,
+    before: chrono::DateTime<chrono::Utc>,
+) -> sqlx::Result<Vec<(i64, String)>> {
+    let rows = sqlx::query!(
+        r#"SELECT s.id AS "id!", ss.source
+           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
+           WHERE s.monitor != 'none' AND (s.last_checked_at IS NULL OR s.last_checked_at < ?)"#,
+        before
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
 }
 
 /// Delete a series with its chapters (files on disk are left alone).

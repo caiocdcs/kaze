@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET state = 'running', attempts = attempts + 1, updated_at = ?\n           WHERE id = ? AND state = 'queued'\n           RETURNING payload AS \"payload: Json<Job>\", attempts, max_attempts",
+  "describe": {
+    "columns": [
+      {
+        "name": "payload: Json<Job>",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "payload"
+          }
+        }
+      },
+      {
+        "name": "attempts",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "attempts"
+          }
+        }
+      },
+      {
+        "name": "max_attempts",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "max_attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cd8f54a3f32903ae51ff76fa5fec717f53710528bd66b37060010bd9d47f0034"
+}
