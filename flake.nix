@@ -32,11 +32,22 @@
         rustToolchain = pkgs.rust-bin.fromRustupToolchainFile ./rust-toolchain.toml;
         craneLib = (crane.mkLib pkgs).overrideToolchain (_: rustToolchain);
 
-        src = craneLib.cleanCargoSource ./.;
+        # Cargo sources plus the non-Rust files the build and tests read.
+        src = lib.fileset.toSource {
+          root = ./.;
+          fileset = lib.fileset.unions [
+            (craneLib.fileset.commonCargoSources ./.)
+            ./crates/kaze/migrations
+            ./.sqlx
+            (lib.fileset.fileFilter (file: file.hasExt "html") ./crates)
+          ];
+        };
 
         commonArgs = {
           inherit src;
           strictDeps = true;
+          # Check `sqlx::query!` against the committed .sqlx/ metadata, not a live database.
+          SQLX_OFFLINE = "true";
           buildInputs = lib.optionals pkgs.stdenv.hostPlatform.isDarwin [ pkgs.libiconv ];
         };
 
@@ -89,6 +100,10 @@
             pnpm
           ];
           RUST_LOG = "kaze=debug";
+          # sqlx checks queries against this database at compile time (`just db`).
+          shellHook = ''
+            export DATABASE_URL="sqlite:$(git rev-parse --show-toplevel)/target/dev.db"
+          '';
         };
 
         formatter = pkgs.nixfmt-rfc-style;
