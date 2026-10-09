@@ -58,6 +58,8 @@ pub struct SeriesRecord {
     pub url: String,
     pub added_at: DateTime<Utc>,
     pub last_checked_at: Option<DateTime<Utc>>,
+    /// Hours between full refreshes; `None` = global setting, `Some(0)` = never.
+    pub refresh_hours: Option<i64>,
 }
 
 /// A row of the library grid.
