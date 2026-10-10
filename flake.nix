@@ -85,7 +85,7 @@
             inherit (finalAttrs) version src;
             fetcherVersion = 4;
             # Update after changing web/pnpm-lock.yaml: build, copy the hash from the error.
-            hash = "sha256-SR8gZ69OR8lLul/DsKBimG49IN2yxZdeahKEPNzBxCo=";
+            hash = "sha256-sW3YTWQ49bRpWJ6zX3kdVdnwotpQtOPzTsDQ8yzsbGQ=";
           };
         };
         web = pkgs.stdenvNoCC.mkDerivation (
