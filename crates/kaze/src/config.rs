@@ -65,7 +65,12 @@ impl Config {
             figment = figment.merge(Toml::file(file));
         }
         figment
-            .merge(Env::prefixed("KAZE_").split("__"))
+            // Read by the log setup in main, not settings.
+            .merge(
+                Env::prefixed("KAZE_")
+                    .ignore(&["LOG", "LOG_FORMAT"])
+                    .split("__"),
+            )
             .extract()
             .map_err(Box::new)
     }
@@ -106,6 +111,8 @@ mod tests {
             )?;
             jail.set_env("KAZE_SETTINGS__PER_SOURCE", "1");
             jail.set_env("KAZE_HTTP__TIMEOUT_SECS", "5");
+            jail.set_env("KAZE_LOG", "kaze=debug");
+            jail.set_env("KAZE_LOG_FORMAT", "json");
 
             let config = Config::load(Some("kaze.toml".as_ref())).unwrap();
             assert_eq!(config.library_dir, PathBuf::from("/manga"));
