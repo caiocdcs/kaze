@@ -39,7 +39,8 @@
             (craneLib.fileset.commonCargoSources ./.)
             ./crates/kaze/migrations
             ./.sqlx
-            (lib.fileset.fileFilter (file: file.hasExt "html") ./crates)
+            # Source test fixtures.
+            (lib.fileset.fileFilter (file: file.hasExt "html" || file.hasExt "json") ./crates)
           ];
         };
 

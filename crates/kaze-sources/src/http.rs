@@ -76,6 +76,7 @@ impl Http {
             http: self.clone(),
             limiter: Arc::new(RateLimiter::direct(quota)),
             referer: referer.and_then(|r| header::HeaderValue::from_str(r.as_str()).ok()),
+            user_agent: None,
         }
     }
 }
@@ -86,9 +87,18 @@ pub struct SourceHttp {
     http: Http,
     limiter: Arc<DefaultDirectRateLimiter>,
     referer: Option<header::HeaderValue>,
+    user_agent: Option<header::HeaderValue>,
 }
 
 impl SourceHttp {
+    /// Send this User-Agent instead of the browser one, for APIs that ask
+    /// clients to identify themselves.
+    #[must_use]
+    pub fn with_user_agent(mut self, user_agent: &str) -> Self {
+        self.user_agent = header::HeaderValue::from_str(user_agent).ok();
+        self
+    }
+
     pub async fn get_text(&self, url: &Url) -> Result<String> {
         let response = self.get(url).await?;
         response.text().await.map_err(|e| transport(url, e))
@@ -143,6 +153,9 @@ impl SourceHttp {
         let mut request = self.http.client.get(url.clone());
         if let Some(referer) = &self.referer {
             request = request.header(header::REFERER, referer.clone());
+        }
+        if let Some(user_agent) = &self.user_agent {
+            request = request.header(header::USER_AGENT, user_agent.clone());
         }
         let response = request.send().await.map_err(|e| transport(url, e))?;
         check_status(url, response)
