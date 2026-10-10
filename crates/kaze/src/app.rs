@@ -11,6 +11,7 @@ use crate::{
     db::{self, series::NewSeries},
     download::naming::sanitize_file_name,
     events::{self, Events},
+    import,
     integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
     library::Monitor,
@@ -46,6 +47,10 @@ pub enum FollowError {
     UnknownSource(String),
     #[error("already following this series (id {0})")]
     AlreadyFollowing(i64),
+    #[error("another series already uses the folder {0:?}")]
+    FolderTaken(String),
+    #[error("reading the folder: {0}")]
+    Io(#[from] std::io::Error),
     #[error(transparent)]
     Source(#[from] SourceError),
     #[error(transparent)]
@@ -150,6 +155,77 @@ impl App {
             })
             .await?;
         Ok(id)
+    }
+
+    /// Follow a series whose files already sit in `folder` of the library:
+    /// store its chapters, mark the ones on disk as downloaded and queue
+    /// the rest that `monitor` wants. Returns the series id and how many
+    /// chapters were matched to files.
+    pub async fn import(
+        &self,
+        folder: &str,
+        source_id: &str,
+        key: &SeriesKey,
+        monitor: Monitor,
+        from: Option<&ChapterNumber>,
+    ) -> Result<(i64, usize), FollowError> {
+        let source = self
+            .ctx
+            .sources
+            .get(source_id)
+            .ok_or_else(|| FollowError::UnknownSource(source_id.to_owned()))?;
+        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key).await? {
+            return Err(FollowError::AlreadyFollowing(id));
+        }
+        if db::series::folder_taken(&self.ctx.db, folder).await? {
+            return Err(FollowError::FolderTaken(folder.to_owned()));
+        }
+        let dir = self.ctx.library.join(folder);
+        let files = {
+            let dir = dir.clone();
+            tokio::task::spawn_blocking(move || {
+                import::cbz_files(&dir).map(|files| import::chapter_files(&files))
+            })
+            .await
+            .map_err(|e| FollowError::Io(std::io::Error::other(e)))??
+        };
+
+        let (series, chapters) = tokio::try_join!(source.series(key), source.chapters(key))?;
+        let id = db::series::insert(
+            &self.ctx.db,
+            &NewSeries {
+                series: &series,
+                source: source_id,
+                folder,
+                monitor,
+                monitor_from: from,
+            },
+        )
+        .await?;
+        // Chapters already on disk are never wanted; the rest follow `monitor`
+        // as for a newly followed series.
+        db::chapters::insert_new(&self.ctx.db, id, source_id, &chapters, |c| {
+            !files.contains_key(&c.number) && monitor.wants(&c.number, from, true)
+        })
+        .await?;
+        let mut matched = 0;
+        for chapter in db::chapters::for_series(&self.ctx.db, id).await? {
+            if let Some(path) = files.get(&chapter.number).and_then(|paths| paths.first()) {
+                db::chapters::mark_downloaded(&self.ctx.db, chapter.id, &path.to_string_lossy())
+                    .await?;
+                matched += 1;
+            }
+        }
+        db::series::mark_checked(&self.ctx.db, id).await?;
+        for chapter_id in db::chapters::wanted_ids(&self.ctx.db, id).await? {
+            self.jobs
+                .submit(Job::DownloadChapter {
+                    chapter_id,
+                    source: source_id.to_owned(),
+                })
+                .await?;
+        }
+        Ok((id, matched))
     }
 
     /// Fires when shutdown starts; long-lived responses (SSE) end with it.

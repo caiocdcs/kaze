@@ -351,3 +351,56 @@ async fn integrations_can_be_managed() {
     assert_eq!(api.get("/api/v1/integrations").await.1, json!([]));
     api.app.shutdown().await;
 }
+
+#[tokio::test]
+async fn existing_folders_can_be_imported() {
+    let api = api(None).await;
+    let folder = api.app.ctx.library.join("Old Downloads");
+    std::fs::create_dir(&folder).unwrap();
+    let file = std::fs::File::create(folder.join("Test Series Ch.1.cbz")).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    zip.start_file("001.jpg", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    zip.finish().unwrap();
+
+    let (status, found) = api.get("/api/v1/import").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(
+        found,
+        json!([{ "folder": "Old Downloads", "files": 1, "chapters": ["1"], "unparsed": 0 }])
+    );
+
+    let (_, matches) = api.get("/api/v1/import/match?folder=Test%20Series").await;
+    assert_eq!(matches[0]["hit"]["title"], "Test Series");
+    assert_eq!(matches[0]["source"], "fake");
+
+    let body =
+        json!({ "folder": "Old Downloads", "source": "fake", "key": "S1", "monitor": "all" });
+    let (status, imported) = api
+        .call(Method::POST, "/api/v1/import", Some(body.clone()))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{imported}");
+    assert_eq!(imported["matched"], 1);
+
+    let (_, detail) = api.get(&format!("/api/v1/series/{}", imported["id"])).await;
+    assert_eq!(detail["folder"], "Old Downloads");
+    let chapters = detail["chapters"].as_array().unwrap();
+    let one = chapters.iter().find(|c| c["number"] == "1").unwrap();
+    assert!(
+        one["file_path"]
+            .as_str()
+            .unwrap()
+            .ends_with("Test Series Ch.1.cbz")
+    );
+    assert_eq!(one["monitored"], false, "on disk, so not wanted");
+    let two = chapters.iter().find(|c| c["number"] == "2").unwrap();
+    assert_eq!(two["monitored"], true, "missing, so queued");
+
+    // Followed now: no longer a candidate, and can't be imported twice.
+    assert_eq!(api.get("/api/v1/import").await.1, json!([]));
+    assert_eq!(
+        api.call(Method::POST, "/api/v1/import", Some(body)).await.0,
+        StatusCode::CONFLICT
+    );
+    api.app.shutdown().await;
+}

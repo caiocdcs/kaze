@@ -7,6 +7,7 @@ pub mod config;
 pub mod db;
 pub mod download;
 pub mod events;
+pub mod import;
 pub mod integrations;
 pub mod jobs;
 pub mod library;

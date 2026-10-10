@@ -108,7 +108,12 @@ impl Source for FakeSource {
     }
 
     async fn search(&self, _: &str) -> Result<Vec<SeriesHit>> {
-        Ok(vec![])
+        Ok(vec![SeriesHit {
+            key: self.series.key.clone(),
+            title: self.series.title.clone(),
+            url: self.series.url.clone(),
+            cover_url: self.series.cover_url.clone(),
+        }])
     }
 
     async fn series(&self, _: &SeriesKey) -> Result<Series> {
