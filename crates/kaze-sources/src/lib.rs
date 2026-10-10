@@ -3,6 +3,7 @@
 
 #[cfg(feature = "asura")]
 pub mod asura;
+pub mod flaresolverr;
 #[cfg(feature = "scraping")]
 mod html;
 pub mod http;

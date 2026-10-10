@@ -1622,6 +1622,7 @@ dependencies = [
  "backon",
  "chrono",
  "governor",
+ "http",
  "kaze-core",
  "regex",
  "reqwest",

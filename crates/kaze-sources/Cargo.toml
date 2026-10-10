@@ -21,6 +21,7 @@ async-trait.workspace = true
 chrono = { workspace = true, features = ["clock"] }
 backon.workspace = true
 governor.workspace = true
+http.workspace = true
 regex = { workspace = true, optional = true }
 reqwest.workspace = true
 scraper = { workspace = true, optional = true }

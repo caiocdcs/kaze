@@ -2,16 +2,19 @@
 //!
 //! [`Http`] owns the connection pool and cookie jar and is shared by the
 //! whole app. Each source gets a [`SourceHttp`] from it, which adds that
-//! source's rate limit, `Referer` and retry policy on top.
+//! source's rate limit, `Referer` and retry policy on top, and falls back
+//! to [`FlareSolverr`] when Cloudflare challenges a request.
 
 use std::{sync::Arc, time::Duration};
 
 use backon::{ExponentialBuilder, Retryable};
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 use kaze_core::{Image, RateLimit, Result, SourceError};
-use reqwest::{Client, Response, StatusCode, header};
+use reqwest::{Client, Response, StatusCode, cookie::Jar, header};
 use serde::de::DeserializeOwned;
 use url::Url;
+
+use crate::flaresolverr::{FlareSolverr, Solution};
 
 /// A desktop browser user agent: several sites reject unknown clients.
 pub const DEFAULT_USER_AGENT: &str =
@@ -44,19 +47,29 @@ impl Default for HttpConfig {
 pub struct Http {
     client: Client,
     config: Arc<HttpConfig>,
+    flaresolverr: FlareSolverr,
 }
 
 impl Http {
     pub fn new(config: HttpConfig) -> Result<Self, reqwest::Error> {
+        // Our own jar, so cookies FlareSolverr earns can be added to it.
+        let jar = Arc::new(Jar::default());
         let client = Client::builder()
             .user_agent(&config.user_agent)
             .timeout(config.timeout)
-            .cookie_store(true)
+            .cookie_provider(Arc::clone(&jar))
             .build()?;
         Ok(Self {
             client,
             config: Arc::new(config),
+            flaresolverr: FlareSolverr::new(jar),
         })
+    }
+
+    /// The FlareSolverr handle; set its URL to turn the fallback on.
+    #[must_use]
+    pub fn flaresolverr(&self) -> FlareSolverr {
+        self.flaresolverr.clone()
     }
 
     /// The shared client without any source's limits, for other services.
@@ -77,8 +90,29 @@ impl Http {
             limiter: Arc::new(RateLimiter::direct(quota)),
             referer: referer.and_then(|r| header::HeaderValue::from_str(r.as_str()).ok()),
             user_agent: None,
+            cloudflare: Cloudflare::default(),
         }
     }
+}
+
+/// When a source's pages go through FlareSolverr.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Cloudflare {
+    /// Never; a challenge is an error.
+    Never,
+    /// Only after Cloudflare challenges a request.
+    #[default]
+    OnChallenge,
+    /// Every page (not images), for sites that always challenge.
+    Always,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Kind {
+    /// HTML or JSON: a page FlareSolverr rendered can stand in for it.
+    Page,
+    /// Bytes FlareSolverr can't return; it can only earn the cookie.
+    Image,
 }
 
 /// Per-source client: shared pool + this source's rate limiter and referer.
@@ -88,9 +122,16 @@ pub struct SourceHttp {
     limiter: Arc<DefaultDirectRateLimiter>,
     referer: Option<header::HeaderValue>,
     user_agent: Option<header::HeaderValue>,
+    cloudflare: Cloudflare,
 }
 
 impl SourceHttp {
+    #[must_use]
+    pub fn with_cloudflare(mut self, policy: Cloudflare) -> Self {
+        self.cloudflare = policy;
+        self
+    }
+
     /// Send this User-Agent instead of the browser one, for APIs that ask
     /// clients to identify themselves.
     #[must_use]
@@ -100,13 +141,13 @@ impl SourceHttp {
     }
 
     pub async fn get_text(&self, url: &Url) -> Result<String> {
-        let response = self.get(url).await?;
+        let response = self.get(url, Kind::Page).await?;
         response.text().await.map_err(|e| transport(url, e))
     }
 
     pub async fn get_json<T: DeserializeOwned>(&self, url: &Url) -> Result<T> {
         let body = self
-            .get(url)
+            .get(url, Kind::Page)
             .await?
             .bytes()
             .await
@@ -116,7 +157,7 @@ impl SourceHttp {
     }
 
     pub async fn get_image(&self, url: &Url) -> Result<Image> {
-        let response = self.get(url).await?;
+        let response = self.get(url, Kind::Image).await?;
         let content_type = response
             .headers()
             .get(header::CONTENT_TYPE)
@@ -131,7 +172,7 @@ impl SourceHttp {
 
     /// GET with rate limiting and retries. Each attempt waits for the
     /// limiter, so retries count against the source's budget too.
-    async fn get(&self, url: &Url) -> Result<Response> {
+    async fn get(&self, url: &Url, kind: Kind) -> Result<Response> {
         let config = &self.http.config;
         let backoff = ExponentialBuilder::default()
             .with_min_delay(config.retry_base_delay)
@@ -140,7 +181,7 @@ impl SourceHttp {
 
         (|| async {
             self.limiter.until_ready().await;
-            self.send_once(url).await
+            self.send_once(url, kind).await
         })
         .retry(backoff)
         .sleep(tokio::time::sleep)
@@ -149,17 +190,55 @@ impl SourceHttp {
         .await
     }
 
-    async fn send_once(&self, url: &Url) -> Result<Response> {
+    async fn send_once(&self, url: &Url, kind: Kind) -> Result<Response> {
+        let flaresolverr = &self.http.flaresolverr;
+        if self.cloudflare == Cloudflare::Always
+            && kind == Kind::Page
+            && let Some(solved) = flaresolverr.solve(url).await
+        {
+            return rendered(url, solved?);
+        }
+        match self.send_direct(url).await {
+            Err(SourceError::Blocked { .. }) if self.cloudflare != Cloudflare::Never => {
+                let Some(solved) = flaresolverr.solve(url).await else {
+                    return Err(SourceError::Blocked { url: url.clone() });
+                };
+                let solved = solved?;
+                // With the clearance cookie the site should now answer us directly.
+                match self.send_direct(url).await {
+                    Err(SourceError::Blocked { .. }) if kind == Kind::Page => rendered(url, solved),
+                    other => other,
+                }
+            }
+            other => other,
+        }
+    }
+
+    async fn send_direct(&self, url: &Url) -> Result<Response> {
         let mut request = self.http.client.get(url.clone());
         if let Some(referer) = &self.referer {
             request = request.header(header::REFERER, referer.clone());
         }
-        if let Some(user_agent) = &self.user_agent {
+        // A clearance cookie only works with the browser that earned it.
+        let solved_agent = url
+            .host_str()
+            .and_then(|host| self.http.flaresolverr.user_agent_for(host));
+        if let Some(user_agent) = solved_agent.as_ref().or(self.user_agent.as_ref()) {
             request = request.header(header::USER_AGENT, user_agent.clone());
         }
         let response = request.send().await.map_err(|e| transport(url, e))?;
         check_status(url, response)
     }
+}
+
+/// The page FlareSolverr's browser loaded, as if we had fetched it.
+fn rendered(url: &Url, solution: Solution) -> Result<Response> {
+    let response = http::Response::builder()
+        .status(solution.status)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .body(solution.html)
+        .map_err(|e| SourceError::parse("FlareSolverr response", e.to_string()))?;
+    check_status(url, Response::from(response))
 }
 
 fn transport(url: &Url, err: reqwest::Error) -> SourceError {
@@ -346,5 +425,107 @@ mod tests {
             "{:?}",
             start.elapsed()
         );
+    }
+
+    /// A site that challenges unless the request carries the clearance
+    /// cookie and the browser's User-Agent, and a FlareSolverr that hands
+    /// both out.
+    async fn challenged_site() -> (MockServer, MockServer) {
+        let site = MockServer::start().await;
+        Mock::given(path("/page"))
+            .and(header("cookie", "cf_clearance=ok"))
+            .and(header("user-agent", "SolvedBrowser/1.0"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("direct"))
+            .with_priority(1)
+            .mount(&site)
+            .await;
+        Mock::given(path("/page"))
+            .respond_with(ResponseTemplate::new(403).insert_header("cf-mitigated", "challenge"))
+            .mount(&site)
+            .await;
+
+        let solver = MockServer::start().await;
+        let host = site.address().ip().to_string();
+        Mock::given(method("POST"))
+            .and(path("/v1"))
+            .and(wiremock::matchers::body_partial_json(
+                serde_json::json!({ "cmd": "request.get" }),
+            ))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "status": "ok",
+                "message": "",
+                "solution": {
+                    "status": 200,
+                    "response": "<html>rendered</html>",
+                    "cookies": [{ "name": "cf_clearance", "value": "ok", "domain": host, "path": "/" }],
+                    "userAgent": "SolvedBrowser/1.0"
+                }
+            })))
+            .mount(&solver)
+            .await;
+        Mock::given(method("POST"))
+            .and(path("/v1"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_json(serde_json::json!({ "status": "ok" })),
+            )
+            .mount(&solver)
+            .await;
+        (site, solver)
+    }
+
+    #[tokio::test]
+    async fn flaresolverr_clearance_is_reused_for_direct_requests() {
+        let (site, solver) = challenged_site().await;
+        let http = fast();
+        http.http
+            .flaresolverr()
+            .set_url(Some(solver.uri().parse().unwrap()));
+
+        let page = url(&site, "/page");
+        assert_eq!(http.get_text(&page).await.unwrap(), "direct");
+        // The cookie and User-Agent stick: no second trip to FlareSolverr.
+        assert_eq!(http.get_text(&page).await.unwrap(), "direct");
+        let challenges_solved = solver
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| String::from_utf8_lossy(&r.body).contains("request.get"))
+            .count();
+        assert_eq!(challenges_solved, 1);
+    }
+
+    #[tokio::test]
+    async fn rendered_page_stands_in_when_still_blocked() {
+        let (site, solver) = challenged_site().await;
+        // This client ignores the cookie: think of a site that also checks TLS.
+        let http = fast();
+        http.http
+            .flaresolverr()
+            .set_url(Some(solver.uri().parse().unwrap()));
+        let stubborn = MockServer::start().await;
+        Mock::given(path("/page"))
+            .respond_with(ResponseTemplate::new(403).insert_header("cf-mitigated", "challenge"))
+            .mount(&stubborn)
+            .await;
+        drop(site);
+
+        let body = http.get_text(&url(&stubborn, "/page")).await.unwrap();
+        assert_eq!(body, "<html>rendered</html>");
+        // Images can't come from a rendered page.
+        let err = http.get_image(&url(&stubborn, "/page")).await.unwrap_err();
+        assert!(matches!(err, SourceError::Blocked { .. }), "{err:?}");
+    }
+
+    #[tokio::test]
+    async fn never_policy_skips_flaresolverr() {
+        let (site, solver) = challenged_site().await;
+        let http = fast().with_cloudflare(Cloudflare::Never);
+        http.http
+            .flaresolverr()
+            .set_url(Some(solver.uri().parse().unwrap()));
+        let err = http.get_text(&url(&site, "/page")).await.unwrap_err();
+        assert!(matches!(err, SourceError::Blocked { .. }), "{err:?}");
+        assert!(solver.received_requests().await.unwrap().is_empty());
     }
 }
