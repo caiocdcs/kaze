@@ -3,10 +3,18 @@
 
 	let {
 		id,
+		src,
 		title,
 		size = 'md',
 		class: klass = ''
-	}: { id?: number; title: string; size?: 'xs' | 'sm' | 'md' | 'lg'; class?: string } = $props();
+	}: {
+		id?: number;
+		/** An external cover URL, for series not followed yet. */
+		src?: string | null;
+		title: string;
+		size?: 'xs' | 'sm' | 'md' | 'lg';
+		class?: string;
+	} = $props();
 
 	const tints = [
 		'#3A2723',
@@ -23,9 +31,10 @@
 	);
 	const font = { xs: 'text-[11px]', sm: 'text-[12px]', md: 'text-[22px]', lg: 'text-[30px]' };
 
+	const image = $derived(src ?? (id !== undefined ? api.coverUrl(id) : null));
 	let failed = $state(false);
 	$effect(() => {
-		void id;
+		void image;
 		failed = false;
 	});
 </script>
@@ -39,11 +48,12 @@
 		class="max-h-[86%] overflow-hidden font-display font-bold tracking-[0.08em] text-paper [writing-mode:vertical-rl] {font[
 			size
 		]}"
-		aria-hidden={id !== undefined && !failed}>{title}</span
+		aria-hidden={image !== null && !failed}>{title}</span
 	>
-	{#if id !== undefined && !failed}
+	{#if image && !failed}
 		<img
-			src={api.coverUrl(id)}
+			src={image}
+			referrerpolicy="no-referrer"
 			alt=""
 			loading="lazy"
 			class="absolute inset-0 size-full object-cover"
