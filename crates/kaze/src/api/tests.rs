@@ -118,6 +118,22 @@ async fn follow_then_inspect_series() {
     let (_, list) = api.get("/api/v1/series").await;
     assert_eq!(list[0]["chapters"], 2);
 
+    // Job rows name what they work on, so the queue can show it.
+    let (_, jobs) = api.get("/api/v1/jobs").await;
+    let jobs = jobs.as_array().unwrap();
+    let refresh = jobs
+        .iter()
+        .find(|j| j["job"]["type"] == "refresh_series")
+        .unwrap();
+    assert_eq!(refresh["series_title"], "Test Series");
+    assert_eq!(refresh["chapter"], Value::Null);
+    let download = jobs
+        .iter()
+        .find(|j| j["job"]["type"] == "download_chapter")
+        .unwrap();
+    assert_eq!(download["series_id"], id);
+    assert!(download["chapter"].is_string());
+
     let uri = format!("/api/v1/series/{id}");
     let patch = |body: Value| api.call(Method::PATCH, &uri, Some(body));
     let (status, detail) = patch(json!({ "refresh_hours": 0 })).await;

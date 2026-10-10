@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, payload AS \"job: Json<Job>\", state AS \"state: JobState\", attempts, max_attempts,\n                  run_after AS \"run_after: _\", last_error,\n                  created_at AS \"created_at: _\", updated_at AS \"updated_at: _\"\n           FROM jobs WHERE id = ?",
+  "query": "SELECT j.id, j.payload AS \"job: Json<Job>\", j.state AS \"state: JobState\", j.attempts,\n                  j.max_attempts, j.run_after AS \"run_after: _\", j.last_error,\n                  j.created_at AS \"created_at: _\", j.updated_at AS \"updated_at: _\",\n                  s.id AS \"series_id?\", s.title AS \"series_title?\", c.number AS \"chapter?: ChapterNumber\"\n           FROM jobs j\n           LEFT JOIN chapters c ON c.id = j.payload ->> '$.chapter_id'\n           LEFT JOIN series s ON s.id = coalesce(c.series_id, j.payload ->> '$.series_id')\n           ORDER BY j.state NOT IN ('queued', 'running'), j.updated_at DESC\n           LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -101,6 +101,39 @@
             "name": "updated_at"
           }
         }
+      },
+      {
+        "name": "series_id?",
+        "ordinal": 9,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "series_title?",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "chapter?: ChapterNumber",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "number"
+          }
+        }
       }
     ],
     "parameters": {
@@ -115,8 +148,11 @@
       false,
       true,
       false,
-      false
+      false,
+      false,
+      true,
+      true
     ]
   },
-  "hash": "47e181775f6a433c3671e297c2eb5b5b4eba1515dfe3c323e6961b8f0ea0b417"
+  "hash": "48eed6d1735aab12cc963dd2be8fda239bebcb99bb6840d92d258df0916bdbad"
 }

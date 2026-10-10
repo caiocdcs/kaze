@@ -1,6 +1,7 @@
 //! Persistence for the job queue (see `crate::jobs`).
 
 use chrono::{DateTime, Utc};
+use kaze_core::ChapterNumber;
 use serde::Serialize;
 use sqlx::{SqliteExecutor, types::Json};
 use ts_rs::TS;
@@ -33,6 +34,10 @@ pub struct JobRecord {
     pub last_error: Option<String>,
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
+    /// What the job works on, for display; `None` for source-wide jobs.
+    pub series_id: Option<i64>,
+    pub series_title: Option<String>,
+    pub chapter: Option<ChapterNumber>,
 }
 
 /// A job just claimed for running.
@@ -177,11 +182,14 @@ pub async fn recover(db: &sqlx::SqlitePool) -> sqlx::Result<Vec<(i64, DateTime<U
 pub async fn list(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec<JobRecord>> {
     sqlx::query_as!(
         JobRecord,
-        r#"SELECT id, payload AS "job: Json<Job>", state AS "state: JobState", attempts, max_attempts,
-                  run_after AS "run_after: _", last_error,
-                  created_at AS "created_at: _", updated_at AS "updated_at: _"
-           FROM jobs
-           ORDER BY state NOT IN ('queued', 'running'), updated_at DESC
+        r#"SELECT j.id, j.payload AS "job: Json<Job>", j.state AS "state: JobState", j.attempts,
+                  j.max_attempts, j.run_after AS "run_after: _", j.last_error,
+                  j.created_at AS "created_at: _", j.updated_at AS "updated_at: _",
+                  s.id AS "series_id?", s.title AS "series_title?", c.number AS "chapter?: ChapterNumber"
+           FROM jobs j
+           LEFT JOIN chapters c ON c.id = j.payload ->> '$.chapter_id'
+           LEFT JOIN series s ON s.id = coalesce(c.series_id, j.payload ->> '$.series_id')
+           ORDER BY j.state NOT IN ('queued', 'running'), j.updated_at DESC
            LIMIT ?"#,
         limit
     )
@@ -192,10 +200,14 @@ pub async fn list(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec<J
 pub async fn get(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Option<JobRecord>> {
     sqlx::query_as!(
         JobRecord,
-        r#"SELECT id, payload AS "job: Json<Job>", state AS "state: JobState", attempts, max_attempts,
-                  run_after AS "run_after: _", last_error,
-                  created_at AS "created_at: _", updated_at AS "updated_at: _"
-           FROM jobs WHERE id = ?"#,
+        r#"SELECT j.id, j.payload AS "job: Json<Job>", j.state AS "state: JobState", j.attempts,
+                  j.max_attempts, j.run_after AS "run_after: _", j.last_error,
+                  j.created_at AS "created_at: _", j.updated_at AS "updated_at: _",
+                  s.id AS "series_id?", s.title AS "series_title?", c.number AS "chapter?: ChapterNumber"
+           FROM jobs j
+           LEFT JOIN chapters c ON c.id = j.payload ->> '$.chapter_id'
+           LEFT JOIN series s ON s.id = coalesce(c.series_id, j.payload ->> '$.series_id')
+           WHERE j.id = ?"#,
         id
     )
     .fetch_optional(db)
