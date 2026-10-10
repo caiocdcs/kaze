@@ -135,20 +135,43 @@
 		);
 	}
 
-	async function unfollow() {
+	let unfollowDialog = $state<HTMLDialogElement>();
+	let deleteFolder = $state(false);
+
+	async function unfollow(event: SubmitEvent) {
+		event.preventDefault();
 		if (!series) return;
-		if (!confirm(`Stop following ${series.title}? Downloaded files stay on disk.`)) return;
 		try {
-			await api.unfollow(id);
-			toasts.show(`Unfollowed ${series.title}`);
+			await api.unfollow(id, deleteFolder);
+			toasts.show(
+				deleteFolder
+					? `Unfollowed ${series.title} and deleted its files`
+					: `Unfollowed ${series.title}`
+			);
 			goto('/');
 		} catch (e) {
 			toasts.error(e);
 		}
 	}
 
+	async function deleteFiles(ids: number[]) {
+		const n = ids.length;
+		if (
+			!n ||
+			!confirm(
+				`Delete ${n === 1 ? 'this file' : `${n} files`} from disk? The chapters won't be downloaded again.`
+			)
+		)
+			return;
+		await act(() => api.deleteFiles(ids), `Deleted ${n} file(s)`);
+		selected = new Set();
+	}
+
 	const lowest = $derived(chapters.length ? chapters[chapters.length - 1].number : null);
 	const allSelected = $derived(visible.length > 0 && visible.every((c) => selected.has(c.id)));
+	const selectedOnDisk = $derived(
+		chapters.filter((c) => c.file_path && selected.has(c.id)).map((c) => c.id)
+	);
 	const sortedSelection = $derived(
 		[...selected].sort((a, b) => {
 			const ca = chapters.find((c) => c.id === a)?.number ?? '0';
@@ -207,7 +230,14 @@
 				>
 					<Icon name="refresh" size={16} stroke={2} /> Check for chapters
 				</button>
-				<button type="button" class="btn-danger" onclick={unfollow}>Unfollow</button>
+				<button
+					type="button"
+					class="btn-danger"
+					onclick={() => {
+						deleteFolder = false;
+						unfollowDialog?.showModal();
+					}}>Unfollow</button
+				>
 			</div>
 			<p class="m-0 text-[13px] text-muted">
 				Last checked {ago(series.last_checked_at)}
@@ -280,6 +310,15 @@
 						disabled={busy}
 						onclick={() => setMonitored(sortedSelection, false)}>Unmonitor</button
 					>
+					{#if selectedOnDisk.length}
+						<button
+							type="button"
+							class="btn-danger"
+							disabled={busy}
+							onclick={() => deleteFiles(selectedOnDisk)}
+							>Delete files ({num(selectedOnDisk.length)})</button
+						>
+					{/if}
 				{/if}
 				<Segmented
 					label="Show"
@@ -362,6 +401,18 @@
 									>
 										<Icon name="wanted" />
 									</button>
+									{#if c.file_path}
+										<button
+											type="button"
+											class="icon-btn hover:text-bad"
+											aria-label="Delete the file of chapter {c.number}"
+											title="Delete file"
+											disabled={busy}
+											onclick={() => deleteFiles([c.id])}
+										>
+											<Icon name="trash" />
+										</button>
+									{/if}
 								</td>
 							</tr>
 						{/each}
@@ -389,4 +440,33 @@
 	</section>
 {:else}
 	<div class="h-72 animate-pulse rounded-[14px] bg-surface"></div>
+{/if}
+
+{#if series}
+	<dialog
+		bind:this={unfollowDialog}
+		class="m-auto w-[min(480px,calc(100vw-24px))] rounded-2xl border border-line-strong bg-surface p-0 text-ink backdrop:bg-rail/80"
+		aria-labelledby="unfollow-title"
+	>
+		<form class="flex flex-col gap-4 p-6" onsubmit={unfollow}>
+			<h2 id="unfollow-title" class="m-0 font-display text-xl font-bold">
+				Stop following {series.title}?
+			</h2>
+			<label class="flex items-start gap-3 text-sm">
+				<input type="checkbox" bind:checked={deleteFolder} class="mt-0.5" />
+				<span>
+					Also delete the folder and its {num(stats.disk)} downloaded file(s)
+					<code class="block font-mono text-xs break-all text-muted">{series.folder}/</code>
+				</span>
+			</label>
+			<div class="flex justify-end gap-2.5">
+				<button type="button" class="btn-ghost" onclick={() => unfollowDialog?.close()}
+					>Cancel</button
+				>
+				<button type="submit" class="btn-danger"
+					>{deleteFolder ? 'Unfollow and delete' : 'Unfollow'}</button
+				>
+			</div>
+		</form>
+	</dialog>
 {/if}
