@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT c.id AS \"id!\", c.series_id, s.title AS series_title, c.source,\n                  c.number AS \"number: _\", c.volume, c.title, c.published_at AS \"published_at: _\"\n           FROM chapters c JOIN series s ON s.id = c.series_id\n           WHERE c.monitored = 1 AND c.file_path IS NULL\n           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac\n           LIMIT ?",
+  "query": "SELECT c.id AS \"id!\", c.series_id, s.title AS series_title, c.source,\n                  c.number AS \"number: _\", c.volume, c.title, c.published_at AS \"published_at: _\",\n                  j.updated_at AS \"last_attempt_at?: _\", j.state AS \"last_attempt_state?\",\n                  j.last_error AS \"last_error?\"\n           FROM chapters c JOIN series s ON s.id = c.series_id\n           -- The newest download job of each chapter (ids only grow).\n           LEFT JOIN jobs j ON j.id = (\n               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id\n           )\n           WHERE c.monitored = 1 AND c.file_path IS NULL\n           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac\n           LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -90,6 +90,39 @@
             "name": "published_at"
           }
         }
+      },
+      {
+        "name": "last_attempt_at?: _",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "updated_at"
+          }
+        }
+      },
+      {
+        "name": "last_attempt_state?",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "state"
+          }
+        }
+      },
+      {
+        "name": "last_error?",
+        "ordinal": 10,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "last_error"
+          }
+        }
       }
     ],
     "parameters": {
@@ -103,8 +136,11 @@
       false,
       true,
       true,
+      true,
+      true,
+      true,
       true
     ]
   },
-  "hash": "db9e0945ec53a4faa80486a6a14268c8da75d538908c904afdee84c26234dbe7"
+  "hash": "5bf74965f5564e9adf831f214b468268c64db33ffcf6c3f32039ddb057c1c900"
 }
