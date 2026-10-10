@@ -11,7 +11,10 @@ use kaze_core::{
 };
 use url::Url;
 
-use crate::http::{Http, SourceHttp};
+use crate::{
+    http::{Http, SourceHttp},
+    literal::url,
+};
 
 const BASE_URL: &str = "https://weebcentral.com";
 
@@ -26,7 +29,7 @@ pub struct WeebCentral {
 impl WeebCentral {
     #[must_use]
     pub fn new(http: &Http) -> Self {
-        Self::with_base_url(http, Url::parse(BASE_URL).expect("valid base url"))
+        Self::with_base_url(http, url!(BASE_URL))
     }
 
     /// Point at another host; tests use this with a mock server.
@@ -47,10 +50,9 @@ impl WeebCentral {
     }
 
     fn url(&self, path: &str) -> Url {
-        self.meta
-            .base_url
-            .join(path)
-            .expect("relative path joins onto base url")
+        let mut url = self.meta.base_url.clone();
+        url.set_path(path);
+        url
     }
 }
 

@@ -114,10 +114,8 @@ impl Settings {
 
     /// Defaults with each layer of overrides applied in order.
     fn from_layers(layers: &[&Map<String, Value>]) -> Result<Self, SettingsError> {
-        let Value::Object(mut merged) =
-            serde_json::to_value(Self::default()).expect("settings serialize")
-        else {
-            unreachable!("settings serialize to an object");
+        let Ok(Value::Object(mut merged)) = serde_json::to_value(Self::default()) else {
+            return Err(SettingsError::Invalid("defaults are not an object".into()));
         };
         for layer in layers {
             for (key, value) in *layer {

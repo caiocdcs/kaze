@@ -217,6 +217,7 @@ pub struct Preset {
 
 /// Webhook presets. The UI copies one into a new integration to edit.
 #[must_use]
+#[allow(clippy::expect_used, reason = "literal URLs, covered by tests")]
 pub fn presets() -> Vec<Preset> {
     let url = |s: &str| Url::parse(s).expect("preset URL");
     let all = vec![Trigger::Downloaded, Trigger::Failed];

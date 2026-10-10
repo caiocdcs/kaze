@@ -8,6 +8,8 @@ use kaze_core::{ChapterInfo, ChapterNumber, Series, SeriesHit, SeriesStatus};
 use serde::Deserialize;
 use url::Url;
 
+use crate::literal::url;
+
 /// Language-tagged text: `{"en": "...", "ja-ro": "..."}`.
 type Localized = BTreeMap<String, String>;
 
@@ -111,7 +113,9 @@ const UPLOADS: &str = "https://uploads.mangadex.org";
 
 impl Manga {
     pub fn url(&self) -> Url {
-        Url::parse(&format!("{SITE}/title/{}", self.id)).expect("valid manga url")
+        let mut url = url!(SITE);
+        url.set_path(&format!("/title/{}", self.id));
+        url
     }
 
     /// The English title when there is one: that's what users search for

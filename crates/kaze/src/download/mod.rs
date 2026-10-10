@@ -159,7 +159,7 @@ pub async fn chapter(
     let write_to = partial.clone();
     tokio::task::spawn_blocking(move || cbz::write(&write_to, &comic_info, &pages))
         .await
-        .expect("cbz writer panicked")
+        .map_err(std::io::Error::other)?
         .map_err(|source| DownloadError::Write {
             path: partial.clone(),
             source,

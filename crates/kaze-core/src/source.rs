@@ -23,15 +23,14 @@ impl RateLimit {
         Self::new(requests, Duration::from_secs(60))
     }
 
-    /// # Panics
-    /// If `requests` is zero; evaluated at compile time when used in a `const`.
+    /// A limit of zero requests is treated as one.
     #[must_use]
     pub const fn new(requests: u32, per: Duration) -> Self {
-        Self {
-            requests: NonZeroU32::new(requests)
-                .expect("rate limit must allow at least one request"),
-            per,
-        }
+        let requests = match NonZeroU32::new(requests) {
+            Some(n) => n,
+            None => NonZeroU32::MIN,
+        };
+        Self { requests, per }
     }
 }
 

@@ -11,7 +11,10 @@ use kaze_core::{
 use url::Url;
 
 use self::model::{AtHome, Chapter, Collection, Entity, Manga};
-use crate::http::{Http, SourceHttp};
+use crate::{
+    http::{Http, SourceHttp},
+    literal::url,
+};
 
 const SITE_URL: &str = "https://mangadex.org";
 const API_URL: &str = "https://api.mangadex.org";
@@ -34,7 +37,7 @@ pub struct MangaDex {
 impl MangaDex {
     #[must_use]
     pub fn new(http: &Http) -> Self {
-        Self::with_api_url(http, Url::parse(API_URL).expect("valid api url"))
+        Self::with_api_url(http, url!(API_URL))
     }
 
     /// Point the API at another host; tests use this with a mock server.
@@ -53,7 +56,7 @@ impl MangaDex {
             meta: SourceMeta {
                 id: "mangadex",
                 name: "MangaDex",
-                base_url: Url::parse(SITE_URL).expect("valid site url"),
+                base_url: url!(SITE_URL),
                 languages: &[LANGUAGE],
                 rate_limit,
             },
@@ -61,7 +64,8 @@ impl MangaDex {
     }
 
     fn url(&self, path: &str, query: &[(&str, &str)]) -> Url {
-        let mut url = self.api_url.join(path).expect("path joins onto api url");
+        let mut url = self.api_url.clone();
+        url.set_path(path);
         {
             let mut pairs = url.query_pairs_mut();
             for (k, v) in query {
@@ -163,10 +167,7 @@ impl Source for MangaDex {
     }
 
     async fn pages(&self, chapter: &ChapterKey) -> Result<Vec<Url>> {
-        let url = self
-            .api_url
-            .join(&format!("/at-home/server/{chapter}"))
-            .expect("path joins onto api url");
+        let url = self.url(&format!("/at-home/server/{chapter}"), &[]);
         let home: AtHome = self.api.get_json(&url).await?;
         home.chapter
             .data

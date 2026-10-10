@@ -9,7 +9,7 @@
 
 use std::{
     collections::{HashMap, HashSet},
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, Mutex, PoisonError, RwLock},
     time::Duration,
 };
 
@@ -92,10 +92,18 @@ impl FlareSolverr {
 
     /// Point at a FlareSolverr instance, or `None` to stop using one.
     pub fn set_url(&self, url: Option<Url>) {
-        let mut current = self.inner.url.write().expect("flaresolverr url lock");
+        let mut current = self
+            .inner
+            .url
+            .write()
+            .unwrap_or_else(PoisonError::into_inner);
         if *current != url {
             // Sessions live in the old instance.
-            self.inner.sessions.lock().expect("sessions lock").clear();
+            self.inner
+                .sessions
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .clear();
             *current = url;
         }
     }
@@ -105,7 +113,7 @@ impl FlareSolverr {
         self.inner
             .url
             .read()
-            .expect("flaresolverr url lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .clone()
     }
 
@@ -114,7 +122,7 @@ impl FlareSolverr {
         self.inner
             .user_agents
             .lock()
-            .expect("user agents lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .get(host)
             .cloned()
     }
@@ -164,7 +172,7 @@ impl FlareSolverr {
             .inner
             .sessions
             .lock()
-            .expect("sessions lock")
+            .unwrap_or_else(PoisonError::into_inner)
             .contains(&session);
         if !created {
             // An "already exists" error is fine: the session is there either way.
@@ -177,7 +185,7 @@ impl FlareSolverr {
             self.inner
                 .sessions
                 .lock()
-                .expect("sessions lock")
+                .unwrap_or_else(PoisonError::into_inner)
                 .insert(session.clone());
         }
 
@@ -214,7 +222,7 @@ impl FlareSolverr {
             self.inner
                 .user_agents
                 .lock()
-                .expect("user agents lock")
+                .unwrap_or_else(PoisonError::into_inner)
                 .insert(host, agent);
         }
         Ok(Solution {

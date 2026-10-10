@@ -7,7 +7,7 @@
 
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, PoisonError},
     time::Duration,
 };
 use ts_rs::TS;
@@ -77,7 +77,7 @@ pub struct Tasks {
 impl Tasks {
     #[must_use]
     pub fn list(&self) -> Vec<TaskInfo> {
-        let status = self.status.lock().expect("task status lock");
+        let status = self.status.lock().unwrap_or_else(PoisonError::into_inner);
         Task::ALL
             .iter()
             .map(|&task| {
@@ -100,7 +100,7 @@ impl Tasks {
 
     fn record(&self, task: Task, every: Duration, ran: bool) {
         let now = Utc::now();
-        let mut status = self.status.lock().expect("task status lock");
+        let mut status = self.status.lock().unwrap_or_else(PoisonError::into_inner);
         let entry = status.entry(task).or_default();
         entry.every = every;
         if ran {
@@ -169,7 +169,7 @@ pub async fn run(
                     Task::SyncLatest => sync_latest(&ctx, &queue).await,
                     Task::RefreshSeries => refresh_all(&ctx, &queue).await,
                 }
-                let mut status = tasks.status.lock().expect("task status lock");
+                let mut status = tasks.status.lock().unwrap_or_else(PoisonError::into_inner);
                 status.entry(task).or_default().last_run = Some(Utc::now());
             }
         }
