@@ -11,6 +11,7 @@ mod settings;
 mod sources;
 #[cfg(test)]
 mod tests;
+mod ui;
 
 use std::sync::Arc;
 
@@ -63,6 +64,7 @@ pub fn router(app: AppState) -> Router {
     Router::new()
         .nest("/api/v1", api)
         .route("/healthz", get(|| async { "ok" }))
+        .fallback_service(get(ui::serve).layer(CompressionLayer::new()))
         .layer(TraceLayer::new_for_http())
         .with_state(app)
 }
