@@ -5,7 +5,6 @@ use tracing_subscriber::EnvFilter;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // KAZE_LOG first, then the usual RUST_LOG, e.g. `KAZE_LOG=kaze=debug`.
     let filter = EnvFilter::try_from_env("KAZE_LOG")
         .or_else(|_| EnvFilter::try_from_default_env())
         .unwrap_or_else(|_| "kaze=info".into());

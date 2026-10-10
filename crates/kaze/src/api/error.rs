@@ -38,7 +38,6 @@ impl IntoResponse for ApiError {
             Self::Upstream(_) | Self::Integration(_) => StatusCode::BAD_GATEWAY,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
-        // Internal errors logged their cause where they were converted.
         if matches!(self, Self::Upstream(_) | Self::Integration(_)) {
             tracing::warn!("{self}");
         }

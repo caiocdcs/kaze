@@ -44,9 +44,8 @@ pub enum Config {
         headers: BTreeMap<String, String>,
         body: String,
     },
-    /// An apprise-api server, reaching 100+ services. Either a `key` for
-    /// a configuration saved on the server, or Apprise `urls` (such as
-    /// `ntfy://topic`) sent along with each message.
+    /// An apprise-api server: `urls` (such as `ntfy://topic`) sent with each
+    /// message, or the `key` of a configuration saved on the server.
     Apprise {
         url: Url,
         #[serde(default)]
@@ -371,7 +370,6 @@ pub async fn send(
             };
             let mut body = json!({ "title": message.title, "body": message.body, "type": kind });
             let url = if let Some(urls) = filled(urls.as_deref()) {
-                // Stateless: apprise-api needs no saved configuration.
                 body["urls"] = Value::from(urls);
                 endpoint(url, "notify/")?
             } else {
