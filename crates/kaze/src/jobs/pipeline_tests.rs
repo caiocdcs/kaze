@@ -38,6 +38,9 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         events,
         library: library.path().to_owned(),
         http: reqwest::Client::new(),
+        flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
+            .unwrap()
+            .flaresolverr(),
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),

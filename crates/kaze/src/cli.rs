@@ -140,6 +140,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         library: config.library_dir.clone(),
         settings,
         http: http.client(),
+        flaresolverr: http.flaresolverr(),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

@@ -29,3 +29,4 @@ timeout_secs = 30
 # page_concurrency = 4           # pages of one chapter fetched at once
 # sync_latest_minutes = 15       # poll each site's latest updates
 # refresh_hours = 24             # full chapter list refresh per series
+# flaresolverr_url = "http://flaresolverr:8191"  # get past Cloudflare challenges

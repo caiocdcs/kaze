@@ -28,4 +28,8 @@ sync_latest_minutes: number,
 /**
  * How often a series' full chapter list is re-read (series can override).
  */
-refresh_hours: number, };
+refresh_hours: number, 
+/**
+ * A FlareSolverr instance for sites behind Cloudflare challenges.
+ */
+flaresolverr_url: string | null, };

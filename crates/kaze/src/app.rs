@@ -3,7 +3,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use kaze_core::{ChapterNumber, SeriesKey, SourceError};
-use kaze_sources::Registry;
+use kaze_sources::{Registry, flaresolverr::FlareSolverr};
 use sqlx::SqlitePool;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
@@ -29,6 +29,8 @@ pub struct Context {
     pub settings: SettingsStore,
     /// For integrations (Komga, webhooks, ...); sources have their own.
     pub http: reqwest::Client,
+    /// The sources' FlareSolverr fallback, pointed at the configured URL.
+    pub flaresolverr: FlareSolverr,
 }
 
 /// The running application.
@@ -94,6 +96,11 @@ impl App {
         tasks.spawn(events::record_history(
             ctx.db.clone(),
             ctx.events.subscribe(),
+            shutdown.clone(),
+        ));
+        tasks.spawn(apply_flaresolverr(
+            ctx.settings.subscribe(),
+            ctx.flaresolverr.clone(),
             shutdown.clone(),
         ));
         tasks.spawn(notifier::run(
@@ -238,5 +245,21 @@ impl App {
     pub async fn shutdown(&self) {
         self.shutdown.cancel();
         self.tasks.wait().await;
+    }
+}
+
+/// Keep the sources' FlareSolverr URL in step with the settings.
+async fn apply_flaresolverr(
+    mut settings: tokio::sync::watch::Receiver<Arc<crate::settings::Settings>>,
+    flaresolverr: FlareSolverr,
+    shutdown: CancellationToken,
+) {
+    loop {
+        let url = settings.borrow_and_update().flaresolverr_url.clone();
+        flaresolverr.set_url(url);
+        tokio::select! {
+            () = shutdown.cancelled() => return,
+            changed = settings.changed() => if changed.is_err() { return },
+        }
     }
 }
