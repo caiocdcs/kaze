@@ -84,8 +84,15 @@
             pname = "kaze-web";
             inherit (finalAttrs) version src;
             fetcherVersion = 4;
-            # Update after changing web/pnpm-lock.yaml: build, copy the hash from the error.
-            hash = "sha256-sW3YTWQ49bRpWJ6zX3kdVdnwotpQtOPzTsDQ8yzsbGQ=";
+            # The pnpm store differs slightly between platforms, so each
+            # system has its own hash. After changing web/pnpm-lock.yaml, build
+            # (or let CI build) on each and copy the hash from the error.
+            hash =
+              {
+                aarch64-darwin = "sha256-sW3YTWQ49bRpWJ6zX3kdVdnwotpQtOPzTsDQ8yzsbGQ=";
+                x86_64-linux = "sha256-6uz8z88SK41kmX5LoNThzHYzAWFY4N52VweXMCbqZ6s=";
+              }
+              .${system} or lib.fakeHash;
           };
         };
         web = pkgs.stdenvNoCC.mkDerivation (
