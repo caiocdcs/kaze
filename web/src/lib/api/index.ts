@@ -1,6 +1,10 @@
 import { http, url } from './client.ts';
 import type { ChapterRecord } from './types/ChapterRecord.ts';
+import type { Candidate } from './types/Candidate.ts';
 import type { Config } from './types/Config.ts';
+import type { ImportRequest } from './types/ImportRequest.ts';
+import type { Imported } from './types/Imported.ts';
+import type { Match } from './types/Match.ts';
 import type { HealthCheck } from './types/HealthCheck.ts';
 import type { Integration } from './types/Integration.ts';
 import type { IntegrationInput } from './types/IntegrationInput.ts';
@@ -56,6 +60,10 @@ export const api = {
 	runTask: (task: Task) => http.post<void>(`/tasks/${task}/run`),
 	health: () => http.get<HealthCheck[]>('/health'),
 
+	importCandidates: () => http.get<Candidate[]>('/import'),
+	importMatches: (folder: string) => http.get<Match[]>('/import/match', { folder }),
+	importFolder: (req: ImportRequest) => http.post<Imported>('/import', req),
+
 	integrations: () => http.get<Integration[]>('/integrations'),
 	presets: () => http.get<Preset[]>('/integrations/presets'),
 	createIntegration: (input: IntegrationInput) => http.post<Integration>('/integrations', input),
@@ -69,7 +77,9 @@ export const api = {
 };
 
 export type {
+	Candidate,
 	ChapterRecord,
+	Match,
 	Config,
 	HealthCheck,
 	Integration,
