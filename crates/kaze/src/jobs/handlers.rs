@@ -68,6 +68,9 @@ async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Resu
     )?;
 
     db::series::update_metadata(&ctx.db, series_id, &series).await?;
+    // Saved now, not with the first chapter, so the library shows it at once.
+    let cover = series.cover_url.as_ref().map(ToString::to_string);
+    save_cover(ctx, source, &record.folder, cover.as_deref()).await;
     // The first check after following decides between `All` and `Future`.
     let initial = record.last_checked_at.is_none();
     let from = record.monitor_from.as_ref();
@@ -97,6 +100,16 @@ async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Resu
     Ok(())
 }
 
+/// Best effort: a missing cover never fails the job.
+async fn save_cover(ctx: &Context, source: &dyn Source, folder: &str, url: Option<&str>) {
+    let Some(url) = url.and_then(|u| u.parse().ok()) else {
+        return;
+    };
+    if let Err(err) = download::cover(source, &url, &ctx.library.join(folder)).await {
+        tracing::warn!(folder, "could not save cover: {err}");
+    }
+}
+
 async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result<(), JobError> {
     let chapter = db::chapters::get(&ctx.db, chapter_id)
         .await?
@@ -108,11 +121,7 @@ async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result
     let source = source(ctx, &chapter.source)?;
     let dir = ctx.library.join(&series.folder);
 
-    if let Some(cover) = series.cover_url.as_deref().and_then(|u| u.parse().ok())
-        && let Err(err) = download::cover(source, &cover, &dir).await
-    {
-        tracing::warn!(series = series.title, "could not save cover: {err}");
-    }
+    save_cover(ctx, source, &series.folder, series.cover_url.as_deref()).await;
 
     let meta = ChapterMeta {
         series_title: series.title.clone(),
