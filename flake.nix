@@ -13,13 +13,18 @@
 
   outputs =
     {
+      self,
       nixpkgs,
       flake-utils,
       crane,
       rust-overlay,
       ...
     }:
-    flake-utils.lib.eachDefaultSystem (
+    {
+      # `services.kaze`; see nix/module.nix.
+      nixosModules.default = import ./nix/module.nix self;
+    }
+    // flake-utils.lib.eachDefaultSystem (
       system:
       let
         pkgs = import nixpkgs {
