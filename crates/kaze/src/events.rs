@@ -9,11 +9,14 @@ use serde::Serialize;
 use sqlx::SqlitePool;
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
+use ts_rs::TS;
 
 use crate::{db, jobs::Job};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(TS)]
+#[ts(export)]
 pub enum Event {
     JobQueued {
         job_id: i64,

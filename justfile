@@ -25,11 +25,17 @@ db-reset:
 sqlx-prepare: db
     cargo sqlx prepare --workspace -- --all-targets
 
-# Formatting + lints + up-to-date query metadata, as CI runs them
-check: db
+# Formatting + lints + up-to-date query metadata and API types, as CI runs them
+check: db types
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- --deny warnings
     cargo sqlx prepare --workspace --check -- --all-targets
+    @test -z "$(git status --porcelain -- web/src/lib/api/types)" || (echo "API types changed: commit web/src/lib/api/types" && exit 1)
+
+# Regenerate the web UI's TypeScript API types from the Rust structs (ts-rs)
+types: db
+    rm -rf web/src/lib/api/types
+    cargo test --workspace --quiet export_bindings > /dev/null
 
 # Run the test suite
 test *args: db

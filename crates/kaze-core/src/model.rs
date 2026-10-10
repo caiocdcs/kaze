@@ -16,6 +16,7 @@ macro_rules! string_key {
         #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
         #[serde(transparent)]
         #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
+        #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
         pub struct $name(pub String);
 
         impl $name {
@@ -56,6 +57,7 @@ string_key!(
 
 /// A search result: just enough to show a card and pick it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct SeriesHit {
     pub key: SeriesKey,
     pub title: String,
@@ -66,6 +68,7 @@ pub struct SeriesHit {
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 #[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(rename_all = "lowercase"))]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub enum SeriesStatus {
     Ongoing,
     Completed,
@@ -77,6 +80,7 @@ pub enum SeriesStatus {
 
 /// Full metadata of a series as the source describes it.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct Series {
     pub key: SeriesKey,
     pub title: String,
@@ -94,6 +98,7 @@ pub struct Series {
 
 /// One chapter as listed by the source.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 pub struct ChapterInfo {
     pub key: ChapterKey,
     pub number: ChapterNumber,

@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
-kaze-core = { workspace = true, features = ["sqlx"] }
+kaze-core = { workspace = true, features = ["sqlx", "ts"] }
 bytes.workspace = true
 kaze-sources.workspace = true
 anyhow.workspace = true
@@ -27,6 +27,7 @@ serde.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
 thiserror.workspace = true
+ts-rs.workspace = true
 url.workspace = true
 zip.workspace = true
 

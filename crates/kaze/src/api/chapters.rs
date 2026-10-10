@@ -5,11 +5,13 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
+use ts_rs::TS;
 
 use super::{ApiError, ApiResult, AppState};
 use crate::{db, jobs::Job, library::WantedChapter};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 pub struct SetMonitored {
     ids: Vec<i64>,
     monitored: bool,

@@ -3,8 +3,10 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::SqliteExecutor;
+use ts_rs::TS;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct HistoryEntry {
     pub id: i64,
     pub at: DateTime<Utc>,

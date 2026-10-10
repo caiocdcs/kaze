@@ -10,6 +10,7 @@ use std::{
     sync::{Arc, Mutex},
     time::Duration,
 };
+use ts_rs::TS;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -27,6 +28,8 @@ const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[derive(TS)]
+#[ts(export)]
 pub enum Task {
     /// Check every source's latest updates for followed series.
     SyncLatest,
@@ -53,7 +56,8 @@ struct Status {
 }
 
 /// A scheduled task as the API shows it.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct TaskInfo {
     pub task: Task,
     pub name: &'static str,

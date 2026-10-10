@@ -13,6 +13,7 @@ mod handlers;
 pub mod scheduler;
 
 use std::time::Duration;
+use ts_rs::TS;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
@@ -27,6 +28,8 @@ use crate::{
 /// A unit of background work. Stored as JSON in `jobs.payload`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[derive(TS)]
+#[ts(export)]
 pub enum Job {
     /// Fetch the chapter list and queue downloads for wanted chapters.
     RefreshSeries { series_id: i64, source: String },
