@@ -24,6 +24,8 @@ chrono = { version = "0.4", default-features = false, features = ["std", "serde"
 clap = { version = "4", features = ["derive", "env"] }
 figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = "0.3"
+# Free disk space for the health check.
+fs4 = "1"
 http-body-util = "0.1"
 regex = "1"
 scraper = "0.27"

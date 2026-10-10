@@ -15,6 +15,7 @@ kaze-sources.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 figment.workspace = true
+fs4.workspace = true
 futures-util.workspace = true
 minijinja.workspace = true
 reqwest.workspace = true

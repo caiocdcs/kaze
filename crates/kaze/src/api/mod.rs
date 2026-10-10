@@ -4,6 +4,7 @@ mod auth;
 mod chapters;
 mod error;
 mod events;
+mod health;
 mod integrations;
 mod jobs;
 mod patch;
@@ -52,6 +53,7 @@ pub fn router(app: AppState) -> Router {
         .route("/jobs/{id}/retry", post(jobs::retry))
         .route("/history", get(jobs::history))
         .route("/settings", get(settings::get).patch(settings::update))
+        .route("/health", get(health::check))
         .route("/tasks", get(jobs::tasks))
         .route(
             "/integrations",
