@@ -8,6 +8,8 @@ mod html;
 pub mod http;
 #[cfg(feature = "mangadex")]
 pub mod mangadex;
+#[cfg(feature = "mangaworld")]
+pub mod mangaworld;
 #[cfg(feature = "weebcentral")]
 pub mod weebcentral;
 
@@ -53,6 +55,8 @@ impl Registry {
             Arc::new(mangadex::MangaDex::new(http)),
             #[cfg(feature = "asura")]
             Arc::new(asura::Asura::new(http)),
+            #[cfg(feature = "mangaworld")]
+            Arc::new(mangaworld::Mangaworld::new(http)),
         ];
         let _ = http; // unused when built without any source feature
         Self { sources }
