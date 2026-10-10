@@ -4,4 +4,8 @@ import type { ChapterNumber } from "./ChapterNumber";
 /**
  * A row of the wanted list.
  */
-export type WantedChapter = { id: number, series_id: number, series_title: string, source: string, number: ChapterNumber, volume: number | null, title: string | null, published_at: string | null, };
+export type WantedChapter = { id: number, series_id: number, series_title: string, source: string, number: ChapterNumber, volume: number | null, title: string | null, published_at: string | null, 
+/**
+ * The latest download job for this chapter, if it was ever tried.
+ */
+last_attempt_at: string | null, last_attempt_state: string | null, last_error: string | null, };

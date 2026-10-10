@@ -114,8 +114,14 @@ pub async fn wanted_with_series(
     sqlx::query_as!(
         WantedChapter,
         r#"SELECT c.id AS "id!", c.series_id, s.title AS series_title, c.source,
-                  c.number AS "number: _", c.volume, c.title, c.published_at AS "published_at: _"
+                  c.number AS "number: _", c.volume, c.title, c.published_at AS "published_at: _",
+                  j.updated_at AS "last_attempt_at?: _", j.state AS "last_attempt_state?",
+                  j.last_error AS "last_error?"
            FROM chapters c JOIN series s ON s.id = c.series_id
+           -- The newest download job of each chapter (ids only grow).
+           LEFT JOIN jobs j ON j.id = (
+               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id
+           )
            WHERE c.monitored = 1 AND c.file_path IS NULL
            ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac
            LIMIT ?"#,

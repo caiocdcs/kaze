@@ -97,6 +97,10 @@ pub struct WantedChapter {
     pub volume: Option<i64>,
     pub title: Option<String>,
     pub published_at: Option<DateTime<Utc>>,
+    /// The latest download job for this chapter, if it was ever tried.
+    pub last_attempt_at: Option<DateTime<Utc>>,
+    pub last_attempt_state: Option<String>,
+    pub last_error: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
