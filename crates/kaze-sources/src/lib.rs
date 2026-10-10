@@ -7,6 +7,7 @@ pub mod flaresolverr;
 #[cfg(feature = "scraping")]
 mod html;
 pub mod http;
+mod literal;
 #[cfg(feature = "mangadex")]
 pub mod mangadex;
 #[cfg(feature = "mangaworld")]

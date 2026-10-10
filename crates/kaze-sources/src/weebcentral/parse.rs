@@ -4,18 +4,20 @@
 //! `scraper::Html` is not `Send`, so it must never live across an
 //! `.await`; keeping parsing in sync functions guarantees that.
 
-use std::{collections::HashSet, sync::LazyLock};
+use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
 use kaze_core::{
     ChapterInfo, ChapterKey, ChapterNumber, Result, Series, SeriesHit, SeriesKey, SeriesStatus,
     SourceError,
 };
-use regex::Regex;
 use scraper::{ElementRef, Html};
 use url::Url;
 
-use crate::html::{sel, text};
+use crate::{
+    html::{sel, text},
+    literal::re,
+};
 
 /// WeebCentral ids are ULIDs: 26 chars of Crockford base32.
 pub fn is_ulid(s: &str) -> bool {
@@ -237,21 +239,18 @@ struct Label {
 /// * `Prologue 3` (Berserk) → number 3, but the label is kept as the title
 ///   so it does not overwrite `Chapter 3` on disk.
 fn parse_label(label: &str) -> Option<Label> {
-    static VOLUME: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r"(?i)^\s*(?:volume|vol\.?|season)\s*(\d+)[\s:,-]*").unwrap());
-    static CHAPTER: LazyLock<Regex> = LazyLock::new(|| {
-        Regex::new(r"(?i)^(?:chapter|chap|ch|episode|ep)\.?\s*(\d+(?:[.,]\d+)?)\s*[:\-–]?\s*(.*)$")
-            .unwrap()
-    });
-    static ANY_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\d+(?:[.,]\d+)?").unwrap());
+    let volume_re = re!(r"(?i)^\s*(?:volume|vol\.?|season)\s*(\d+)[\s:,-]*");
+    let chapter_re =
+        re!(r"(?i)^(?:chapter|chap|ch|episode|ep)\.?\s*(\d+(?:[.,]\d+)?)\s*[:\-–]?\s*(.*)$");
+    let any_number = re!(r"\d+(?:[.,]\d+)?");
 
     let label = label.trim();
-    let (volume, rest) = match VOLUME.captures(label) {
+    let (volume, rest) = match volume_re.captures(label) {
         Some(c) => (c[1].parse().ok(), &label[c.get(0)?.end()..]),
         None => (None, label),
     };
 
-    if let Some(c) = CHAPTER.captures(rest) {
+    if let Some(c) = chapter_re.captures(rest) {
         let title = c[2].trim();
         return Some(Label {
             number: c[1].parse().ok()?,
@@ -260,7 +259,7 @@ fn parse_label(label: &str) -> Option<Label> {
         });
     }
 
-    let number = ANY_NUMBER.find_iter(rest).last()?.as_str().parse().ok()?;
+    let number = any_number.find_iter(rest).last()?.as_str().parse().ok()?;
     Some(Label {
         number,
         volume,

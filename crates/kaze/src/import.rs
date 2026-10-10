@@ -115,6 +115,7 @@ fn comicinfo_number(path: &Path) -> Option<ChapterNumber> {
     xml[start..end].trim().parse().ok()
 }
 
+#[allow(clippy::unwrap_used, reason = "literal patterns, covered by tests")]
 static CHAPTER_PATTERNS: LazyLock<[Regex; 3]> = LazyLock::new(|| {
     [
         // "Ch.12", "Ch 12.5", "Chapter 12", "chap12"

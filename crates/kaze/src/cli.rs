@@ -250,10 +250,10 @@ async fn search(
     };
 
     if json {
-        let value: serde_json::Map<_, _> = outcomes
+        let value = outcomes
             .into_iter()
-            .map(|(id, hits)| (id, serde_json::to_value(hits).expect("hits serialize")))
-            .collect();
+            .map(|(id, hits)| Ok((id, serde_json::to_value(hits)?)))
+            .collect::<serde_json::Result<serde_json::Map<_, _>>>()?;
         println!("{}", serde_json::to_string_pretty(&value)?);
         return Ok(());
     }

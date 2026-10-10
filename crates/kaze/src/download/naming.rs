@@ -101,6 +101,7 @@ impl Template {
 }
 
 impl Default for Template {
+    #[allow(clippy::expect_used, reason = "constant, covered by tests")]
     fn default() -> Self {
         DEFAULT_TEMPLATE.parse().expect("default template is valid")
     }
@@ -169,12 +170,13 @@ fn parse_until_close(
                 None => return Err(TemplateError::DanglingPercent),
             },
             // A `?` not followed by a field code is just text ("Why?").
-            '?' if chars.peek().copied().and_then(Field::from_code).is_some() => {
-                let code = chars.next().expect("peeked");
+            '?' if let Some(&code) = chars.peek()
+                && let Some(field) = Field::from_code(code) =>
+            {
+                chars.next();
                 if chars.next() != Some('(') {
                     return Err(TemplateError::MissingParen(code));
                 }
-                let field = Field::from_code(code).expect("checked above");
                 let inner = parse_until_close(chars, true)?;
                 flush(&mut text, &mut segments);
                 segments.push(Segment::IfSome(field, inner));
