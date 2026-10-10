@@ -146,6 +146,19 @@ pub async fn mark_downloaded(
     Ok(())
 }
 
+pub async fn clear_file(db: impl SqliteExecutor<'_>, id: i64, unmonitor: bool) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE chapters SET file_path = NULL, downloaded_at = NULL,
+                monitored = CASE WHEN ? THEN 0 ELSE monitored END
+         WHERE id = ?",
+        unmonitor,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
 /// Monitor or unmonitor many chapters in one statement.
 ///
 /// SQLite has no array parameters, so the ids travel as one JSON array

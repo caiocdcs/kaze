@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{StatusCode, header},
     response::IntoResponse,
 };
@@ -12,8 +12,9 @@ use ts_rs::TS;
 use super::{ApiError, ApiResult, AppState, patch::Patch};
 use crate::{
     db,
+    events::Event,
     jobs::Job,
-    library::{ChapterRecord, Monitor, SeriesRecord, SeriesSummary},
+    library::{self, ChapterRecord, Monitor, SeriesRecord, SeriesSummary},
 };
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSummary>>> {
@@ -132,13 +133,47 @@ async fn remonitor(
     Ok(())
 }
 
-/// Stop following; files already downloaded stay on disk.
-pub async fn remove(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<StatusCode> {
-    if db::series::delete(&app.ctx.db, id).await? {
-        Ok(StatusCode::NO_CONTENT)
-    } else {
-        Err(ApiError::NotFound("series"))
+#[derive(Deserialize)]
+pub struct RemoveOptions {
+    #[serde(default)]
+    delete_files: bool,
+}
+
+/// Stop following, and with `delete_files` remove the series folder too.
+pub async fn remove(
+    State(app): State<AppState>,
+    Path(id): Path<i64>,
+    Query(opts): Query<RemoveOptions>,
+) -> ApiResult<StatusCode> {
+    let series = load(&app, id).await?;
+    for job_id in db::jobs::active_for_series(&app.ctx.db, id).await? {
+        app.jobs.cancel(job_id).await?;
     }
+    let files = db::chapters::for_series(&app.ctx.db, id)
+        .await?
+        .iter()
+        .filter(|c| c.file_path.is_some())
+        .count();
+    db::series::delete(&app.ctx.db, id).await?;
+    tracing::info!(
+        series = series.title,
+        delete_files = opts.delete_files,
+        "unfollowed"
+    );
+    if opts.delete_files {
+        let folder = app.ctx.library.join(&series.folder);
+        if library::remove(&app.ctx.library, &folder)
+            .await
+            .map_err(|e| ApiError::Conflict(format!("deleting {}: {e}", folder.display())))?
+        {
+            app.ctx.events.emit(Event::FilesDeleted {
+                series_id: None,
+                series: series.title,
+                count: files,
+            });
+        }
+    }
+    Ok(StatusCode::NO_CONTENT)
 }
 
 pub async fn refresh(

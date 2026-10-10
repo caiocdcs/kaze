@@ -48,6 +48,8 @@ struct Batch {
     failed: Vec<String>,
     /// series → new chapters found
     found: BTreeMap<String, usize>,
+    /// Files were added or removed, so library servers should scan.
+    library_changed: bool,
     first_at: Option<Instant>,
     last_at: Option<Instant>,
 }
@@ -177,6 +179,11 @@ fn collect(batch: &mut Batch, attempts: &mut HashMap<i64, String>, event: Event)
             series, chapter, ..
         } => {
             batch.downloaded.entry(series).or_default().push(chapter);
+            batch.library_changed = true;
+            batch.touch();
+        }
+        Event::FilesDeleted { .. } => {
+            batch.library_changed = true;
             batch.touch();
         }
         Event::ChaptersFound { series, count, .. } => {
@@ -224,10 +231,10 @@ async fn flush(db: &SqlitePool, jobs: &JobQueue, batch: &Batch) {
     for integration in integrations.into_iter().filter(|i| i.enabled) {
         let integration_id = integration.id;
         let jobs_for: Vec<Job> = if integration.config.is_library() {
-            if batch.downloaded.is_empty() {
-                Vec::new()
-            } else {
+            if batch.library_changed {
                 vec![Job::ScanLibrary { integration_id }]
+            } else {
+                Vec::new()
             }
         } else {
             messages
@@ -274,6 +281,19 @@ mod tests {
         assert_eq!(messages[0].title, "Downloaded 4 chapters");
         assert_eq!(messages[0].body, "Berserk: 1, 2, 3\nFrieren: 140");
         assert_eq!(messages[0].series, ["Berserk", "Frieren"]);
+    }
+
+    #[test]
+    fn deleting_files_scans_without_a_message() {
+        let mut batch = Batch::default();
+        let deleted = Event::FilesDeleted {
+            series_id: None,
+            series: "Berserk".into(),
+            count: 3,
+        };
+        collect(&mut batch, &mut HashMap::new(), deleted);
+        assert!(batch.library_changed);
+        assert_eq!(batch.messages(), []);
     }
 
     #[test]

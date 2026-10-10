@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM jobs\n           WHERE state IN ('queued', 'running')\n             AND (json_extract(payload, '$.series_id') = ?1\n                  OR json_extract(payload, '$.chapter_id') IN (SELECT id FROM chapters WHERE series_id = ?1))",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "527b0806a649dbd70073fb11a599cd50a20239b550183726430ea33f30852d3d"
+}

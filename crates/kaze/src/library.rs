@@ -1,5 +1,7 @@
 //! What kaze tracks: followed series and their chapters, as stored.
 
+use std::{io, path::Path};
+
 use chrono::{DateTime, Utc};
 use kaze_core::{ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
 use serde::{Deserialize, Serialize};
@@ -130,6 +132,29 @@ impl ChapterRecord {
     }
 }
 
+/// Delete a file or folder, refusing anything that resolves outside the
+/// library (a stray `..` or a symlink). Returns false if it was already gone.
+pub async fn remove(library: &Path, path: &Path) -> io::Result<bool> {
+    let root = tokio::fs::canonicalize(library).await?;
+    let target = match tokio::fs::canonicalize(path).await {
+        Ok(target) => target,
+        Err(err) if err.kind() == io::ErrorKind::NotFound => return Ok(false),
+        Err(err) => return Err(err),
+    };
+    if target == root || !target.starts_with(&root) {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            format!("{} is outside the library", path.display()),
+        ));
+    }
+    if tokio::fs::metadata(&target).await?.is_dir() {
+        tokio::fs::remove_dir_all(&target).await?;
+    } else {
+        tokio::fs::remove_file(&target).await?;
+    }
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -147,5 +172,22 @@ mod tests {
         assert!(!Monitor::Future.wants(&n("50"), None, true));
         assert!(Monitor::Future.wants(&n("51"), None, false));
         assert!(!Monitor::None.wants(&n("51"), None, false));
+    }
+
+    #[tokio::test]
+    async fn remove_stays_inside_the_library() {
+        let root = tempfile::tempdir().unwrap();
+        let library = root.path().join("library");
+        let outside = root.path().join("outside");
+        std::fs::create_dir_all(library.join("Series")).unwrap();
+        std::fs::create_dir(&outside).unwrap();
+
+        let escape = library.join("..").join("outside");
+        assert!(remove(&library, &escape).await.is_err());
+        assert!(remove(&library, &library).await.is_err());
+        assert!(outside.exists() && library.exists());
+
+        assert!(remove(&library, &library.join("Series")).await.unwrap());
+        assert!(!remove(&library, &library.join("Series")).await.unwrap());
     }
 }
