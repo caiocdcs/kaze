@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO integrations (name, enabled, config, events, created_at)\n           VALUES (?, ?, ?, ?, ?) RETURNING id AS \"id!\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "4cfea090bc24cef831611ed3d46c487efced17fe50e3ca11f34b7b883c05ddec"
+}

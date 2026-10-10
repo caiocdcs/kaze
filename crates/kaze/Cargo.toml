@@ -16,6 +16,8 @@ anyhow.workspace = true
 clap.workspace = true
 figment.workspace = true
 futures-util.workspace = true
+minijinja.workspace = true
+reqwest.workspace = true
 rust-embed.workspace = true
 serde_json.workspace = true
 sqlx.workspace = true
@@ -37,6 +39,8 @@ figment = { workspace = true, features = ["test"] }
 http-body-util.workspace = true
 tower.workspace = true
 tempfile.workspace = true
+# Paused clocks for timing tests.
+tokio = { workspace = true, features = ["test-util"] }
 
 [lints]
 workspace = true

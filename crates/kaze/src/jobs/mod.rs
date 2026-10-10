@@ -23,6 +23,7 @@ pub use self::dispatcher::Dispatcher;
 use crate::{
     db,
     events::{Event, Events},
+    integrations::Message,
 };
 
 /// A unit of background work. Stored as JSON in `jobs.payload`.
@@ -37,6 +38,13 @@ pub enum Job {
     DownloadChapter { chapter_id: i64, source: String },
     /// Check a source's latest updates for followed series.
     SyncLatest { source: String },
+    /// Send a message to a notification integration.
+    Notify {
+        integration_id: i64,
+        message: Message,
+    },
+    /// Ask a library server (Komga, Kavita) to scan.
+    ScanLibrary { integration_id: i64 },
 }
 
 impl Job {
@@ -46,6 +54,8 @@ impl Job {
             Self::RefreshSeries { .. } => "refresh_series",
             Self::DownloadChapter { .. } => "download_chapter",
             Self::SyncLatest { .. } => "sync_latest",
+            Self::Notify { .. } => "notify",
+            Self::ScanLibrary { .. } => "scan_library",
         }
     }
 
@@ -57,16 +67,24 @@ impl Job {
             Self::RefreshSeries { series_id, .. } => format!("refresh:{series_id}"),
             Self::DownloadChapter { chapter_id, .. } => format!("download:{chapter_id}"),
             Self::SyncLatest { source } => format!("latest:{source}"),
+            // Every message is its own; nothing to merge.
+            Self::Notify { integration_id, .. } => format!(
+                "notify:{integration_id}:{}",
+                chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
+            ),
+            // A scan picks up everything on disk, so one pending scan is enough.
+            Self::ScanLibrary { integration_id } => format!("scan:{integration_id}"),
         }
     }
 
     /// The source this job talks to, for per-source concurrency limits.
     #[must_use]
-    pub fn source(&self) -> &str {
+    pub fn source(&self) -> Option<&str> {
         match self {
             Self::RefreshSeries { source, .. }
             | Self::DownloadChapter { source, .. }
-            | Self::SyncLatest { source } => source,
+            | Self::SyncLatest { source } => Some(source),
+            Self::Notify { .. } | Self::ScanLibrary { .. } => None,
         }
     }
 }

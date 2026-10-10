@@ -68,9 +68,11 @@
 	const kindLabel: Record<JobRecord['job']['type'], string> = {
 		download_chapter: 'Download',
 		refresh_series: 'Refresh',
-		sync_latest: 'Latest'
+		sync_latest: 'Latest',
+		notify: 'Notify',
+		scan_library: 'Scan'
 	};
-	const sourceOf = (j: JobRecord) => j.job.source;
+	const sourceOf = (j: JobRecord) => ('source' in j.job ? j.job.source : null);
 	const sourceName = (id: string) => sources.find((s) => s.id === id)?.name ?? id;
 
 	/** Slots in use: overall and per source, against the configured limits. */
@@ -195,7 +197,7 @@
 						<div class="flex items-start justify-between gap-3">
 							<div class="min-w-0">
 								<p class="m-0 text-xs text-muted">
-									{kindLabel[j.job.type]} · {sourceName(sourceOf(j))}
+									{kindLabel[j.job.type]}{sourceOf(j) ? ` · ${sourceName(sourceOf(j) ?? '')}` : ''}
 								</p>
 								<p class="m-0 truncate font-semibold">
 									{#if j.series_id !== null}

@@ -43,6 +43,10 @@ export function jobLabel(j: JobRecord): string {
 			return `${series} · check for chapters`;
 		case 'sync_latest':
 			return `Latest updates on ${j.job.source}`;
+		case 'notify':
+			return `Notify: ${j.job.message.title}`;
+		case 'scan_library':
+			return 'Library server scan';
 	}
 }
 

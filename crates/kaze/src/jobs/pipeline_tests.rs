@@ -37,16 +37,25 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         sources: kaze_sources::Registry::from_sources(vec![source.clone()]),
         events,
         library: library.path().to_owned(),
+        http: reqwest::Client::new(),
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),
         max: Duration::from_millis(100),
     };
     Harness {
-        app: App::start(ctx, retry).await.unwrap(),
+        // Short notification batches so integration tests don't wait 30 s.
+        app: App::start_with(ctx, retry, notify_timing()).await.unwrap(),
         source,
         events: receiver,
         library,
+    }
+}
+
+fn notify_timing() -> crate::integrations::notifier::Timing {
+    crate::integrations::notifier::Timing {
+        quiet: Duration::from_millis(100),
+        max_wait: Duration::from_secs(2),
     }
 }
 
@@ -280,5 +289,71 @@ async fn interrupted_jobs_resume_after_restart() {
     let job = db::jobs::get(&h.app.ctx.db, job_id).await.unwrap().unwrap();
     assert_eq!(job.state, JobState::Done);
     assert_eq!(job.attempts, 2, "one before the crash, one after");
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn downloads_are_announced_in_one_batched_webhook() {
+    use axum::{Router, body::Bytes, routing::post};
+
+    use crate::{
+        db::integrations::NewIntegration,
+        integrations::{Config, Trigger, WebhookMethod},
+    };
+
+    let (tx, mut received) = tokio::sync::mpsc::unbounded_channel::<String>();
+    let hook = Router::new().route(
+        "/hook",
+        post(move |body: Bytes| {
+            let tx = tx.clone();
+            async move {
+                let _ = tx.send(String::from_utf8_lossy(&body).into_owned());
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/hook", listener.local_addr().unwrap());
+    tokio::spawn(async move { axum::serve(listener, hook).await.unwrap() });
+
+    let db = db::memory().await;
+    let config = Config::Webhook {
+        url: url.parse().unwrap(),
+        method: WebhookMethod::Post,
+        headers: std::collections::BTreeMap::new(),
+        body: "{{ event }}|{{ title }}".into(),
+    };
+    let id = db::integrations::insert(
+        &db,
+        &NewIntegration {
+            name: "hook",
+            enabled: true,
+            config: &config,
+            events: &[Trigger::Downloaded],
+        },
+    )
+    .await
+    .unwrap();
+
+    let mut h = start_with(FakeSource::new().with_chapters(&["1", "2"]), db).await;
+    h.follow(Monitor::All).await;
+    h.downloaded(2).await;
+
+    let body = tokio::time::timeout(Duration::from_secs(5), received.recv())
+        .await
+        .expect("webhook called")
+        .unwrap();
+    assert_eq!(body, "downloaded|Downloaded 2 chapters");
+    // `found` isn't subscribed: no second message.
+    assert!(
+        tokio::time::timeout(Duration::from_millis(300), received.recv())
+            .await
+            .is_err()
+    );
+    let integration = db::integrations::get(&h.app.ctx.db, id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(integration.last_ok, Some(true));
+    assert_eq!(integration.last_status.as_deref(), Some("Sent"));
     h.app.shutdown().await;
 }

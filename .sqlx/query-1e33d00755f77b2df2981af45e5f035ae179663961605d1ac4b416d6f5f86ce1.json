@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE integrations SET last_ok = ?, last_status = ?, last_sent_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "1e33d00755f77b2df2981af45e5f035ae179663961605d1ac4b416d6f5f86ce1"
+}

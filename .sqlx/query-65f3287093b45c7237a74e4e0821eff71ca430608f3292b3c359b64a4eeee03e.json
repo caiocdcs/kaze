@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE integrations SET name = ?, enabled = ?, config = ?, events = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "65f3287093b45c7237a74e4e0821eff71ca430608f3292b3c359b64a4eeee03e"
+}

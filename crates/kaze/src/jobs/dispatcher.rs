@@ -272,7 +272,8 @@ async fn run_one(
     // released when the guards drop at the end of this function.
     let permits = async {
         let global = Arc::clone(&lanes.global.semaphore).acquire_owned().await;
-        let source = match lanes.per_source.get(claimed.job.source()) {
+        let lane = claimed.job.source().and_then(|s| lanes.per_source.get(s));
+        let source = match lane {
             Some(lane) => Some(Arc::clone(&lane.semaphore).acquire_owned().await),
             None => None,
         };
