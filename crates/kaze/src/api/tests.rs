@@ -91,6 +91,28 @@ async fn health_and_sources() {
 }
 
 #[tokio::test]
+async fn unknown_paths_get_the_ui_or_a_404() {
+    let api = api(None).await;
+    // index.html when the UI is built, a hint page otherwise; HTML either way.
+    let response = api
+        .router
+        .clone()
+        .oneshot(Request::get("/series/1").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert!(
+        response.headers()["content-type"]
+            .to_str()
+            .unwrap()
+            .starts_with("text/html")
+    );
+    assert_eq!(api.get("/api/v1/nope").await.0, StatusCode::NOT_FOUND);
+    assert_eq!(api.get("/_app/missing.js").await.0, StatusCode::NOT_FOUND);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn follow_then_inspect_series() {
     let api = api(None).await;
     let body = json!({ "source": "fake", "key": "S1" });
