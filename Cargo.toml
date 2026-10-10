@@ -26,6 +26,7 @@ figment = { version = "0.10", features = ["env", "toml"] }
 futures-util = "0.3"
 # Free disk space for the health check.
 fs4 = "1"
+http = "1"
 http-body-util = "0.1"
 regex = "1"
 scraper = "0.27"
