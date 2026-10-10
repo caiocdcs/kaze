@@ -62,6 +62,16 @@ pub enum Config {
 }
 
 impl Config {
+    #[must_use]
+    pub const fn kind(&self) -> &'static str {
+        match self {
+            Self::Komga { .. } => "komga",
+            Self::Kavita { .. } => "kavita",
+            Self::Webhook { .. } => "webhook",
+            Self::Apprise { .. } => "apprise",
+        }
+    }
+
     /// Library servers get scans; everything else gets messages.
     #[must_use]
     pub const fn is_library(&self) -> bool {
