@@ -136,7 +136,7 @@ impl Message {
 
 #[derive(Debug, thiserror::Error)]
 pub enum IntegrationError {
-    #[error("request failed: {0}")]
+    #[error("request failed: {}", with_causes(.0))]
     Http(#[from] reqwest::Error),
     #[error("{service} answered HTTP {status}: {body}")]
     Status {
@@ -159,6 +159,22 @@ impl IntegrationError {
             Self::Template(_) | Self::Invalid(_) => false,
         }
     }
+}
+
+/// reqwest's message alone ("error sending request") hides why; the
+/// causes say "connection refused" or "dns error".
+fn with_causes(err: &dyn std::error::Error) -> String {
+    let mut text = err.to_string();
+    let mut source = err.source();
+    while let Some(cause) = source {
+        let cause_text = cause.to_string();
+        if !text.contains(&cause_text) {
+            text.push_str(": ");
+            text.push_str(&cause_text);
+        }
+        source = cause.source();
+    }
+    text
 }
 
 /// A ready-made webhook setup for a popular service.
