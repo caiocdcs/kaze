@@ -59,6 +59,12 @@ impl Http {
         })
     }
 
+    /// The shared client without any source's limits, for other services.
+    #[must_use]
+    pub fn client(&self) -> Client {
+        self.client.clone()
+    }
+
     /// A client for one source, honouring its rate limit.
     #[must_use]
     pub fn for_source(&self, rate_limit: RateLimit, referer: Option<&Url>) -> SourceHttp {

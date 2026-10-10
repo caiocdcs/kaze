@@ -139,6 +139,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         events: Events::new(1024),
         library: config.library_dir.clone(),
         settings,
+        http: http.client(),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

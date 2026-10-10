@@ -1,0 +1,122 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id, name, enabled AS \"enabled: bool\", config AS \"config: Json<Config>\",\n                  events AS \"events: Json<Vec<Trigger>>\", last_ok AS \"last_ok: bool\", last_status,\n                  last_sent_at AS \"last_sent_at: _\", created_at AS \"created_at: _\"\n           FROM integrations WHERE id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "id",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "name",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "name": "enabled: bool",
+        "ordinal": 2,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "name": "config: Json<Config>",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "config"
+          }
+        }
+      },
+      {
+        "name": "events: Json<Vec<Trigger>>",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "events"
+          }
+        }
+      },
+      {
+        "name": "last_ok: bool",
+        "ordinal": 5,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "last_ok"
+          }
+        }
+      },
+      {
+        "name": "last_status",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "last_status"
+          }
+        }
+      },
+      {
+        "name": "last_sent_at: _",
+        "ordinal": 7,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "last_sent_at"
+          }
+        }
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 8,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "integrations",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "24ea6a88192174945be6b7c5172489ca1fd36a61a8391802f119d3b8ae7aabce"
+}

@@ -54,7 +54,9 @@ pub enum Event {
         chapter: String,
         path: String,
     },
+    /// One attempt failed; `JobFailed` for the same job says whether it retries.
     ChapterFailed {
+        job_id: i64,
         series_id: i64,
         chapter_id: i64,
         series: String,
@@ -95,6 +97,7 @@ impl Event {
                 series,
                 chapter,
                 error,
+                ..
             } => Some((
                 "failed",
                 Some(*series_id),

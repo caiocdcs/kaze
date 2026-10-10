@@ -11,6 +11,7 @@ use crate::{
     db::{self, series::NewSeries},
     download::naming::sanitize_file_name,
     events::{self, Events},
+    integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
     library::Monitor,
     settings::SettingsStore,
@@ -25,6 +26,8 @@ pub struct Context {
     /// Library root: each series gets a folder inside.
     pub library: PathBuf,
     pub settings: SettingsStore,
+    /// For integrations (Komga, webhooks, ...); sources have their own.
+    pub http: reqwest::Client,
 }
 
 /// The running application.
@@ -54,6 +57,14 @@ pub enum FollowError {
 impl App {
     /// Start the dispatcher, scheduler and history writer.
     pub async fn start(ctx: Context, retry: RetryPolicy) -> sqlx::Result<Self> {
+        Self::start_with(ctx, retry, notifier::Timing::default()).await
+    }
+
+    pub async fn start_with(
+        ctx: Context,
+        retry: RetryPolicy,
+        notify: notifier::Timing,
+    ) -> sqlx::Result<Self> {
         // Before anything can queue new work: whatever is queued now was
         // left over from the previous run.
         let leftover = db::jobs::recover(&ctx.db).await?;
@@ -78,6 +89,13 @@ impl App {
         tasks.spawn(events::record_history(
             ctx.db.clone(),
             ctx.events.subscribe(),
+            shutdown.clone(),
+        ));
+        tasks.spawn(notifier::run(
+            ctx.db.clone(),
+            ctx.events.subscribe(),
+            jobs.clone(),
+            notify,
             shutdown.clone(),
         ));
         tasks.close();

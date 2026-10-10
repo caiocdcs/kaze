@@ -8,6 +8,7 @@ use crate::{
     db,
     download::{self, ChapterMeta, DownloadError, Outcome},
     events::Event,
+    integrations::{self, IntegrationError, Message},
     library::SeriesRecord,
 };
 
@@ -21,6 +22,8 @@ pub enum JobError {
     Db(#[from] sqlx::Error),
     #[error(transparent)]
     Queue(#[from] QueueError),
+    #[error(transparent)]
+    Integration(#[from] IntegrationError),
     /// Something the job needs no longer exists; retrying will not help.
     #[error("{0}")]
     Gone(String),
@@ -32,6 +35,7 @@ impl JobError {
             Self::Source(e) | Self::Download(DownloadError::Source(e)) => e.is_retryable(),
             // A page that is not an image is usually a transient CDN error.
             Self::Download(DownloadError::NotAnImage { .. }) | Self::Db(_) => true,
+            Self::Integration(e) => e.is_retryable(),
             Self::Download(_) | Self::Queue(_) | Self::Gone(_) => false,
         }
     }
@@ -42,6 +46,11 @@ pub async fn run(ctx: &Context, queue: &JobQueue, job_id: i64, job: &Job) -> Res
         Job::RefreshSeries { series_id, .. } => refresh_series(ctx, queue, *series_id).await,
         Job::DownloadChapter { chapter_id, .. } => download_chapter(ctx, job_id, *chapter_id).await,
         Job::SyncLatest { source } => sync_latest(ctx, queue, source).await,
+        Job::Notify {
+            integration_id,
+            message,
+        } => deliver(ctx, *integration_id, Some(message)).await,
+        Job::ScanLibrary { integration_id } => deliver(ctx, *integration_id, None).await,
     }
 }
 
@@ -161,6 +170,7 @@ async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result
         Ok(outcome) => outcome,
         Err(err) => {
             ctx.events.emit(Event::ChapterFailed {
+                job_id,
                 series_id: series.id,
                 chapter_id,
                 series: series.title.clone(),
@@ -202,4 +212,27 @@ async fn sync_latest(ctx: &Context, queue: &JobQueue, source_id: &str) -> Result
         }
     }
     Ok(())
+}
+
+/// Send a message, or scan when `message` is `None`, and remember the
+/// outcome on the integration for the UI.
+async fn deliver(ctx: &Context, id: i64, message: Option<&Message>) -> Result<(), JobError> {
+    let Some(integration) = db::integrations::get(&ctx.db, id).await? else {
+        return Ok(()); // removed since; nothing to do
+    };
+    if !integration.enabled {
+        return Ok(());
+    }
+    let config = &integration.config.0;
+    let result = match message {
+        Some(message) => integrations::send(&ctx.http, config, message).await,
+        None => integrations::scan(&ctx.http, config).await,
+    };
+    let status = match &result {
+        Ok(()) if message.is_some() => "Sent".to_owned(),
+        Ok(()) => "Scanned".to_owned(),
+        Err(err) => err.to_string(),
+    };
+    db::integrations::record(&ctx.db, id, result.is_ok(), &status).await?;
+    Ok(result?)
 }

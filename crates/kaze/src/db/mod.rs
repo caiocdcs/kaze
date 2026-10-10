@@ -7,6 +7,7 @@
 
 pub mod chapters;
 pub mod events;
+pub mod integrations;
 pub mod jobs;
 pub mod series;
 pub mod settings;
