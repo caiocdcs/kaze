@@ -1,6 +1,8 @@
 //! Site implementations of [`kaze_core::Source`], one module per site,
 //! each behind its own cargo feature, plus the [`http`] client they share.
 
+#[cfg(feature = "asura")]
+pub mod asura;
 #[cfg(feature = "scraping")]
 mod html;
 pub mod http;
@@ -49,6 +51,8 @@ impl Registry {
             Arc::new(weebcentral::WeebCentral::new(http)),
             #[cfg(feature = "mangadex")]
             Arc::new(mangadex::MangaDex::new(http)),
+            #[cfg(feature = "asura")]
+            Arc::new(asura::Asura::new(http)),
         ];
         let _ = http; // unused when built without any source feature
         Self { sources }

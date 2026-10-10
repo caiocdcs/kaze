@@ -7,16 +7,17 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-default = ["weebcentral", "mangadex"]
+default = ["weebcentral", "mangadex", "asura"]
 # Each site is a feature; HTML scrapers pull in the parsing crates.
 weebcentral = ["scraping"]
 mangadex = []
+asura = ["scraping"]
 scraping = ["dep:regex", "dep:scraper"]
 
 [dependencies]
 kaze-core.workspace = true
 async-trait.workspace = true
-chrono.workspace = true
+chrono = { workspace = true, features = ["clock"] }
 backon.workspace = true
 governor.workspace = true
 regex = { workspace = true, optional = true }
