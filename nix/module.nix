@@ -136,7 +136,7 @@ in
       wantedBy = [ "multi-user.target" ];
       after = [ "network-online.target" ];
       wants = [ "network-online.target" ];
-      environment.RUST_LOG = lib.mkDefault "kaze=info";
+      environment.KAZE_LOG = lib.mkDefault "kaze=info";
       serviceConfig = {
         ExecStart = "${lib.getExe cfg.package} serve --config ${configFile}";
         User = cfg.user;

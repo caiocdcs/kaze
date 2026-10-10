@@ -183,6 +183,7 @@ async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result
     let path = outcome.path().to_string_lossy().into_owned();
     db::chapters::mark_downloaded(&ctx.db, chapter_id, &path).await?;
     if matches!(outcome, Outcome::Downloaded { .. }) {
+        tracing::info!(series = series.title, chapter = %chapter.number, path, "downloaded");
         ctx.events.emit(Event::ChapterDownloaded {
             series_id: series.id,
             chapter_id,
@@ -233,6 +234,11 @@ async fn deliver(ctx: &Context, id: i64, message: Option<&Message>) -> Result<()
         Ok(()) => "Scanned".to_owned(),
         Err(err) => err.to_string(),
     };
+    let action = if message.is_some() { "send" } else { "scan" };
+    match &result {
+        Ok(()) => tracing::info!(integration = integration.name, action, "{status}"),
+        Err(err) => tracing::warn!(integration = integration.name, action, "{err}"),
+    }
     db::integrations::record(&ctx.db, id, result.is_ok(), &status).await?;
     Ok(result?)
 }

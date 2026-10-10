@@ -16,10 +16,14 @@ mod sources;
 mod tests;
 mod ui;
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 
 use axum::{
-    Router, middleware,
+    Router,
+    extract::Request,
+    http::Method,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, patch, post, put},
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
@@ -30,6 +34,27 @@ pub use self::error::{ApiError, ApiResult};
 
 /// Handlers share the running app through axum's `State`.
 pub type AppState = Arc<App>;
+
+/// One line per API call. Reads that succeed are debug-only: the UI polls,
+/// and those lines would bury the changes and the failures.
+async fn log_request(request: Request, next: Next) -> Response {
+    let method = request.method().clone();
+    let path = request.uri().path().to_owned();
+    let started = Instant::now();
+    let response = next.run(request).await;
+    let status = response.status().as_u16();
+    let elapsed_ms = started.elapsed().as_millis();
+    if status >= 500 {
+        tracing::error!(%method, path, status, elapsed_ms, "request failed");
+    } else if status >= 400 {
+        tracing::warn!(%method, path, status, elapsed_ms, "request rejected");
+    } else if method == Method::GET {
+        tracing::debug!(%method, path, status, elapsed_ms, "request");
+    } else {
+        tracing::info!(%method, path, status, elapsed_ms, "request");
+    }
+    response
+}
 
 pub fn router(app: AppState) -> Router {
     let api = Router::new()
@@ -76,7 +101,8 @@ pub fn router(app: AppState) -> Router {
         .layer(middleware::from_fn_with_state(
             Arc::clone(&app),
             auth::require_api_key,
-        ));
+        ))
+        .layer(middleware::from_fn(log_request));
 
     Router::new()
         .nest("/api/v1", api)

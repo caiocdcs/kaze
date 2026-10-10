@@ -17,7 +17,7 @@ use tokio::{
 };
 use tokio_util::{sync::CancellationToken, time::DelayQueue};
 
-use super::{Command, JobQueue, RetryPolicy, handlers};
+use super::{Command, Job, JobQueue, RetryPolicy, handlers};
 use crate::{app::Context, db, db::jobs::JobState, events::Event, settings::Settings};
 
 /// How a job attempt ended.
@@ -29,6 +29,7 @@ enum Outcome {
     /// Stopped by a cancel request or by shutdown.
     Interrupted,
     Failed {
+        kind: &'static str,
         error: String,
         retryable: bool,
         attempts: i64,
@@ -217,6 +218,7 @@ impl Dispatcher {
             // Cancelled: the cancel already updated the row. Skipped: nothing ran.
             Outcome::Interrupted | Outcome::Skipped => Ok(()),
             Outcome::Failed {
+                kind,
                 error,
                 retryable,
                 attempts,
@@ -224,7 +226,7 @@ impl Dispatcher {
             } => {
                 let will_retry =
                     retryable && attempts < max_attempts && !self.shutdown.is_cancelled();
-                tracing::warn!(job = id, attempts, will_retry, "job failed: {error}");
+                tracing::warn!(job = id, kind, attempts, will_retry, "job failed: {error}");
                 events.emit(Event::JobFailed {
                     job_id: id,
                     error: error.clone(),
@@ -260,6 +262,7 @@ async fn run_one(
         Ok(None) => return Outcome::Skipped,
         Err(err) => {
             return Outcome::Failed {
+                kind: "unknown",
                 error: err.to_string(),
                 retryable: true,
                 attempts: 0,
@@ -290,13 +293,29 @@ async fn run_one(
     });
     // Dropping a future cancels it: when the token fires, `select!` drops
     // the handler mid-flight, wherever it is awaiting.
+    let started = std::time::Instant::now();
     let result = tokio::select! {
         () = token.cancelled() => return Outcome::Interrupted,
         result = handlers::run(ctx, queue, id, &claimed.job) => result,
     };
+    let kind = claimed.job.kind();
     match result {
-        Ok(()) => Outcome::Done,
+        Ok(()) => {
+            let elapsed_ms = started.elapsed().as_millis();
+            // Refreshes run for every series on a timer; at info they would
+            // drown out the downloads.
+            if matches!(
+                claimed.job,
+                Job::RefreshSeries { .. } | Job::SyncLatest { .. }
+            ) {
+                tracing::debug!(job = id, kind, elapsed_ms, "job done");
+            } else {
+                tracing::info!(job = id, kind, elapsed_ms, "job done");
+            }
+            Outcome::Done
+        }
         Err(err) => Outcome::Failed {
+            kind,
             retryable: err.is_retryable(),
             error: err.to_string(),
             attempts: claimed.attempts,

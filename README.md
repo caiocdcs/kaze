@@ -111,6 +111,10 @@ Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
 
 Environment variables use the `KAZE_` prefix, with `__` for nesting. For example, `KAZE_LIBRARY_DIR=/manga` or `KAZE_SETTINGS__CONCURRENCY=2`.
 
+Logs go to stderr. Set `KAZE_LOG` to change the level, for example `KAZE_LOG=kaze=debug`. `RUST_LOG` also works. Set `KAZE_LOG_FORMAT=json` for structured logs.
+- **Startup:** kaze logs its setup (sources, FlareSolverr, integrations).
+- **While running:** each download, failed job, integration send or scan, and change made through the API gets a line.
+
 kaze is meant for a trusted network. To require an API key, set `api_key` in Settings or in `kaze.toml`. Put a reverse proxy in front if you expose it.
 
 ## Development

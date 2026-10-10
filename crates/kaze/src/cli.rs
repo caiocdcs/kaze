@@ -157,6 +157,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         config.listen,
         config.library_dir.display()
     );
+    log_setup(&app).await;
 
     let shutdown = app.shutdown_token();
     axum::serve(listener, api::router(Arc::clone(&app)))
@@ -169,6 +170,34 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         .await?;
     app.shutdown().await;
     Ok(())
+}
+
+/// What this instance runs with, so a log alone answers "how is it set up?".
+async fn log_setup(app: &App) {
+    let ctx = &app.ctx;
+    let sources: Vec<&str> = ctx.sources.iter().map(|s| s.meta().id).collect();
+    let settings = ctx.settings.current();
+    let integrations = db::integrations::list(&ctx.db).await.unwrap_or_default();
+    let integrations: Vec<String> = integrations
+        .iter()
+        .map(|i| {
+            let state = if i.enabled { "" } else { " (disabled)" };
+            format!("{} [{}]{state}", i.name, i.config.0.kind())
+        })
+        .collect();
+    tracing::info!(
+        sources = sources.join(", "),
+        flaresolverr = settings
+            .flaresolverr_url
+            .as_ref()
+            .map_or("off", Url::as_str),
+        integrations = if integrations.is_empty() {
+            "none".to_owned()
+        } else {
+            integrations.join(", ")
+        },
+        "setup"
+    );
 }
 
 /// Ctrl-C, or SIGTERM from `docker stop` / systemd.

@@ -19,7 +19,9 @@ services:
     environment:
       # Anything in kaze.example.toml works as KAZE_*; these lock the setting.
       # KAZE_SETTINGS__FLARESOLVERR_URL: http://flaresolverr:8191
-      RUST_LOG: kaze=info
+      # Logs: kaze=debug also shows every API read and refresh;
+      # KAZE_LOG_FORMAT=json for a log collector.
+      KAZE_LOG: kaze=info
     user: "1000:1000"
     restart: unless-stopped
 

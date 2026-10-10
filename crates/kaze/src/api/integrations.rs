@@ -99,6 +99,7 @@ pub async fn test_saved(
         Ok(()) => "Test passed".to_owned(),
         Err(err) => err.to_string(),
     };
+    tracing::info!(integration = integration.name, "test: {status}");
     db::integrations::record(&app.ctx.db, id, result.is_ok(), &status).await?;
     result.map_err(|e| ApiError::Integration(e.to_string()))?;
     Ok(Json(load(&app, id).await?))
