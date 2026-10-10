@@ -5,11 +5,18 @@
 	import Nav from '#lib/components/Nav.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import { live } from '#lib/live.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 
 	let { children } = $props();
 
 	onMount(() => live.start());
 </script>
+
+<!-- A bug that only reaches the console looks like a dead button. -->
+<svelte:window
+	onerror={(e) => toasts.error(e instanceof ErrorEvent ? (e.error ?? e.message) : e)}
+	onunhandledrejection={(e) => toasts.error(e.reason)}
+/>
 
 <div class="flex min-h-dvh">
 	<Nav />
