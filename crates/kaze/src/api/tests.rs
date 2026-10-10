@@ -43,6 +43,7 @@ async fn api(api_key: Option<&str>) -> Api {
         sources: kaze_sources::Registry::from_sources(vec![source]),
         events: Events::new(256),
         library: library.path().to_owned(),
+        http: reqwest::Client::new(),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -308,5 +309,45 @@ async fn scheduled_tasks_can_be_listed_and_run() {
     assert_eq!(status, StatusCode::ACCEPTED);
     let (status, _) = api.call(Method::POST, "/api/v1/tasks/nope/run", None).await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn integrations_can_be_managed() {
+    let api = api(None).await;
+    let (status, presets) = api.get("/api/v1/integrations/presets").await;
+    assert_eq!(status, StatusCode::OK);
+    let ntfy = presets
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["id"] == "ntfy")
+        .unwrap();
+
+    let body = json!({ "name": "Phone", "config": ntfy["config"], "events": ["downloaded"] });
+    let (status, created) = api
+        .call(Method::POST, "/api/v1/integrations", Some(body))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{created}");
+    assert_eq!(created["enabled"], true);
+    assert_eq!(created["config"]["kind"], "webhook");
+    let uri = format!("/api/v1/integrations/{}", created["id"]);
+
+    let bad = json!({ "name": " ", "config": ntfy["config"] });
+    assert_eq!(
+        api.call(Method::PUT, &uri, Some(bad)).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let paused = json!({ "name": "Phone", "enabled": false, "config": ntfy["config"] });
+    let (_, updated) = api.call(Method::PUT, &uri, Some(paused)).await;
+    assert_eq!(updated["enabled"], false);
+    assert_eq!(updated["events"], json!([]));
+
+    assert_eq!(api.get("/api/v1/integrations").await.1[0]["name"], "Phone");
+    assert_eq!(
+        api.call(Method::DELETE, &uri, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(api.get("/api/v1/integrations").await.1, json!([]));
     api.app.shutdown().await;
 }
