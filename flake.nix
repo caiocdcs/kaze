@@ -120,7 +120,9 @@
           inherit web;
         };
 
-        apps.default = flake-utils.lib.mkApp { drv = kaze; };
+        apps.default = flake-utils.lib.mkApp { drv = kaze; } // {
+          meta.description = "Light, self-hosted manga downloader";
+        };
 
         checks = {
           inherit kaze;
@@ -167,7 +169,7 @@
           '';
         };
 
-        formatter = pkgs.nixfmt-rfc-style;
+        formatter = pkgs.nixfmt;
       }
     );
 }
