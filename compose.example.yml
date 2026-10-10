@@ -1,0 +1,45 @@
+# kaze with the services it can work with. Copy to compose.yml, drop what
+# you don't need, then `docker compose up -d` and open http://localhost:6531.
+#
+# In kaze → Settings:
+#   General → FlareSolverr URL: http://flaresolverr:8191
+#   Connect → Komga: URL http://komga:25600 and an API key from Komga
+#   Connect → Apprise: URL http://apprise:8000, key "kaze"
+
+services:
+  kaze:
+    image: ghcr.io/caiocdcs/kaze:latest
+    build: .
+    ports:
+      - "6531:6531"
+    volumes:
+      - ./data:/data
+      # Komga reads the same folder.
+      - ./library:/library
+    environment:
+      # Anything in kaze.example.toml works as KAZE_*; these lock the setting.
+      # KAZE_SETTINGS__FLARESOLVERR_URL: http://flaresolverr:8191
+      RUST_LOG: kaze=info
+    user: "1000:1000"
+    restart: unless-stopped
+
+  # Optional: for sites behind Cloudflare challenges.
+  flaresolverr:
+    image: ghcr.io/flaresolverr/flaresolverr:latest
+    restart: unless-stopped
+
+  # Optional: reads the library kaze writes.
+  komga:
+    image: gotson/komga:latest
+    ports:
+      - "25600:25600"
+    volumes:
+      - ./komga:/config
+      - ./library:/data:ro
+    user: "1000:1000"
+    restart: unless-stopped
+
+  # Optional: notifications to 100+ services.
+  apprise:
+    image: caronc/apprise:latest
+    restart: unless-stopped

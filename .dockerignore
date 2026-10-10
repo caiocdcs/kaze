@@ -1,0 +1,9 @@
+target
+result
+result-*
+data
+library
+.direnv
+web/node_modules
+web/build
+web/.svelte-kit
