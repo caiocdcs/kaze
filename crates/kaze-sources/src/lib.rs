@@ -4,6 +4,8 @@
 #[cfg(feature = "scraping")]
 mod html;
 pub mod http;
+#[cfg(feature = "mangadex")]
+pub mod mangadex;
 #[cfg(feature = "weebcentral")]
 pub mod weebcentral;
 
@@ -45,6 +47,8 @@ impl Registry {
         let sources: Vec<Arc<dyn Source>> = vec![
             #[cfg(feature = "weebcentral")]
             Arc::new(weebcentral::WeebCentral::new(http)),
+            #[cfg(feature = "mangadex")]
+            Arc::new(mangadex::MangaDex::new(http)),
         ];
         let _ = http; // unused when built without any source feature
         Self { sources }

@@ -1,0 +1,395 @@
+{
+ "result": "ok",
+ "response": "collection",
+ "data": [
+  {
+   "id": "0409b1fd-d76d-4114-9294-e1ac934fce05",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "1.1",
+    "title": "The Curse of the Inner Court",
+    "translatedLanguage": "en",
+    "externalUrl": "https://global.manga-up.com/manga/164/14826",
+    "isUnavailable": false,
+    "publishAt": "2026-09-08T01:52:37+00:00",
+    "readableAt": "2026-09-08T01:52:37+00:00",
+    "createdAt": "2026-09-08T01:52:37+00:00",
+    "updatedAt": "2026-09-08T01:52:38+00:00",
+    "version": 2,
+    "pages": 0
+   },
+   "relationships": [
+    {
+     "id": "32908541-c7ec-40d4-b129-d4f0ce85884b",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Manga UP!",
+      "altNames": [],
+      "locked": true,
+      "website": "https://global.manga-up.com/",
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": null,
+      "contactEmail": null,
+      "description": "TOKYO, Japan (July 25th, 2022) - SQUARE ENIX CO., LTD. (\"the Company\") released the global version of its MANGA UP! manga app on July 25th, 2022 (JST). Demand for online entertainment content has mounted over the past two years both in Japan and around the world, and English translations of its manga titles have enjoyed brisk sales. These trends have inspired the Company to offer a global version of its app for the first time with the goal of bringing manga content to even more readers outside Japan.\n\nThe app will offer 160 titles, including 100 new English translations. Manga UP! will also provide readers with the latest installments of ongoing series as soon after their Japan releases as possible. The app will be available everywhere but Japan and works with both iOS and Android, including on tablets.\n\n*Note: Manga UP! is not endorsing MangaDex in any way. These outgoing links are an initiative by MangaDex, and Manga UP! has no influence or control over this group or the links.*",
+      "twitter": "https://twitter.com/MangaUpGlobal",
+      "mangaUpdates": null,
+      "focusedLanguages": [],
+      "official": true,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2024-01-20T12:52:08+00:00",
+      "updatedAt": "2026-08-30T16:51:01+00:00",
+      "version": 5
+     }
+    },
+    {
+     "id": "e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c",
+     "type": "manga"
+    },
+    {
+     "id": "74d95af1-7492-4fca-bc44-10c9142703e8",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "ec5ff5b5-328b-4adb-b0c9-bbe30cdc4686",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "1.2",
+    "title": "The Curse of the Inner Court",
+    "translatedLanguage": "en",
+    "externalUrl": "https://global.manga-up.com/manga/164/14827",
+    "isUnavailable": false,
+    "publishAt": "2026-09-08T01:57:27+00:00",
+    "readableAt": "2026-09-08T01:57:27+00:00",
+    "createdAt": "2026-09-08T01:57:27+00:00",
+    "updatedAt": "2026-09-08T01:57:27+00:00",
+    "version": 2,
+    "pages": 0
+   },
+   "relationships": [
+    {
+     "id": "32908541-c7ec-40d4-b129-d4f0ce85884b",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Manga UP!",
+      "altNames": [],
+      "locked": true,
+      "website": "https://global.manga-up.com/",
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": null,
+      "contactEmail": null,
+      "description": "TOKYO, Japan (July 25th, 2022) - SQUARE ENIX CO., LTD. (\"the Company\") released the global version of its MANGA UP! manga app on July 25th, 2022 (JST). Demand for online entertainment content has mounted over the past two years both in Japan and around the world, and English translations of its manga titles have enjoyed brisk sales. These trends have inspired the Company to offer a global version of its app for the first time with the goal of bringing manga content to even more readers outside Japan.\n\nThe app will offer 160 titles, including 100 new English translations. Manga UP! will also provide readers with the latest installments of ongoing series as soon after their Japan releases as possible. The app will be available everywhere but Japan and works with both iOS and Android, including on tablets.\n\n*Note: Manga UP! is not endorsing MangaDex in any way. These outgoing links are an initiative by MangaDex, and Manga UP! has no influence or control over this group or the links.*",
+      "twitter": "https://twitter.com/MangaUpGlobal",
+      "mangaUpdates": null,
+      "focusedLanguages": [],
+      "official": true,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2024-01-20T12:52:08+00:00",
+      "updatedAt": "2026-08-30T16:51:01+00:00",
+      "version": 5
+     }
+    },
+    {
+     "id": "e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c",
+     "type": "manga"
+    },
+    {
+     "id": "74d95af1-7492-4fca-bc44-10c9142703e8",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "92b1ac74-7ad3-470f-a7c8-52f2a10ca58b",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "1.3",
+    "title": "The Curse of the Inner Court",
+    "translatedLanguage": "en",
+    "externalUrl": "https://global.manga-up.com/manga/164/14828",
+    "isUnavailable": false,
+    "publishAt": "2026-09-08T02:02:07+00:00",
+    "readableAt": "2026-09-08T02:02:07+00:00",
+    "createdAt": "2026-09-08T02:02:07+00:00",
+    "updatedAt": "2026-09-08T02:02:07+00:00",
+    "version": 2,
+    "pages": 0
+   },
+   "relationships": [
+    {
+     "id": "32908541-c7ec-40d4-b129-d4f0ce85884b",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Manga UP!",
+      "altNames": [],
+      "locked": true,
+      "website": "https://global.manga-up.com/",
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": null,
+      "contactEmail": null,
+      "description": "TOKYO, Japan (July 25th, 2022) - SQUARE ENIX CO., LTD. (\"the Company\") released the global version of its MANGA UP! manga app on July 25th, 2022 (JST). Demand for online entertainment content has mounted over the past two years both in Japan and around the world, and English translations of its manga titles have enjoyed brisk sales. These trends have inspired the Company to offer a global version of its app for the first time with the goal of bringing manga content to even more readers outside Japan.\n\nThe app will offer 160 titles, including 100 new English translations. Manga UP! will also provide readers with the latest installments of ongoing series as soon after their Japan releases as possible. The app will be available everywhere but Japan and works with both iOS and Android, including on tablets.\n\n*Note: Manga UP! is not endorsing MangaDex in any way. These outgoing links are an initiative by MangaDex, and Manga UP! has no influence or control over this group or the links.*",
+      "twitter": "https://twitter.com/MangaUpGlobal",
+      "mangaUpdates": null,
+      "focusedLanguages": [],
+      "official": true,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2024-01-20T12:52:08+00:00",
+      "updatedAt": "2026-08-30T16:51:01+00:00",
+      "version": 5
+     }
+    },
+    {
+     "id": "e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c",
+     "type": "manga"
+    },
+    {
+     "id": "74d95af1-7492-4fca-bc44-10c9142703e8",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "da5d1841-dea9-48a9-91f0-ddaf63b75040",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "1",
+    "title": "",
+    "translatedLanguage": "en",
+    "externalUrl": null,
+    "isUnavailable": false,
+    "publishAt": "2020-10-08T13:30:10+00:00",
+    "readableAt": "2020-10-08T13:30:10+00:00",
+    "createdAt": "2020-10-08T13:30:10+00:00",
+    "updatedAt": "2023-02-22T10:21:29+00:00",
+    "version": 2,
+    "pages": 35
+   },
+   "relationships": [
+    {
+     "id": "28ba3526-e436-4c05-ab23-a2396fd08ce5",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Knox",
+      "altNames": [],
+      "locked": true,
+      "website": null,
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": "dAaDQTR",
+      "contactEmail": "knoxscanlations@gmail.com",
+      "description": null,
+      "twitter": null,
+      "mangaUpdates": "https://www.mangaupdates.com/group/mecpt76/knox",
+      "focusedLanguages": [
+       "en"
+      ],
+      "official": false,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2021-04-19T21:45:59+00:00",
+      "updatedAt": "2022-10-07T07:11:08+00:00",
+      "version": 2
+     }
+    },
+    {
+     "id": "b3a9c1f8-93d2-49ba-96e2-84727c1031a6",
+     "type": "manga"
+    },
+    {
+     "id": "09e12143-a83e-4ff8-8365-be0e300a4663",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "a0d73e95-7497-4e3b-8875-d921665b7113",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "2",
+    "title": "",
+    "translatedLanguage": "en",
+    "externalUrl": null,
+    "isUnavailable": false,
+    "publishAt": "2020-11-13T13:34:47+00:00",
+    "readableAt": "2020-11-13T13:34:47+00:00",
+    "createdAt": "2020-11-13T13:34:47+00:00",
+    "updatedAt": "2023-02-22T10:21:30+00:00",
+    "version": 2,
+    "pages": 35
+   },
+   "relationships": [
+    {
+     "id": "28ba3526-e436-4c05-ab23-a2396fd08ce5",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Knox",
+      "altNames": [],
+      "locked": true,
+      "website": null,
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": "dAaDQTR",
+      "contactEmail": "knoxscanlations@gmail.com",
+      "description": null,
+      "twitter": null,
+      "mangaUpdates": "https://www.mangaupdates.com/group/mecpt76/knox",
+      "focusedLanguages": [
+       "en"
+      ],
+      "official": false,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2021-04-19T21:45:59+00:00",
+      "updatedAt": "2022-10-07T07:11:08+00:00",
+      "version": 2
+     }
+    },
+    {
+     "id": "b3a9c1f8-93d2-49ba-96e2-84727c1031a6",
+     "type": "manga"
+    },
+    {
+     "id": "09e12143-a83e-4ff8-8365-be0e300a4663",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "5d369faf-a21f-4f79-8e00-5007b7a05413",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "3",
+    "title": null,
+    "translatedLanguage": "en",
+    "externalUrl": null,
+    "isUnavailable": false,
+    "publishAt": "2021-07-28T10:36:44+00:00",
+    "readableAt": "2021-07-28T10:36:44+00:00",
+    "createdAt": "2021-07-28T10:36:44+00:00",
+    "updatedAt": "2025-07-01T20:15:38+00:00",
+    "version": 6,
+    "pages": 40
+   },
+   "relationships": [
+    {
+     "id": "28ba3526-e436-4c05-ab23-a2396fd08ce5",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Knox",
+      "altNames": [],
+      "locked": true,
+      "website": null,
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": "dAaDQTR",
+      "contactEmail": "knoxscanlations@gmail.com",
+      "description": null,
+      "twitter": null,
+      "mangaUpdates": "https://www.mangaupdates.com/group/mecpt76/knox",
+      "focusedLanguages": [
+       "en"
+      ],
+      "official": false,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2021-04-19T21:45:59+00:00",
+      "updatedAt": "2022-10-07T07:11:08+00:00",
+      "version": 2
+     }
+    },
+    {
+     "id": "b3a9c1f8-93d2-49ba-96e2-84727c1031a6",
+     "type": "manga"
+    },
+    {
+     "id": "09e12143-a83e-4ff8-8365-be0e300a4663",
+     "type": "user"
+    }
+   ]
+  },
+  {
+   "id": "97193d1f-ce85-4f2c-8d8a-d65ece82a0b4",
+   "type": "chapter",
+   "attributes": {
+    "volume": "1",
+    "chapter": "4",
+    "title": null,
+    "translatedLanguage": "en",
+    "externalUrl": null,
+    "isUnavailable": false,
+    "publishAt": "2021-07-28T10:43:13+00:00",
+    "readableAt": "2021-07-28T10:43:13+00:00",
+    "createdAt": "2021-07-28T10:43:13+00:00",
+    "updatedAt": "2023-02-22T10:21:31+00:00",
+    "version": 4,
+    "pages": 39
+   },
+   "relationships": [
+    {
+     "id": "28ba3526-e436-4c05-ab23-a2396fd08ce5",
+     "type": "scanlation_group",
+     "attributes": {
+      "name": "Knox",
+      "altNames": [],
+      "locked": true,
+      "website": null,
+      "ircServer": null,
+      "ircChannel": null,
+      "discord": "dAaDQTR",
+      "contactEmail": "knoxscanlations@gmail.com",
+      "description": null,
+      "twitter": null,
+      "mangaUpdates": "https://www.mangaupdates.com/group/mecpt76/knox",
+      "focusedLanguages": [
+       "en"
+      ],
+      "official": false,
+      "verified": false,
+      "inactive": false,
+      "publishDelay": null,
+      "exLicensed": false,
+      "createdAt": "2021-04-19T21:45:59+00:00",
+      "updatedAt": "2022-10-07T07:11:08+00:00",
+      "version": 2
+     }
+    },
+    {
+     "id": "b3a9c1f8-93d2-49ba-96e2-84727c1031a6",
+     "type": "manga"
+    },
+    {
+     "id": "09e12143-a83e-4ff8-8365-be0e300a4663",
+     "type": "user"
+    }
+   ]
+  }
+ ],
+ "limit": 7,
+ "offset": 0,
+ "total": 7
+}

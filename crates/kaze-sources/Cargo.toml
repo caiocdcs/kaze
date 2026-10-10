@@ -7,9 +7,10 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-default = ["weebcentral"]
+default = ["weebcentral", "mangadex"]
 # Each site is a feature; HTML scrapers pull in the parsing crates.
 weebcentral = ["scraping"]
+mangadex = []
 scraping = ["dep:regex", "dep:scraper"]
 
 [dependencies]
