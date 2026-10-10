@@ -12,6 +12,7 @@
 		{ href: '/add', label: 'Add series', icon: 'add' },
 		{ href: '/wanted', label: 'Wanted', icon: 'wanted', tab: true },
 		{ href: '/activity', label: 'Activity', icon: 'activity', tab: true },
+		{ href: '/import', label: 'Import', icon: 'import' },
 		{ href: '/settings', label: 'Settings', icon: 'settings', tab: true }
 	];
 
