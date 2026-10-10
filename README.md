@@ -80,6 +80,22 @@ kaze info https://weebcentral.com/series/…
 kaze download https://weebcentral.com/series/… --chapters 1-10 --out ./manga
 ```
 
+## Migrating from Tranga
+
+kaze reads the files Tranga downloaded. It doesn't read Tranga's database, so you match each series once.
+
+1. Stop Tranga, so the two don't download the same chapters.
+2. Point kaze's `library_dir` at Tranga's download folder. In Docker, mount the same folder at `/library`. Komga and Kavita keep working because the files don't move.
+3. Open **Import** in kaze. It lists every series folder kaze doesn't track yet, with the chapter numbers it found. They come from `ComicInfo.xml` when there is one, otherwise from the file name.
+4. For each folder, click **Find match** and check the suggested series. Then choose what happens to missing chapters:
+   - download them;
+   - only new ones from now on;
+   - none.
+
+   Then click **Import**.
+
+Chapters already on disk are marked as downloaded and never fetched again. New chapters use kaze's naming template, which by default is the same as Tranga's (`Series - Vol.1 Ch.12 - Title.cbz`), so folders stay consistent.
+
 ## Configuration
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
@@ -111,6 +127,8 @@ just types      # regenerate web/src/lib/api/types from the Rust structs
 nix build       # the package, UI included
 nix flake check # everything CI runs
 ```
+
+To release, push a version tag, for example `git tag v0.1.0 && git push github v0.1.0`. The release workflow builds the image for amd64 and arm64, pushes it to `ghcr.io/caiocdcs/kaze`, and creates a GitHub release.
 
 | Path | What |
 |---|---|
