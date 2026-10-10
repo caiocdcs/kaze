@@ -37,12 +37,15 @@ export const api = {
 	seriesDetail: (id: number) => http.get<SeriesDetail>(`/series/${id}`),
 	follow: (req: FollowRequest) => http.post<{ id: number }>('/series', req),
 	updateSeries: (id: number, req: UpdateSeries) => http.patch<SeriesDetail>(`/series/${id}`, req),
-	unfollow: (id: number) => http.del<void>(`/series/${id}`),
+	unfollow: (id: number, deleteFiles = false) =>
+		http.del<void>(`/series/${id}${deleteFiles ? '?delete_files=true' : ''}`),
 	refreshSeries: (id: number) => http.post<{ job_id: number | null }>(`/series/${id}/refresh`),
 	coverUrl: (id: number) => url(`/series/${id}/cover`),
 
 	setMonitored: (ids: number[], monitored: boolean) =>
 		http.patch<{ updated: number }>('/chapters', { ids, monitored }),
+	deleteFiles: (ids: number[], unmonitor = true) =>
+		http.post<{ deleted: number }>('/chapters/delete-files', { ids, unmonitor }),
 	downloadChapter: (id: number) => http.post<{ job_id: number | null }>(`/chapters/${id}/download`),
 	wanted: () => http.get<WantedChapter[]>('/wanted'),
 	downloadWanted: () => http.post<{ queued: number }>('/wanted/download'),

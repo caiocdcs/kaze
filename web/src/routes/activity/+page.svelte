@@ -95,7 +95,8 @@
 	const historyLook: Record<string, { icon: IconName; tone: string }> = {
 		downloaded: { icon: 'check', tone: 'text-disk bg-disk-wash' },
 		failed: { icon: 'close', tone: 'text-bad bg-bad-wash' },
-		found: { icon: 'add', tone: 'text-wanted bg-wanted-wash' }
+		found: { icon: 'add', tone: 'text-wanted bg-wanted-wash' },
+		deleted: { icon: 'trash', tone: 'text-muted bg-raised' }
 	};
 
 	async function act(work: () => Promise<unknown>, done?: string) {
