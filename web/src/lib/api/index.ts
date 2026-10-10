@@ -1,5 +1,11 @@
 import { http, url } from './client.ts';
 import type { ChapterRecord } from './types/ChapterRecord.ts';
+import type { Config } from './types/Config.ts';
+import type { HealthCheck } from './types/HealthCheck.ts';
+import type { Integration } from './types/Integration.ts';
+import type { IntegrationInput } from './types/IntegrationInput.ts';
+import type { Preset } from './types/Preset.ts';
+import type { Trigger } from './types/Trigger.ts';
 import type { FollowRequest } from './types/FollowRequest.ts';
 import type { HistoryEntry } from './types/HistoryEntry.ts';
 import type { JobRecord } from './types/JobRecord.ts';
@@ -48,12 +54,28 @@ export const api = {
 		http.patch<SettingsView>('/settings', changes),
 	tasks: () => http.get<TaskInfo[]>('/tasks'),
 	runTask: (task: Task) => http.post<void>(`/tasks/${task}/run`),
+	health: () => http.get<HealthCheck[]>('/health'),
+
+	integrations: () => http.get<Integration[]>('/integrations'),
+	presets: () => http.get<Preset[]>('/integrations/presets'),
+	createIntegration: (input: IntegrationInput) => http.post<Integration>('/integrations', input),
+	replaceIntegration: (id: number, input: IntegrationInput) =>
+		http.put<Integration>(`/integrations/${id}`, input),
+	deleteIntegration: (id: number) => http.del<void>(`/integrations/${id}`),
+	testIntegration: (id: number) => http.post<Integration>(`/integrations/${id}/test`),
+	testConfig: (config: Config) => http.post<void>('/integrations/test', config),
 
 	eventsUrl: () => url('/events')
 };
 
 export type {
 	ChapterRecord,
+	Config,
+	HealthCheck,
+	Integration,
+	IntegrationInput,
+	Preset,
+	Trigger,
 	HistoryEntry,
 	JobRecord,
 	Lookup,
