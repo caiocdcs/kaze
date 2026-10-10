@@ -167,6 +167,11 @@
 			</label>
 
 			{#if draft.config.kind === 'komga' || draft.config.kind === 'kavita'}
+				<p class="m-0 text-sm text-muted">
+					kaze writes into its library folder and asks {kindLabel[draft.config.kind]} to rescan. Mount
+					the same folder into {kindLabel[draft.config.kind]} (read-only is fine) and add it as a library
+					there.
+				</p>
 				<label class="flex flex-col gap-1.5 text-sm font-medium">
 					API key
 					<input
