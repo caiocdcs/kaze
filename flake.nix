@@ -54,19 +54,65 @@
         # Dependencies are built once and cached separately from our own code.
         cargoArtifacts = craneLib.buildDepsOnly commonArgs;
 
+        # The SvelteKit UI, built on its own so Rust-only changes don't rebuild it.
+        webSrc = lib.fileset.toSource {
+          root = ./web;
+          fileset = lib.fileset.difference ./web (
+            lib.fileset.unions [
+              (lib.fileset.maybeMissing ./web/node_modules)
+              (lib.fileset.maybeMissing ./web/build)
+              (lib.fileset.maybeMissing ./web/.svelte-kit)
+            ]
+          );
+        };
+        webArgs = finalAttrs: {
+          version = "0.1.0";
+          src = webSrc;
+          nativeBuildInputs = [
+            pkgs.nodejs_22
+            pkgs.pnpm
+            pkgs.pnpmConfigHook
+          ];
+          pnpmDeps = pkgs.fetchPnpmDeps {
+            # One fetch shared by the build and the check.
+            pname = "kaze-web";
+            inherit (finalAttrs) version src;
+            fetcherVersion = 4;
+            # Update after changing web/pnpm-lock.yaml: build, copy the hash from the error.
+            hash = "sha256-SR8gZ69OR8lLul/DsKBimG49IN2yxZdeahKEPNzBxCo=";
+          };
+        };
+        web = pkgs.stdenvNoCC.mkDerivation (
+          finalAttrs:
+          webArgs finalAttrs
+          // {
+            pname = "kaze-web";
+            buildPhase = "pnpm build";
+            installPhase = "cp -r build $out";
+          }
+        );
+
         kaze = craneLib.buildPackage (
           commonArgs
           // {
             inherit cargoArtifacts;
             pname = "kaze";
             cargoExtraArgs = "--package kaze";
+            # rust-embed compiles web/build into the binary.
+            preBuild = ''
+              mkdir -p web
+              cp -r ${web} web/build
+            '';
             doCheck = false; # tests run in `checks.nextest`
             meta.mainProgram = "kaze";
           }
         );
       in
       {
-        packages.default = kaze;
+        packages = {
+          default = kaze;
+          inherit web;
+        };
 
         apps.default = flake-utils.lib.mkApp { drv = kaze; };
 
@@ -80,6 +126,15 @@
             }
           );
           fmt = craneLib.cargoFmt { inherit src; };
+          web-check = pkgs.stdenvNoCC.mkDerivation (
+            finalAttrs:
+            webArgs finalAttrs
+            // {
+              pname = "kaze-web-check";
+              buildPhase = "pnpm check && pnpm exec prettier --check .";
+              installPhase = "touch $out";
+            }
+          );
           nextest = craneLib.cargoNextest (
             commonArgs
             // {
