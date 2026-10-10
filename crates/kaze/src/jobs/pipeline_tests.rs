@@ -143,10 +143,11 @@ async fn future_monitoring_only_takes_new_chapters() {
 #[tokio::test]
 async fn transient_failures_are_retried() {
     let source = FakeSource::new().with_chapters(&["1"]);
-    // Cover attempt + first page fail; the job retries with backoff.
+    // Cover attempts (on refresh, then on download) and the first page
+    // fail; the download job retries with backoff.
     source
         .fail_images
-        .store(2, std::sync::atomic::Ordering::SeqCst);
+        .store(3, std::sync::atomic::Ordering::SeqCst);
     let mut h = start(source).await;
     h.follow(Monitor::All).await;
 
