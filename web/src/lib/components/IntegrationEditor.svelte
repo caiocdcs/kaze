@@ -44,7 +44,7 @@
 
 	// The form edits a copy; the caller's object stays untouched until saved.
 	// svelte-ignore state_referenced_locally
-	let draft = $state<Draft>(structuredClone(initial));
+	let draft = $state<Draft>($state.snapshot(initial) as Draft);
 	let headers = $state<[string, string][]>(
 		// svelte-ignore state_referenced_locally
 		initial.config.kind === 'webhook' ? Object.entries(initial.config.headers) : []

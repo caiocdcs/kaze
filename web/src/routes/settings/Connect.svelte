@@ -73,7 +73,7 @@
 				enabled: true,
 				events:
 					preset?.events ?? (kind === 'komga' || kind === 'kavita' ? [] : ['downloaded', 'failed']),
-				config: preset ? structuredClone(preset.config) : blank(kind)
+				config: preset ? ($state.snapshot(preset.config) as Config) : blank(kind)
 			},
 			hint: preset?.hint
 		};
