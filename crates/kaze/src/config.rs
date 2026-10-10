@@ -57,6 +57,10 @@ impl Default for HttpConfig {
     }
 }
 
+/// `KAZE_*` variables read elsewhere (the CLI and the log setup), which the
+/// strict loader would otherwise reject as unknown settings.
+const NOT_CONFIG: &[&str] = &["CONFIG", "LOG", "LOG_FORMAT"];
+
 impl Config {
     /// Load configuration; without a file it is defaults plus env.
     pub fn load(file: Option<&std::path::Path>) -> Result<Self, Box<figment::Error>> {
@@ -65,12 +69,7 @@ impl Config {
             figment = figment.merge(Toml::file(file));
         }
         figment
-            // Read by the log setup in main, not settings.
-            .merge(
-                Env::prefixed("KAZE_")
-                    .ignore(&["LOG", "LOG_FORMAT"])
-                    .split("__"),
-            )
+            .merge(Env::prefixed("KAZE_").ignore(NOT_CONFIG).split("__"))
             .extract()
             .map_err(Box::new)
     }
@@ -113,6 +112,7 @@ mod tests {
             jail.set_env("KAZE_HTTP__TIMEOUT_SECS", "5");
             jail.set_env("KAZE_LOG", "kaze=debug");
             jail.set_env("KAZE_LOG_FORMAT", "json");
+            jail.set_env("KAZE_CONFIG", "kaze.toml");
 
             let config = Config::load(Some("kaze.toml".as_ref())).unwrap();
             assert_eq!(config.library_dir, PathBuf::from("/manga"));
