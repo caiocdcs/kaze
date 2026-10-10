@@ -165,6 +165,7 @@
         devShells.default = craneLib.devShell {
           packages = with pkgs; [
             just
+            cargo-audit
             cargo-nextest
             cargo-watch
             sqlx-cli

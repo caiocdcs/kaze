@@ -38,6 +38,10 @@ types: db
     cargo test --workspace --quiet export_bindings > /dev/null
 
 # Run the test suite
+# Check dependencies against the RustSec advisory database
+audit:
+    cargo audit
+
 test *args: db
     cargo nextest run --workspace --no-tests=pass {{args}}
 
