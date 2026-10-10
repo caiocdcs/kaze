@@ -4,6 +4,7 @@ mod auth;
 mod chapters;
 mod error;
 mod events;
+mod integrations;
 mod jobs;
 mod patch;
 mod series;
@@ -17,7 +18,7 @@ use std::sync::Arc;
 
 use axum::{
     Router, middleware,
-    routing::{get, patch, post},
+    routing::{get, patch, post, put},
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
@@ -52,6 +53,17 @@ pub fn router(app: AppState) -> Router {
         .route("/history", get(jobs::history))
         .route("/settings", get(settings::get).patch(settings::update))
         .route("/tasks", get(jobs::tasks))
+        .route(
+            "/integrations",
+            get(integrations::list).post(integrations::create),
+        )
+        .route("/integrations/presets", get(integrations::presets))
+        .route("/integrations/test", post(integrations::test_unsaved))
+        .route(
+            "/integrations/{id}",
+            put(integrations::replace).delete(integrations::remove),
+        )
+        .route("/integrations/{id}/test", post(integrations::test_saved))
         .route("/tasks/{task}/run", post(jobs::run_task))
         // Compressing an event stream would buffer it; only compress the rest.
         .layer(CompressionLayer::new())

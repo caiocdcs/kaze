@@ -22,6 +22,9 @@ pub enum ApiError {
     /// The manga site failed or answered something unexpected.
     #[error("source error: {0}")]
     Upstream(String),
+    /// A library server or notification service failed.
+    #[error("{0}")]
+    Integration(String),
     #[error("internal error")]
     Internal,
 }
@@ -32,7 +35,7 @@ impl IntoResponse for ApiError {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Conflict(_) => StatusCode::CONFLICT,
-            Self::Upstream(_) => StatusCode::BAD_GATEWAY,
+            Self::Upstream(_) | Self::Integration(_) => StatusCode::BAD_GATEWAY,
             Self::Internal => StatusCode::INTERNAL_SERVER_ERROR,
         };
         (status, Json(json!({ "error": self.to_string() }))).into_response()
