@@ -29,6 +29,8 @@ fs4 = "1"
 http-body-util = "0.1"
 regex = "1"
 scraper = "0.27"
+# Fuzzy title matching for library import.
+strsim = "0.11"
 governor = "0.10"
 # Webhook body templates.
 minijinja = { version = "2", features = ["json"] }
@@ -51,8 +53,9 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tempfile = "3"
 url = { version = "2", features = ["serde"] }
 wiremock = "0.6"
-# Store-only: page images are already compressed.
-zip = { version = "9", default-features = false }
+# We write store-only CBZs (pages are already compressed), but importing
+# reads other tools' files, which are usually deflated.
+zip = { version = "9", default-features = false, features = ["deflate-flate2-zlib-rs"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"

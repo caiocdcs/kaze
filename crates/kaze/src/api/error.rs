@@ -72,7 +72,10 @@ impl From<FollowError> for ApiError {
     fn from(err: FollowError) -> Self {
         match err {
             FollowError::UnknownSource(_) => Self::BadRequest(err.to_string()),
-            FollowError::AlreadyFollowing(_) => Self::Conflict(err.to_string()),
+            FollowError::AlreadyFollowing(_) | FollowError::FolderTaken(_) => {
+                Self::Conflict(err.to_string())
+            }
+            FollowError::Io(e) => Self::BadRequest(format!("reading the folder: {e}")),
             FollowError::Source(e) => e.into(),
             FollowError::Db(e) => e.into(),
             FollowError::Queue(e) => e.into(),
