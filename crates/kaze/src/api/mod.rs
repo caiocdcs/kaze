@@ -35,8 +35,7 @@ pub use self::error::{ApiError, ApiResult};
 /// Handlers share the running app through axum's `State`.
 pub type AppState = Arc<App>;
 
-/// One line per API call. Reads that succeed are debug-only: the UI polls,
-/// and those lines would bury the changes and the failures.
+/// Successful reads are debug-only: the UI polls them.
 async fn log_request(request: Request, next: Next) -> Response {
     let method = request.method().clone();
     let path = request.uri().path().to_owned();

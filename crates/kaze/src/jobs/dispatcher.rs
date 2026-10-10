@@ -302,8 +302,7 @@ async fn run_one(
     match result {
         Ok(()) => {
             let elapsed_ms = started.elapsed().as_millis();
-            // Refreshes run for every series on a timer; at info they would
-            // drown out the downloads.
+            // Refreshes run on a timer for every series.
             if matches!(
                 claimed.job,
                 Job::RefreshSeries { .. } | Job::SyncLatest { .. }

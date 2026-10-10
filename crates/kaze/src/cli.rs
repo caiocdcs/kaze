@@ -172,7 +172,6 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// What this instance runs with, so a log alone answers "how is it set up?".
 async fn log_setup(app: &App) {
     let ctx = &app.ctx;
     let sources: Vec<&str> = ctx.sources.iter().map(|s| s.meta().id).collect();
