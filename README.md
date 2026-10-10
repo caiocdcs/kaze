@@ -96,6 +96,14 @@ kaze reads the files Tranga downloaded. It doesn't read Tranga's database, so yo
 
 Chapters already on disk are marked as downloaded and never fetched again. New chapters use kaze's naming template, which by default is the same as Tranga's (`Series - Vol.1 Ch.12 - Title.cbz`), so folders stay consistent.
 
+## Komga and Kavita
+
+kaze works with them the way Sonarr works with Plex: kaze owns the files, and the library server only reads them.
+
+- Mount the same host folder into both containers: read-write in kaze, read-only (`:ro`) in Komga or Kavita. The paths inside each container can differ, because kaze never sends a path, only a "scan" request.
+- Add that folder as a library in Komga or Kavita. Then add the server in kaze under **Settings → Connect** with an API key. Leave the library ID empty to scan every library.
+- New downloads and deleted files trigger one debounced scan, so the server picks up new chapters and drops removed ones.
+
 ## Configuration
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).

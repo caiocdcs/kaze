@@ -4,6 +4,7 @@
 # In kaze → Settings:
 #   General → FlareSolverr URL: http://flaresolverr:8191
 #   Connect → Komga: URL http://komga:25600 and an API key from Komga
+#     (in Komga, add /data as a library)
 #   Connect → Apprise: URL http://apprise:8000 and URLs like ntfy://ntfy.sh/topic
 
 services:
@@ -30,7 +31,7 @@ services:
     image: ghcr.io/flaresolverr/flaresolverr:latest
     restart: unless-stopped
 
-  # Optional: reads the library kaze writes.
+  # Optional: reads the folder kaze writes to; kaze only triggers scans.
   komga:
     image: gotson/komga:latest
     ports:
@@ -40,6 +41,16 @@ services:
       - ./library:/data:ro
     user: "1000:1000"
     restart: unless-stopped
+
+  # Or Kavita, the same way (add /manga as a library in Kavita).
+  # kavita:
+  #   image: jvmilazz0/kavita:latest
+  #   ports:
+  #     - "5000:5000"
+  #   volumes:
+  #     - ./kavita:/kavita/config
+  #     - ./library:/manga:ro
+  #   restart: unless-stopped
 
   # Optional: notifications to 100+ services.
   apprise:
