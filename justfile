@@ -61,6 +61,10 @@ watch:
 build:
     cargo build --release --package kaze
 
+# Container image (static musl binary on distroless)
+docker tag="kaze:dev":
+    docker build --tag {{tag}} .
+
 # Nix build (same as CI); result in ./result
 nix-build:
     nix build
