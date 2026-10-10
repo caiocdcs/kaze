@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import Connect from './Connect.svelte';
 	import General from './General.svelte';
 	import Sources from './Sources.svelte';
 	import System from './System.svelte';
@@ -8,6 +9,7 @@
 	const tabs = [
 		{ id: 'general', label: 'General' },
 		{ id: 'sources', label: 'Sources' },
+		{ id: 'connect', label: 'Connect' },
 		{ id: 'system', label: 'System' }
 	] as const;
 	type Tab = (typeof tabs)[number]['id'];
@@ -44,6 +46,8 @@
 		<General />
 	{:else if tab === 'sources'}
 		<Sources />
+	{:else if tab === 'connect'}
+		<Connect />
 	{:else}
 		<System />
 	{/if}
