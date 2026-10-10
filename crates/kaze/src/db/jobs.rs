@@ -3,12 +3,15 @@
 use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::{SqliteExecutor, types::Json};
+use ts_rs::TS;
 
 use crate::jobs::Job;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
+#[derive(TS)]
+#[ts(export)]
 pub enum JobState {
     Queued,
     Running,
@@ -17,9 +20,11 @@ pub enum JobState {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, TS)]
+#[ts(export)]
 pub struct JobRecord {
     pub id: i64,
+    #[ts(as = "Job")]
     pub job: Json<Job>,
     pub state: JobState,
     pub attempts: i64,

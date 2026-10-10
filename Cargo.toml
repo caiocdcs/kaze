@@ -39,6 +39,8 @@ tokio-util = { version = "0.7", features = ["rt", "time"] }
 tower = { version = "0.5", features = ["util"] }
 tower-http = { version = "0.7", features = ["compression-gzip", "trace"] }
 tracing = "0.1"
+# TypeScript types for the web UI, exported by `cargo test`.
+ts-rs = { version = "12", features = ["chrono-impl", "no-serde-warnings", "serde-json-impl", "url-impl"] }
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tempfile = "3"
 url = { version = "2", features = ["serde"] }

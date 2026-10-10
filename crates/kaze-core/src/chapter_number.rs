@@ -10,6 +10,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
 /// `Ord` and `Hash` and used as a map key.
 /// The default is chapter `0`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+// Serialized as a string ("12.5"), see the serde impls below.
+#[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export, type = "string"))]
 pub struct ChapterNumber {
     whole: u32,
     frac: String,

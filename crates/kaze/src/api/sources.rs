@@ -1,4 +1,5 @@
 use std::time::Duration;
+use ts_rs::TS;
 
 use axum::{
     Json,
@@ -11,7 +12,8 @@ use url::Url;
 use super::{ApiError, ApiResult, AppState};
 use crate::db;
 
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 pub struct SourceInfo {
     id: &'static str,
     name: &'static str,
@@ -44,12 +46,15 @@ pub struct SearchQuery {
 }
 
 /// Results of one source; a failing source reports its error instead.
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 pub struct SourceResults {
     source: &'static str,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     hits: Option<Vec<SeriesHit>>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
     error: Option<String>,
 }
 
@@ -96,7 +101,8 @@ pub struct LookupQuery {
     url: Url,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 pub struct Lookup {
     source: &'static str,
     key: SeriesKey,

@@ -7,6 +7,7 @@ use axum::{
 use kaze_core::{ChapterNumber, SeriesKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use ts_rs::TS;
 
 use super::{ApiError, ApiResult, AppState, patch::Patch};
 use crate::{
@@ -19,7 +20,8 @@ pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSumma
     Ok(Json(db::series::summaries(&app.ctx.db).await?))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 pub struct FollowRequest {
     source: String,
     key: SeriesKey,
@@ -43,7 +45,8 @@ pub async fn follow(
     Ok((StatusCode::CREATED, Json(json!({ "id": id }))))
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, TS)]
+#[ts(export)]
 pub struct SeriesDetail {
     #[serde(flatten)]
     series: SeriesRecord,
@@ -66,12 +69,17 @@ pub async fn get(
 }
 
 /// Partial update: fields left out stay as they are.
-#[derive(Deserialize)]
+#[derive(Deserialize, TS)]
+#[ts(export)]
 pub struct UpdateSeries {
+    #[ts(optional)]
     monitor: Option<Monitor>,
+    // Patch: missing = keep, null = clear.
     #[serde(default)]
+    #[ts(as = "Option<ChapterNumber>", optional = nullable)]
     monitor_from: Patch<ChapterNumber>,
     #[serde(default)]
+    #[ts(as = "Option<u32>", optional = nullable)]
     refresh_hours: Patch<u32>,
 }
 

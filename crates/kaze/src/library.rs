@@ -4,11 +4,14 @@ use chrono::{DateTime, Utc};
 use kaze_core::{ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
+use ts_rs::TS;
 
 /// Which chapters of a series kaze should download (Sonarr's "monitor").
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
+#[derive(TS)]
+#[ts(export)]
 pub enum Monitor {
     /// Every chapter, past and future.
     #[default]
@@ -40,12 +43,15 @@ impl Monitor {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
 pub struct SeriesRecord {
     pub id: i64,
     pub title: String,
     pub description: Option<String>,
+    #[ts(as = "Vec<String>")]
     pub authors: Json<Vec<String>>,
+    #[ts(as = "Vec<String>")]
     pub tags: Json<Vec<String>>,
     pub status: SeriesStatus,
     pub year: Option<i64>,
@@ -63,7 +69,8 @@ pub struct SeriesRecord {
 }
 
 /// A row of the library grid.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
 pub struct SeriesSummary {
     pub id: i64,
     pub title: String,
@@ -79,7 +86,8 @@ pub struct SeriesSummary {
 }
 
 /// A row of the wanted list.
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
 pub struct WantedChapter {
     pub id: i64,
     pub series_id: i64,
@@ -91,7 +99,8 @@ pub struct WantedChapter {
     pub published_at: Option<DateTime<Utc>>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[ts(export)]
 pub struct ChapterRecord {
     pub id: i64,
     pub series_id: i64,
