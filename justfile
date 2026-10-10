@@ -68,3 +68,32 @@ nix-build:
 # Everything CI checks, through Nix
 ci:
     nix flake check --print-build-logs
+
+# --- Web UI (web/) ----------------------------------------------------------
+
+# Install the web UI's dependencies
+web-install:
+    cd web && pnpm install --frozen-lockfile
+
+# Run the UI with hot reload on :5173; it proxies /api to `just serve`
+web-dev: web-install
+    cd web && pnpm dev
+
+# Build the UI into web/build, which the kaze binary embeds
+web-build: web-install
+    cd web && pnpm build
+
+# Type-check the UI and check its formatting
+web-check: web-install
+    cd web && pnpm check && pnpm exec prettier --check .
+
+# Format the UI
+web-fmt:
+    cd web && pnpm exec prettier --write .
+
+# API server and UI dev server together; open http://localhost:5173
+dev:
+    #!/usr/bin/env bash
+    trap 'kill 0' EXIT
+    just serve &
+    just web-dev
