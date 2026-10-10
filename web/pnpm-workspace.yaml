@@ -1,0 +1,6 @@
+# Fetch native packages (Tailwind's oxide, rolldown) for every platform kaze
+# builds on, so the Nix pnpm-deps hash is the same on macOS and Linux.
+supportedArchitectures:
+  os: [linux, darwin]
+  cpu: [x64, arm64]
+  libc: [glibc, musl]
