@@ -1,3 +1,5 @@
+import { auth } from '../auth.svelte.ts';
+
 const BASE = '/api/v1';
 const KEY_STORAGE = 'kaze.apiKey';
 
@@ -52,6 +54,7 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
 		headers,
 		body: body === undefined ? undefined : JSON.stringify(body)
 	});
+	if (res.status === 401) auth.needed = true;
 	if (!res.ok) {
 		let message = res.statusText;
 		try {
