@@ -44,6 +44,9 @@ async fn api(api_key: Option<&str>) -> Api {
         events: Events::new(256),
         library: library.path().to_owned(),
         http: reqwest::Client::new(),
+        flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
+            .unwrap()
+            .flaresolverr(),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {

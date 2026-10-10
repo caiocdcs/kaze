@@ -45,6 +45,8 @@ pub struct Settings {
     pub sync_latest_minutes: u64,
     /// How often a series' full chapter list is re-read (series can override).
     pub refresh_hours: u64,
+    /// A FlareSolverr instance for sites behind Cloudflare challenges.
+    pub flaresolverr_url: Option<url::Url>,
 }
 
 impl Default for Settings {
@@ -57,6 +59,7 @@ impl Default for Settings {
             page_concurrency: 4,
             sync_latest_minutes: 15,
             refresh_hours: 24,
+            flaresolverr_url: None,
         }
     }
 }
@@ -92,6 +95,15 @@ impl Settings {
             7 * 24 * 60,
         )?;
         range("refresh_hours", self.refresh_hours, 1, 90 * 24)?;
+        if self
+            .flaresolverr_url
+            .as_ref()
+            .is_some_and(|u| !matches!(u.scheme(), "http" | "https"))
+        {
+            return Err(SettingsError::Invalid(
+                "flaresolverr_url must start with http:// or https://".into(),
+            ));
+        }
         if self.api_key.as_ref().is_some_and(|k| k.trim().len() < 8) {
             return Err(SettingsError::Invalid(
                 "api_key must be at least 8 characters".into(),

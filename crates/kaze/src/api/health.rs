@@ -67,6 +67,21 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
     });
     let mut checks = join_all(sources).await;
 
+    let (state, detail) = if app.ctx.flaresolverr.url().is_none() {
+        (HealthState::Off, "not set".to_owned())
+    } else {
+        match app.ctx.flaresolverr.check().await {
+            Ok(version) => (HealthState::Ok, version),
+            Err(err) => (HealthState::Down, err),
+        }
+    };
+    checks.push(HealthCheck {
+        name: "FlareSolverr".into(),
+        kind: "flaresolverr",
+        state,
+        detail,
+    });
+
     let library = app.ctx.library.clone();
     let space = tokio::task::spawn_blocking(move || fs4::available_space(&library))
         .await
