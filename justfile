@@ -26,7 +26,7 @@ sqlx-prepare: db
     cargo sqlx prepare --workspace -- --all-targets
 
 # Formatting + lints + up-to-date query metadata and API types, as CI runs them
-check: db types
+check: db types web-check
     cargo fmt --all --check
     cargo clippy --workspace --all-targets -- --deny warnings
     cargo sqlx prepare --workspace --check -- --all-targets
