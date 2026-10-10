@@ -407,3 +407,75 @@ async fn existing_folders_can_be_imported() {
     );
     api.app.shutdown().await;
 }
+
+async fn imported_series(api: &Api, folder: &str) -> (i64, std::path::PathBuf) {
+    let dir = api.app.ctx.library.join(folder);
+    std::fs::create_dir(&dir).unwrap();
+    let file = std::fs::File::create(dir.join("Test Series Ch.1.cbz")).unwrap();
+    let mut zip = zip::ZipWriter::new(file);
+    zip.start_file("001.jpg", zip::write::SimpleFileOptions::default())
+        .unwrap();
+    zip.finish().unwrap();
+    let body = json!({ "folder": folder, "source": "fake", "key": "S1", "monitor": "none" });
+    let (status, imported) = api.call(Method::POST, "/api/v1/import", Some(body)).await;
+    assert_eq!(status, StatusCode::CREATED, "{imported}");
+    (imported["id"].as_i64().unwrap(), dir)
+}
+
+#[tokio::test]
+async fn chapter_files_can_be_deleted() {
+    let api = api(None).await;
+    let (id, dir) = imported_series(&api, "Test Series").await;
+    let (_, detail) = api.get(&format!("/api/v1/series/{id}")).await;
+    let one = detail["chapters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["number"] == "1")
+        .unwrap()["id"]
+        .clone();
+
+    let body = json!({ "ids": [one], "unmonitor": true });
+    let (status, result) = api
+        .call(Method::POST, "/api/v1/chapters/delete-files", Some(body))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{result}");
+    assert_eq!(result["deleted"], 1);
+    assert!(!dir.join("Test Series Ch.1.cbz").exists());
+
+    let (_, detail) = api.get(&format!("/api/v1/series/{id}")).await;
+    let chapter = detail["chapters"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["id"] == one)
+        .unwrap()
+        .clone();
+    assert_eq!(chapter["file_path"], Value::Null);
+    assert_eq!(chapter["monitored"], false);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn unfollowing_deletes_the_folder_only_when_asked() {
+    let api = api(None).await;
+    let (id, dir) = imported_series(&api, "Kept").await;
+    let (status, _) = api
+        .call(Method::DELETE, &format!("/api/v1/series/{id}"), None)
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(dir.exists());
+
+    let (id, dir) = imported_series(&api, "Removed").await;
+    let (status, _) = api
+        .call(
+            Method::DELETE,
+            &format!("/api/v1/series/{id}?delete_files=true"),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(!dir.exists());
+    assert!(api.app.ctx.library.exists());
+    api.app.shutdown().await;
+}

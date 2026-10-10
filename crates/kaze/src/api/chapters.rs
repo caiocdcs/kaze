@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use axum::{
     Json,
     extract::{Path, Query, State},
@@ -8,7 +10,12 @@ use serde_json::{Value, json};
 use ts_rs::TS;
 
 use super::{ApiError, ApiResult, AppState};
-use crate::{db, jobs::Job, library::WantedChapter};
+use crate::{
+    db,
+    events::Event,
+    jobs::Job,
+    library::{self, WantedChapter},
+};
 
 #[derive(Deserialize, TS)]
 #[ts(export)]
@@ -38,6 +45,62 @@ pub async fn set_monitored(
         }
     }
     Ok(Json(json!({ "updated": updated })))
+}
+
+#[derive(Deserialize, TS)]
+#[ts(export)]
+pub struct DeleteFiles {
+    ids: Vec<i64>,
+    /// Stop monitoring, so the chapters are not downloaded again. When
+    /// false, monitored chapters are queued again (to replace a bad file).
+    #[serde(default = "unmonitor_by_default")]
+    unmonitor: bool,
+}
+
+const fn unmonitor_by_default() -> bool {
+    true
+}
+
+pub async fn delete_files(
+    State(app): State<AppState>,
+    Json(req): Json<DeleteFiles>,
+) -> ApiResult<Json<Value>> {
+    let mut per_series: BTreeMap<i64, usize> = BTreeMap::new();
+    for id in req.ids {
+        let Some(chapter) = db::chapters::get(&app.ctx.db, id).await? else {
+            continue;
+        };
+        let Some(path) = &chapter.file_path else {
+            continue;
+        };
+        library::remove(&app.ctx.library, std::path::Path::new(path))
+            .await
+            .map_err(|e| ApiError::Conflict(format!("deleting {path}: {e}")))?;
+        db::chapters::clear_file(&app.ctx.db, id, req.unmonitor).await?;
+        *per_series.entry(chapter.series_id).or_default() += 1;
+        if !req.unmonitor && chapter.monitored {
+            app.jobs
+                .submit(Job::DownloadChapter {
+                    chapter_id: id,
+                    source: chapter.source,
+                })
+                .await?;
+        }
+    }
+    let deleted: usize = per_series.values().sum();
+    for (series_id, count) in per_series {
+        let series = db::series::get(&app.ctx.db, series_id)
+            .await?
+            .map(|s| s.title)
+            .unwrap_or_default();
+        tracing::info!(series, count, "deleted chapter files");
+        app.ctx.events.emit(Event::FilesDeleted {
+            series_id: Some(series_id),
+            series,
+            count,
+        });
+    }
+    Ok(Json(json!({ "deleted": deleted })))
 }
 
 /// Download one chapter now, monitored or not.

@@ -54,6 +54,13 @@ pub enum Event {
         chapter: String,
         path: String,
     },
+    /// Files removed from the library. `series_id` is gone when the series
+    /// was unfollowed with its folder.
+    FilesDeleted {
+        series_id: Option<i64>,
+        series: String,
+        count: usize,
+    },
     /// One attempt failed; `JobFailed` for the same job says whether it retries.
     ChapterFailed {
         job_id: i64,
@@ -103,6 +110,16 @@ impl Event {
                 Some(*series_id),
                 Some(*chapter_id),
                 format!("{series} chapter {chapter}: {error}"),
+            )),
+            Self::FilesDeleted {
+                series_id,
+                series,
+                count,
+            } => Some((
+                "deleted",
+                *series_id,
+                None,
+                format!("Deleted {count} file(s) of {series}"),
             )),
             _ => None,
         }

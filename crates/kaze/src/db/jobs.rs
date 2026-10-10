@@ -132,6 +132,22 @@ pub async fn requeue(
     Ok(())
 }
 
+/// Queued or running refreshes and downloads of one series.
+pub async fn active_for_series(
+    db: impl SqliteExecutor<'_>,
+    series_id: i64,
+) -> sqlx::Result<Vec<i64>> {
+    sqlx::query_scalar!(
+        r#"SELECT id AS "id!" FROM jobs
+           WHERE state IN ('queued', 'running')
+             AND (json_extract(payload, '$.series_id') = ?1
+                  OR json_extract(payload, '$.chapter_id') IN (SELECT id FROM chapters WHERE series_id = ?1))"#,
+        series_id
+    )
+    .fetch_all(db)
+    .await
+}
+
 /// Cancel a queued or running job. Returns whether anything changed.
 pub async fn cancel(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<bool> {
     let now = Utc::now();
