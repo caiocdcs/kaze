@@ -136,7 +136,8 @@ async fn apprise_posts_to_the_notify_key() {
     let (url, seen) = server(ok).await;
     let config = Config::Apprise {
         url,
-        key: "kaze".into(),
+        key: Some("kaze".into()),
+        urls: None,
         tags: Some("phone".into()),
     };
     send(&Client::new(), &config, &message()).await.unwrap();
@@ -145,6 +146,34 @@ async fn apprise_posts_to_the_notify_key() {
     let body: Value = serde_json::from_str(&seen[0].body).unwrap();
     assert_eq!(body["type"], "failure");
     assert_eq!(body["tag"], "phone");
+}
+
+#[tokio::test]
+async fn apprise_sends_urls_statelessly() {
+    let (url, seen) = server(ok).await;
+    let config = Config::Apprise {
+        url,
+        key: None,
+        urls: Some("ntfy://ntfy.sh/kaze-test".into()),
+        tags: None,
+    };
+    send(&Client::new(), &config, &message()).await.unwrap();
+    let seen = seen.lock().unwrap();
+    assert_eq!(seen[0].path_and_query, "/notify/");
+    let body: Value = serde_json::from_str(&seen[0].body).unwrap();
+    assert_eq!(body["urls"], "ntfy://ntfy.sh/kaze-test");
+    assert_eq!(body["title"], message().title);
+}
+
+#[test]
+fn apprise_needs_a_key_or_urls() {
+    let config = Config::Apprise {
+        url: Url::parse("http://apprise:8000").unwrap(),
+        key: Some("  ".into()),
+        urls: None,
+        tags: None,
+    };
+    assert!(config.validate().is_err());
 }
 
 #[tokio::test]

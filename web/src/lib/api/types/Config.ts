@@ -4,4 +4,4 @@ import type { WebhookMethod } from "./WebhookMethod";
 /**
  * Where an integration sends things, and how.
  */
-export type Config = { "kind": "komga", url: string, api_key: string, library_id?: string | null, } | { "kind": "kavita", url: string, api_key: string, library_id?: number | null, } | { "kind": "webhook", url: string, method: WebhookMethod, headers: { [key in string]: string }, body: string, } | { "kind": "apprise", url: string, key: string, tags?: string | null, };
+export type Config = { "kind": "komga", url: string, api_key: string, library_id?: string | null, } | { "kind": "kavita", url: string, api_key: string, library_id?: number | null, } | { "kind": "webhook", url: string, method: WebhookMethod, headers: { [key in string]: string }, body: string, } | { "kind": "apprise", url: string, key?: string | null, urls?: string | null, tags?: string | null, };

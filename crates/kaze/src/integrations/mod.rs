@@ -44,10 +44,17 @@ pub enum Config {
         headers: BTreeMap<String, String>,
         body: String,
     },
-    /// An apprise-api server, reaching 100+ services.
+    /// An apprise-api server, reaching 100+ services. Either a `key` for
+    /// a configuration saved on the server, or Apprise `urls` (such as
+    /// `ntfy://topic`) sent along with each message.
     Apprise {
         url: Url,
-        key: String,
+        #[serde(default)]
+        #[ts(optional = nullable)]
+        key: Option<String>,
+        #[serde(default)]
+        #[ts(optional = nullable)]
+        urls: Option<String>,
         #[serde(default)]
         #[ts(optional = nullable)]
         tags: Option<String>,
@@ -80,6 +87,12 @@ impl Config {
                 env.template_from_str(value)
                     .map_err(|e| format!("header {name}: {e}"))?;
             }
+        }
+        if let Self::Apprise { key, urls, .. } = self
+            && filled(key.as_deref()).is_none()
+            && filled(urls.as_deref()).is_none()
+        {
+            return Err("give Apprise a configuration key or notification URLs".into());
         }
         Ok(())
     }
@@ -175,6 +188,10 @@ fn with_causes(err: &dyn std::error::Error) -> String {
         source = cause.source();
     }
     text
+}
+
+fn filled(value: Option<&str>) -> Option<&str> {
+    value.map(str::trim).filter(|v| !v.is_empty())
 }
 
 /// A ready-made webhook setup for a popular service.
@@ -331,17 +348,31 @@ pub async fn send(
             }
             checked("webhook", request.body(body)).await?;
         }
-        Config::Apprise { url, key, tags } => {
+        Config::Apprise {
+            url,
+            key,
+            urls,
+            tags,
+        } => {
             let kind = match message.trigger {
                 Trigger::Downloaded => "success",
                 Trigger::Failed => "failure",
                 Trigger::Found => "info",
             };
             let mut body = json!({ "title": message.title, "body": message.body, "type": kind });
-            if let Some(tags) = tags.as_deref().filter(|t| !t.is_empty()) {
-                body["tag"] = Value::from(tags);
-            }
-            let url = endpoint(url, &format!("notify/{key}"))?;
+            let url = if let Some(urls) = filled(urls.as_deref()) {
+                // Stateless: apprise-api needs no saved configuration.
+                body["urls"] = Value::from(urls);
+                endpoint(url, "notify/")?
+            } else {
+                let key = filled(key.as_deref()).ok_or_else(|| {
+                    IntegrationError::Invalid("Apprise needs a key or URLs".into())
+                })?;
+                if let Some(tags) = filled(tags.as_deref()) {
+                    body["tag"] = Value::from(tags);
+                }
+                endpoint(url, &format!("notify/{key}"))?
+            };
             checked("Apprise", http.post(url).json(&body)).await?;
         }
         Config::Komga { .. } | Config::Kavita { .. } => {

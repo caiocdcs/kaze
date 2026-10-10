@@ -4,7 +4,7 @@
 # In kaze → Settings:
 #   General → FlareSolverr URL: http://flaresolverr:8191
 #   Connect → Komga: URL http://komga:25600 and an API key from Komga
-#   Connect → Apprise: URL http://apprise:8000, key "kaze"
+#   Connect → Apprise: URL http://apprise:8000 and URLs like ntfy://ntfy.sh/topic
 
 services:
   kaze:

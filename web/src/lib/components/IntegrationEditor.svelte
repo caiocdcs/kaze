@@ -25,7 +25,7 @@
 					body: '{\n  "title": {{ title | tojson }},\n  "message": {{ message | tojson }}\n}'
 				};
 			case 'apprise':
-				return { kind, url: 'http://apprise:8000', key: 'kaze', tags: null };
+				return { kind, url: 'http://apprise:8000', key: null, urls: '', tags: null };
 		}
 	}
 </script>
@@ -71,7 +71,11 @@
 		// Empty optional fields mean "every library".
 		if (config.kind === 'komga') config.library_id = config.library_id?.trim() || null;
 		if (config.kind === 'kavita') config.library_id = Number(config.library_id) || null;
-		if (config.kind === 'apprise') config.tags = config.tags?.trim() || null;
+		if (config.kind === 'apprise') {
+			config.urls = config.urls?.trim() || null;
+			config.key = config.urls ? null : config.key?.trim() || null;
+			config.tags = config.urls ? null : config.tags?.trim() || null;
+		}
 		return { name: draft.name, enabled: draft.enabled, events: draft.events, config };
 	}
 
@@ -189,22 +193,39 @@
 				</label>
 			{:else if draft.config.kind === 'apprise'}
 				<label class="flex flex-col gap-1.5 text-sm font-medium">
-					Configuration key
+					Notification URLs
 					<input
 						type="text"
-						required
-						bind:value={draft.config.key}
-						class="field w-56 font-mono text-sm font-normal"
+						bind:value={draft.config.urls}
+						placeholder="ntfy://ntfy.sh/my-topic"
+						class="field font-mono text-sm font-normal"
 					/>
 					<span class="font-normal text-muted"
-						>Posts to <code class="font-mono">{'{URL}'}/notify/{draft.config.key || '…'}</code> on your
-						apprise-api server.</span
+						>Apprise URLs, separated by spaces or commas, such as
+						<code class="font-mono">ntfy://host/topic</code> or
+						<code class="font-mono">tgram://token/chat</code>. Leave empty to use a key saved on
+						apprise-api instead.</span
 					>
 				</label>
-				<label class="flex flex-col gap-1.5 text-sm font-medium">
-					Tags <span class="font-normal text-muted">(optional)</span>
-					<input type="text" bind:value={draft.config.tags} class="field w-56 font-normal" />
-				</label>
+				{#if !draft.config.urls?.trim()}
+					<label class="flex flex-col gap-1.5 text-sm font-medium">
+						Configuration key
+						<input
+							type="text"
+							required
+							bind:value={draft.config.key}
+							class="field w-56 font-mono text-sm font-normal"
+						/>
+						<span class="font-normal text-muted"
+							>Posts to <code class="font-mono">{'{URL}'}/notify/{draft.config.key || '…'}</code> on your
+							apprise-api server.</span
+						>
+					</label>
+					<label class="flex flex-col gap-1.5 text-sm font-medium">
+						Tags <span class="font-normal text-muted">(optional)</span>
+						<input type="text" bind:value={draft.config.tags} class="field w-56 font-normal" />
+					</label>
+				{/if}
 			{:else if draft.config.kind === 'webhook'}
 				<label class="flex items-center gap-3 text-sm font-medium">
 					Method
