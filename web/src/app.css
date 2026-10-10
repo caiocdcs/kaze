@@ -1,0 +1,121 @@
+@import 'tailwindcss';
+
+/* Latin subsets only: the full Japanese faces would add ~10 MB to the binary.
+   CJK titles fall back to the system's Japanese font. */
+@import '@fontsource/ibm-plex-sans/latin-400.css';
+@import '@fontsource/ibm-plex-sans/latin-500.css';
+@import '@fontsource/ibm-plex-sans/latin-600.css';
+@import '@fontsource/ibm-plex-mono/latin-400.css';
+@import '@fontsource/ibm-plex-mono/latin-500.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-500.css';
+@import '@fontsource/zen-kaku-gothic-new/latin-700.css';
+
+/* "Ink & seal": the tokens of the approved design canvas. */
+@theme {
+	--font-sans: 'IBM Plex Sans', system-ui, sans-serif;
+	--font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+	--font-display:
+		'Zen Kaku Gothic New', 'Hiragino Sans', 'Noto Sans CJK JP', 'Yu Gothic', sans-serif;
+
+	--color-ground: #0f1114;
+	--color-rail: #0b0d10;
+	--color-surface: #171a1f;
+	--color-surface-2: #15181c;
+	--color-raised: #1e232a;
+	--color-track: #262b33;
+	--color-line: #22272e;
+	--color-line-strong: #2a3038;
+	--color-line-input: #3a414b;
+
+	--color-ink: #eceae4;
+	--color-ink-2: #c9ced6;
+	--color-muted: #9aa3ae;
+	--color-faint: #5f6872;
+	--color-paper: #f3eee6;
+
+	--color-seal: #ff6b3d;
+	--color-seal-ink: #1a0b05;
+	--color-seal-soft: #ff8a63;
+	--color-seal-wash: #221a16;
+	--color-seal-line: #5a3322;
+	--color-seal-chip: #2a1912;
+
+	--color-wanted: #f2a33a;
+	--color-wanted-ink: #1c1205;
+	--color-wanted-wash: #2a2117;
+	--color-disk: #6ca8ff;
+	--color-disk-wash: #16202e;
+	--color-bad: #ff8c8c;
+	--color-bad-wash: #2c1717;
+	--color-bad-line: #4a2a2a;
+	--color-ok: #5bd18b;
+	--color-ok-wash: #15281e;
+}
+
+@layer base {
+	html {
+		color-scheme: dark;
+		background: var(--color-ground);
+	}
+	body {
+		margin: 0;
+		background: var(--color-ground);
+		color: var(--color-ink);
+		font-family: var(--font-sans);
+		font-size: 15px;
+		line-height: 1.5;
+		-webkit-font-smoothing: antialiased;
+	}
+	a {
+		color: var(--color-ink);
+	}
+	a:hover {
+		color: var(--color-seal-soft);
+	}
+	:focus-visible {
+		outline: 2px solid var(--color-seal);
+		outline-offset: 2px;
+	}
+	input,
+	select,
+	textarea,
+	button {
+		font: inherit;
+	}
+	input[type='checkbox'],
+	input[type='radio'] {
+		accent-color: var(--color-seal);
+	}
+}
+
+/* Shared building blocks; `@utility` so they can be combined and @applied. */
+@utility btn {
+	@apply inline-flex h-11 cursor-pointer items-center justify-center gap-2 rounded-[10px] px-4 whitespace-nowrap no-underline disabled:cursor-not-allowed disabled:opacity-50;
+}
+@utility btn-primary {
+	@apply btn bg-seal font-semibold text-seal-ink hover:text-seal-ink hover:brightness-110;
+}
+@utility btn-ghost {
+	@apply btn border border-line-strong bg-surface text-ink hover:bg-raised hover:text-ink;
+}
+@utility btn-danger {
+	@apply btn border border-bad-line bg-transparent text-bad hover:bg-bad-wash hover:text-bad;
+}
+@utility icon-btn {
+	@apply inline-flex size-10 cursor-pointer items-center justify-center rounded-lg text-ink-2 hover:bg-raised hover:text-ink disabled:cursor-not-allowed disabled:opacity-40;
+}
+@utility field {
+	@apply h-11 rounded-[10px] border border-line-strong bg-surface px-3.5 text-ink placeholder:text-muted;
+}
+@utility field-sm {
+	@apply h-10 rounded-lg border border-line-strong bg-ground px-2.5 font-mono text-sm text-ink;
+}
+@utility card {
+	@apply rounded-[14px] border border-line bg-surface;
+}
+@utility page-title {
+	@apply m-0 font-display text-[34px] leading-tight font-bold tracking-[0.01em];
+}
+@utility section-title {
+	@apply m-0 font-display text-[22px] font-bold;
+}
