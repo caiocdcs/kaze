@@ -91,6 +91,7 @@
               {
                 aarch64-darwin = "sha256-sW3YTWQ49bRpWJ6zX3kdVdnwotpQtOPzTsDQ8yzsbGQ=";
                 x86_64-linux = "sha256-6uz8z88SK41kmX5LoNThzHYzAWFY4N52VweXMCbqZ6s=";
+                aarch64-linux = "sha256-6uz8z88SK41kmX5LoNThzHYzAWFY4N52VweXMCbqZ6s=";
               }
               .${system} or lib.fakeHash;
           };
@@ -155,6 +156,8 @@
             // {
               inherit cargoArtifacts;
               cargoNextestExtraArgs = "--no-tests=pass";
+              # The sandbox has no system CA store; reqwest needs one to build a client.
+              SSL_CERT_FILE = "${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt";
             }
           );
         };
