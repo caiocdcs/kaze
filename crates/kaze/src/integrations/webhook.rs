@@ -7,7 +7,9 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
 
-use super::{Config, IntegrationError, Message, Trigger, checked, http_url, keep, mask};
+use super::{
+    Config, IntegrationError, Message, Trigger, checked, http_url, keep, keep_url, mask, mask_url,
+};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -39,6 +41,7 @@ fn is_secret_header(name: &str) -> bool {
 
 impl Webhook {
     pub(super) fn mask(&mut self) {
+        mask_url(&mut self.url);
         for (name, value) in &mut self.headers {
             if is_secret_header(name) {
                 mask(value);
@@ -47,6 +50,7 @@ impl Webhook {
     }
 
     pub(super) fn keep_secrets(&mut self, stored: &Self) {
+        keep_url(&mut self.url, &stored.url);
         for (name, value) in &mut self.headers {
             if let Some(old) = stored.headers.get(name) {
                 keep(value, old);
