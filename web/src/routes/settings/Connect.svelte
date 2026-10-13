@@ -36,6 +36,7 @@
 		komga: '#2C3A52',
 		kavita: '#4A3326',
 		ntfy: '#2B4250',
+		gotify: '#24404A',
 		webhook: '#2E4A3C',
 		apprise: '#3B3222'
 	};
@@ -49,6 +50,7 @@
 			return preset ? `Webhook · ${preset.name} preset` : 'Webhook';
 		}
 		if (c.kind === 'ntfy') return `ntfy · ${c.topic}`;
+		if (c.kind === 'gotify') return 'Gotify';
 		return c.kind === 'apprise' ? 'Apprise' : `Library server · ${kindLabel[c.kind]}`;
 	}
 
@@ -119,6 +121,7 @@
 		{ kind: 'komga', text: 'Scan your Komga library when new chapters arrive.' },
 		{ kind: 'kavita', text: 'Scan your Kavita library when new chapters arrive.' },
 		{ kind: 'ntfy', text: 'Push to your phone through ntfy.sh or your own ntfy server.' },
+		{ kind: 'gotify', text: 'Push to your own Gotify server with an application token.' },
 		{
 			kind: 'webhook',
 			text: 'POST a JSON body you template: ntfy, Discord, Gotify, Home Assistant, n8n or your own scripts. Nothing else to run.'
@@ -154,7 +157,7 @@
 					<ul
 						class="card absolute right-0 z-10 m-0 mt-2 flex w-60 list-none flex-col p-1.5 shadow-xl"
 					>
-						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['apprise', 'Apprise'], ['webhook', 'Custom webhook']] as const as [kind, label] (kind)}
+						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['gotify', 'Gotify'], ['apprise', 'Apprise'], ['webhook', 'Custom webhook']] as const as [kind, label] (kind)}
 							<li>
 								<button type="button" class="menu-item" onclick={() => startNew(kind)}
 									>{label}</button
@@ -273,7 +276,7 @@
 									? 'Built in · presets for ntfy, Discord, Gotify'
 									: p.kind === 'apprise'
 										? 'Notifications to 100+ services'
-										: p.kind === 'ntfy'
+										: p.kind === 'ntfy' || p.kind === 'gotify'
 											? 'Built in · push notifications'
 											: 'Library server'}
 							</p>
