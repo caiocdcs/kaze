@@ -6,7 +6,9 @@ use serde_json::{Value, json};
 use ts_rs::TS;
 use url::Url;
 
-use super::{IntegrationError, Message, Trigger, checked, endpoint, filled, http_url};
+use super::{
+    IntegrationError, Message, Trigger, checked, endpoint, filled, http_url, keep_opt, mask_opt,
+};
 
 /// `urls` (such as `ntfy://topic`) are sent with each message; without
 /// them, `key` names a configuration saved on the server.
@@ -26,6 +28,18 @@ pub struct Apprise {
 }
 
 impl Apprise {
+    /// Apprise URLs carry tokens (`tgram://token/chat`), and the key opens
+    /// the saved configuration on the server.
+    pub(super) fn mask(&mut self) {
+        mask_opt(&mut self.urls);
+        mask_opt(&mut self.key);
+    }
+
+    pub(super) fn keep_secrets(&mut self, stored: &Self) {
+        keep_opt(&mut self.urls, stored.urls.as_ref());
+        keep_opt(&mut self.key, stored.key.as_ref());
+    }
+
     pub(super) fn validate(&self) -> Result<(), String> {
         http_url(&self.url)?;
         if filled(self.key.as_deref()).is_none() && filled(self.urls.as_deref()).is_none() {

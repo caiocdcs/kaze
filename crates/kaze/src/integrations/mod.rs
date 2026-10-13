@@ -66,7 +66,7 @@ impl Config {
             Self::Gotify(c) => c.mask(),
             Self::Email(c) => c.mask(),
             Self::Webhook(c) => c.mask(),
-            Self::Apprise(_) => {}
+            Self::Apprise(c) => c.mask(),
         }
         config
     }
@@ -80,6 +80,7 @@ impl Config {
             (Self::Gotify(c), Self::Gotify(s)) => c.keep_secrets(s),
             (Self::Email(c), Self::Email(s)) => c.keep_secrets(s),
             (Self::Webhook(c), Self::Webhook(s)) => c.keep_secrets(s),
+            (Self::Apprise(c), Self::Apprise(s)) => c.keep_secrets(s),
             _ => {}
         }
     }
@@ -213,6 +214,34 @@ fn keep_opt(secret: &mut Option<String>, stored: Option<&String>) {
 fn keep(secret: &mut String, stored: &str) {
     if secret == MASK {
         stored.clone_into(secret);
+    }
+}
+
+/// `https://discord.com/********`: the host stays readable; the path, query
+/// and credentials, where tokens live, don't.
+fn masked_url(url: &Url) -> Url {
+    let mut masked = url.clone();
+    let _ = masked.set_username("");
+    let _ = masked.set_password(None);
+    masked.set_query(None);
+    masked.set_fragment(None);
+    masked.set_path(MASK);
+    masked
+}
+
+fn mask_url(url: &mut Url) {
+    let bare = url.path() == "/"
+        && url.query().is_none()
+        && url.username().is_empty()
+        && url.password().is_none();
+    if !bare {
+        *url = masked_url(url);
+    }
+}
+
+fn keep_url(url: &mut Url, stored: &Url) {
+    if *url == masked_url(stored) {
+        url.clone_from(stored);
     }
 }
 

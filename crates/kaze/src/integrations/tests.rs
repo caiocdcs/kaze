@@ -104,7 +104,7 @@ async fn library_servers_get_no_messages() {
 #[test]
 fn secrets_are_masked_and_kept_when_sent_back() {
     let stored = Config::Webhook(webhook::Webhook {
-        url: Url::parse("https://x.test").unwrap(),
+        url: Url::parse("https://discord.com/api/webhooks/1/t0ken?wait=true").unwrap(),
         method: WebhookMethod::Post,
         headers: BTreeMap::from([
             ("Authorization".into(), "Bearer s3cret".into()),
@@ -116,6 +116,7 @@ fn secrets_are_masked_and_kept_when_sent_back() {
     let Config::Webhook(hook) = &masked else {
         unreachable!()
     };
+    assert_eq!(hook.url.as_str(), "https://discord.com/********");
     assert_eq!(hook.headers["Authorization"], MASK);
     assert_eq!(hook.headers["Content-Type"], "application/json");
     masked.keep_secrets(&stored);
@@ -136,4 +137,41 @@ fn a_new_secret_replaces_the_stored_one() {
     assert_eq!(changed, komga("new"));
     // An empty secret stays empty rather than turning into a mask.
     assert_eq!(komga("").masked(), komga(""));
+}
+
+#[test]
+fn a_bare_url_is_left_alone_and_a_new_url_replaces_the_stored_one() {
+    let hook = |url: &str| {
+        Config::Webhook(webhook::Webhook {
+            url: Url::parse(url).unwrap(),
+            method: WebhookMethod::Post,
+            headers: BTreeMap::new(),
+            body: "{}".into(),
+        })
+    };
+    assert_eq!(
+        hook("https://hooks.lan").masked(),
+        hook("https://hooks.lan")
+    );
+    let mut changed = hook("https://discord.com/api/webhooks/2/new");
+    changed.keep_secrets(&hook("https://discord.com/api/webhooks/1/old"));
+    assert_eq!(changed, hook("https://discord.com/api/webhooks/2/new"));
+}
+
+#[test]
+fn apprise_urls_and_key_are_secrets() {
+    let stored = Config::Apprise(apprise::Apprise {
+        url: Url::parse("http://apprise:8000").unwrap(),
+        key: Some("kaze".into()),
+        urls: Some("tgram://token/chat".into()),
+        tags: None,
+    });
+    let mut masked = stored.masked();
+    let Config::Apprise(apprise) = &masked else {
+        unreachable!()
+    };
+    assert_eq!(apprise.urls.as_deref(), Some(MASK));
+    assert_eq!(apprise.key.as_deref(), Some(MASK));
+    masked.keep_secrets(&stored);
+    assert_eq!(masked, stored);
 }
