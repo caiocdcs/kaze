@@ -320,14 +320,14 @@ async fn integrations_can_be_managed() {
     let api = api(None).await;
     let (status, presets) = api.get("/api/v1/integrations/presets").await;
     assert_eq!(status, StatusCode::OK);
-    let ntfy = presets
+    let discord = presets
         .as_array()
         .unwrap()
         .iter()
-        .find(|p| p["id"] == "ntfy")
+        .find(|p| p["id"] == "discord")
         .unwrap();
 
-    let body = json!({ "name": "Phone", "config": ntfy["config"], "events": ["downloaded"] });
+    let body = json!({ "name": "Phone", "config": discord["config"], "events": ["downloaded"] });
     let (status, created) = api
         .call(Method::POST, "/api/v1/integrations", Some(body))
         .await;
@@ -336,12 +336,12 @@ async fn integrations_can_be_managed() {
     assert_eq!(created["config"]["kind"], "webhook");
     let uri = format!("/api/v1/integrations/{}", created["id"]);
 
-    let bad = json!({ "name": " ", "config": ntfy["config"] });
+    let bad = json!({ "name": " ", "config": discord["config"] });
     assert_eq!(
         api.call(Method::PUT, &uri, Some(bad)).await.0,
         StatusCode::BAD_REQUEST
     );
-    let paused = json!({ "name": "Phone", "enabled": false, "config": ntfy["config"] });
+    let paused = json!({ "name": "Phone", "enabled": false, "config": discord["config"] });
     let (_, updated) = api.call(Method::PUT, &uri, Some(paused)).await;
     assert_eq!(updated["enabled"], false);
     assert_eq!(updated["events"], json!([]));
