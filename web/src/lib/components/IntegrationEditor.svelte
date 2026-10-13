@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	import type { Config, IntegrationInput, Trigger } from '#lib/api/index.ts';
+	import type { Config, IntegrationInput, SmtpSecurity, Trigger } from '#lib/api/index.ts';
 
 	export type Draft = IntegrationInput & { id?: number };
 
@@ -8,6 +8,7 @@
 		kavita: 'Kavita',
 		ntfy: 'ntfy',
 		gotify: 'Gotify',
+		email: 'Email',
 		webhook: 'Webhook',
 		apprise: 'Apprise'
 	};
@@ -30,6 +31,17 @@
 				};
 			case 'gotify':
 				return { kind, url: 'https://gotify.example.com', token: '' };
+			case 'email':
+				return {
+					kind,
+					host: '',
+					port: 587,
+					security: 'starttls',
+					username: null,
+					password: null,
+					from: 'kaze <kaze@example.com>',
+					to: []
+				};
 			case 'webhook':
 				return {
 					kind,
@@ -64,6 +76,21 @@
 		// svelte-ignore state_referenced_locally
 		initial.config.kind === 'webhook' ? Object.entries(initial.config.headers) : []
 	);
+	let recipients = $state(
+		// svelte-ignore state_referenced_locally
+		initial.config.kind === 'email' ? initial.config.to.join(', ') : ''
+	);
+	const smtpPorts: Record<SmtpSecurity, number> = { starttls: 587, tls: 465, none: 25 };
+
+	/** Follow the usual port for the chosen security, unless a custom one was typed. */
+	function setSecurity(security: SmtpSecurity) {
+		if (draft.config.kind !== 'email') return;
+		if (Object.values(smtpPorts).includes(draft.config.port)) {
+			draft.config.port = smtpPorts[security];
+		}
+		draft.config.security = security;
+	}
+
 	type NtfyAuth = 'none' | 'token' | 'login';
 	let ntfyAuth = $state<NtfyAuth>(
 		// svelte-ignore state_referenced_locally
@@ -103,6 +130,15 @@
 			config.username = ntfyAuth === 'login' ? config.username?.trim() || null : null;
 			config.password = ntfyAuth === 'login' ? config.password || null : null;
 			config.click_url = config.click_url?.trim() || null;
+		}
+		if (config.kind === 'email') {
+			config.host = config.host.trim();
+			config.username = config.username?.trim() || null;
+			config.password = config.username ? config.password || null : null;
+			config.to = recipients
+				.split(/[,;\s]+/)
+				.map((r) => r.trim())
+				.filter(Boolean);
 		}
 		if (config.kind === 'apprise') {
 			config.urls = config.urls?.trim() || null;
@@ -189,15 +225,17 @@
 				<input type="text" required bind:value={draft.name} class="field font-normal" />
 			</label>
 
-			<label class="flex flex-col gap-1.5 text-sm font-medium">
-				URL
-				<input
-					type="url"
-					required
-					bind:value={draft.config.url}
-					class="field font-mono text-sm font-normal"
-				/>
-			</label>
+			{#if draft.config.kind !== 'email'}
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					URL
+					<input
+						type="url"
+						required
+						bind:value={draft.config.url}
+						class="field font-mono text-sm font-normal"
+					/>
+				</label>
+			{/if}
 
 			{#if draft.config.kind === 'komga' || draft.config.kind === 'kavita'}
 				<p class="m-0 text-sm text-muted">
@@ -316,6 +354,85 @@
 						class="field font-mono text-sm font-normal"
 					/>
 					<span class="font-normal text-muted">Gotify → Apps → Create application.</span>
+				</label>
+			{:else if draft.config.kind === 'email'}
+				<div class="flex flex-wrap gap-3">
+					<label class="flex min-w-0 flex-[3_1_200px] flex-col gap-1.5 text-sm font-medium">
+						SMTP server
+						<input
+							type="text"
+							required
+							bind:value={draft.config.host}
+							placeholder="smtp.example.com"
+							class="field font-mono text-sm font-normal"
+						/>
+					</label>
+					<label class="flex w-28 flex-col gap-1.5 text-sm font-medium">
+						Port
+						<input
+							type="number"
+							required
+							min="1"
+							max="65535"
+							bind:value={draft.config.port}
+							class="field font-mono text-sm font-normal"
+						/>
+					</label>
+				</div>
+				<div class="flex flex-col gap-1.5 text-sm font-medium">
+					Security
+					<div class="self-start">
+						<Segmented
+							label="Security"
+							bind:value={
+								() => (draft.config.kind === 'email' ? draft.config.security : 'starttls'),
+								setSecurity
+							}
+							options={[
+								{ value: 'starttls', label: 'STARTTLS' },
+								{ value: 'tls', label: 'TLS' },
+								{ value: 'none', label: 'None' }
+							]}
+						/>
+					</div>
+				</div>
+				<div class="flex flex-wrap gap-3">
+					<label class="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
+						<span>User <span class="font-normal text-muted">(optional)</span></span>
+						<input
+							type="text"
+							autocomplete="off"
+							bind:value={draft.config.username}
+							class="field font-normal"
+						/>
+					</label>
+					<label class="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
+						Password
+						<input
+							type="password"
+							autocomplete="off"
+							disabled={!draft.config.username?.trim()}
+							bind:value={draft.config.password}
+							class="field font-normal"
+						/>
+					</label>
+				</div>
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					From
+					<input type="text" required bind:value={draft.config.from} class="field font-normal" />
+				</label>
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					To
+					<input
+						type="text"
+						required
+						bind:value={recipients}
+						placeholder="me@example.com, you@example.com"
+						class="field font-normal"
+					/>
+					<span class="font-normal text-muted"
+						>One mail per batch of downloads, to every address here.</span
+					>
 				</label>
 			{:else if draft.config.kind === 'apprise'}
 				<label class="flex flex-col gap-1.5 text-sm font-medium">

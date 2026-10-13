@@ -37,6 +37,7 @@
 		kavita: '#4A3326',
 		ntfy: '#2B4250',
 		gotify: '#24404A',
+		email: '#3F2E44',
 		webhook: '#2E4A3C',
 		apprise: '#3B3222'
 	};
@@ -51,10 +52,12 @@
 		}
 		if (c.kind === 'ntfy') return `ntfy · ${c.topic}`;
 		if (c.kind === 'gotify') return 'Gotify';
+		if (c.kind === 'email') return `Email · ${c.to.join(', ')}`;
 		return c.kind === 'apprise' ? 'Apprise' : `Library server · ${kindLabel[c.kind]}`;
 	}
 
 	function target(c: Config): string {
+		if (c.kind === 'email') return `${c.host}:${c.port}`;
 		try {
 			const u = new URL(c.url);
 			return u.origin + (u.pathname === '/' ? '' : u.pathname.replace(/\/[^/]{20,}/g, '/…'));
@@ -122,6 +125,7 @@
 		{ kind: 'kavita', text: 'Scan your Kavita library when new chapters arrive.' },
 		{ kind: 'ntfy', text: 'Push to your phone through ntfy.sh or your own ntfy server.' },
 		{ kind: 'gotify', text: 'Push to your own Gotify server with an application token.' },
+		{ kind: 'email', text: 'Mail yourself through any SMTP server, one mail per batch.' },
 		{
 			kind: 'webhook',
 			text: 'POST a JSON body you template: ntfy, Discord, Gotify, Home Assistant, n8n or your own scripts. Nothing else to run.'
@@ -157,7 +161,7 @@
 					<ul
 						class="card absolute right-0 z-10 m-0 mt-2 flex w-60 list-none flex-col p-1.5 shadow-xl"
 					>
-						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['gotify', 'Gotify'], ['apprise', 'Apprise'], ['webhook', 'Custom webhook']] as const as [kind, label] (kind)}
+						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['gotify', 'Gotify'], ['email', 'Email'], ['apprise', 'Apprise'], ['webhook', 'Custom webhook']] as const as [kind, label] (kind)}
 							<li>
 								<button type="button" class="menu-item" onclick={() => startNew(kind)}
 									>{label}</button
@@ -204,7 +208,7 @@
 							On
 						</label>
 					</div>
-					<p class="m-0 truncate font-mono text-xs text-muted" title={i.config.url}>
+					<p class="m-0 truncate font-mono text-xs text-muted" title={target(i.config)}>
 						{target(i.config)}
 					</p>
 					{#if i.config.kind === 'komga' || i.config.kind === 'kavita'}
@@ -278,7 +282,9 @@
 										? 'Notifications to 100+ services'
 										: p.kind === 'ntfy' || p.kind === 'gotify'
 											? 'Built in · push notifications'
-											: 'Library server'}
+											: p.kind === 'email'
+												? 'Built in · SMTP'
+												: 'Library server'}
 							</p>
 						</div>
 					</div>
