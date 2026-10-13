@@ -5,7 +5,8 @@
 #   General → FlareSolverr URL: http://flaresolverr:8191
 #   Connect → Komga: URL http://komga:25600 and an API key from Komga
 #     (in Komga, add /data as a library)
-#   Connect → Apprise: URL http://apprise:8000 and URLs like ntfy://ntfy.sh/topic
+#   Connect → ntfy, Gotify or Email need nothing below; Apprise (for other
+#     services): URL http://apprise:8000 and URLs like tgram://token/chat
 
 services:
   kaze:
@@ -52,7 +53,7 @@ services:
   #     - ./library:/manga:ro
   #   restart: unless-stopped
 
-  # Optional: notifications to 100+ services.
+  # Optional: notifications to the 100+ services kaze doesn't support itself.
   apprise:
     image: caronc/apprise:latest
     restart: unless-stopped

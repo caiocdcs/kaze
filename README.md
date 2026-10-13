@@ -15,8 +15,9 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
 - **Clean files.** Downloads go to `library/<Series>/<Series> - Vol.1 Ch.12.cbz`, with `ComicInfo.xml` and `cover.jpg`. The file name template can be changed.
 - **Integrations.**
   - Komga and Kavita library scans, debounced so a backfill triggers one scan.
-  - A templated webhook with presets for ntfy, Discord and Gotify.
-  - Apprise, which reaches 100+ services.
+  - Notifications built in, with nothing else to run: ntfy, Gotify, email over SMTP, and a templated webhook (with a Discord preset).
+  - Apprise, through an apprise-api server, for 100+ other services.
+  - Saved tokens, passwords and API keys never leave the server: the UI shows them masked. URLs aren't masked, so a Discord webhook URL or an Apprise URL with a token in it is shown in full.
 - **Import.** Point kaze at an existing library, for example from Tranga. It matches each folder to a series and marks the chapters already on disk.
 - **Cloudflare.** An optional [FlareSolverr](https://github.com/FlareSolverr/FlareSolverr) gets past challenges. kaze then reuses the cookie it earns.
 - **Easy to run.** Docker image, Nix flake and NixOS module, or a plain binary.
