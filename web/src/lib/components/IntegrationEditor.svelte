@@ -83,7 +83,7 @@
 		busy = true;
 		testResult = null;
 		try {
-			await api.testConfig(input().config);
+			await api.testConfig(input().config, draft.id);
 			testResult = {
 				ok: true,
 				text:

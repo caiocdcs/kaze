@@ -1,6 +1,6 @@
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
 };
 use serde::Deserialize;
@@ -48,7 +48,8 @@ impl IntegrationInput {
 }
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<Integration>>> {
-    Ok(Json(db::integrations::list(&app.ctx.db).await?))
+    let list = db::integrations::list(&app.ctx.db).await?;
+    Ok(Json(list.into_iter().map(Integration::masked).collect()))
 }
 
 pub async fn presets() -> Json<Vec<Preset>> {
@@ -66,18 +67,20 @@ pub async fn create(
     Json(input): Json<IntegrationInput>,
 ) -> ApiResult<(StatusCode, Json<Integration>)> {
     let id = db::integrations::insert(&app.ctx.db, &input.validated()?).await?;
-    Ok((StatusCode::CREATED, Json(load(&app, id).await?)))
+    Ok((StatusCode::CREATED, Json(load(&app, id).await?.masked())))
 }
 
 pub async fn replace(
     State(app): State<AppState>,
     Path(id): Path<i64>,
-    Json(input): Json<IntegrationInput>,
+    Json(mut input): Json<IntegrationInput>,
 ) -> ApiResult<Json<Integration>> {
+    let stored = load(&app, id).await?;
+    input.config.keep_secrets(&stored.config);
     if !db::integrations::update(&app.ctx.db, id, &input.validated()?).await? {
         return Err(ApiError::NotFound("integration"));
     }
-    Ok(Json(load(&app, id).await?))
+    Ok(Json(load(&app, id).await?.masked()))
 }
 
 pub async fn remove(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<StatusCode> {
@@ -102,14 +105,24 @@ pub async fn test_saved(
     tracing::info!(integration = integration.name, "test: {status}");
     db::integrations::record(&app.ctx.db, id, result.is_ok(), &status).await?;
     result.map_err(|e| ApiError::Integration(e.to_string()))?;
-    Ok(Json(load(&app, id).await?))
+    Ok(Json(load(&app, id).await?.masked()))
+}
+
+#[derive(Deserialize)]
+pub struct TestQuery {
+    /// The saved integration being edited, whose secrets fill in masked fields.
+    id: Option<i64>,
 }
 
 /// Test settings before saving them.
 pub async fn test_unsaved(
     State(app): State<AppState>,
-    Json(config): Json<Config>,
+    Query(query): Query<TestQuery>,
+    Json(mut config): Json<Config>,
 ) -> ApiResult<StatusCode> {
+    if let Some(id) = query.id {
+        config.keep_secrets(&load(&app, id).await?.config);
+    }
     config.validate().map_err(ApiError::BadRequest)?;
     integrations::test(&app.ctx.http, &config)
         .await

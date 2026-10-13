@@ -356,6 +356,42 @@ async fn integrations_can_be_managed() {
 }
 
 #[tokio::test]
+async fn integration_secrets_stay_on_the_server() {
+    let api = api(None).await;
+    let config =
+        |key: &str| json!({ "kind": "komga", "url": "http://komga:25600", "api_key": key });
+    let body = json!({ "name": "Komga", "config": config("s3cret") });
+    let (_, created) = api
+        .call(Method::POST, "/api/v1/integrations", Some(body))
+        .await;
+    assert_eq!(created["config"]["api_key"], crate::integrations::MASK);
+    let id = created["id"].as_i64().unwrap();
+    let uri = format!("/api/v1/integrations/{id}");
+    let stored = || async {
+        let integration = db::integrations::get(&api.app.ctx.db, id)
+            .await
+            .unwrap()
+            .unwrap();
+        let crate::integrations::Config::Komga(komga) = integration.config.0 else {
+            unreachable!()
+        };
+        komga.api_key
+    };
+
+    // Toggling it off sends the masked config back: the key survives.
+    let paused = json!({ "name": "Komga", "enabled": false, "config": created["config"] });
+    let (status, updated) = api.call(Method::PUT, &uri, Some(paused)).await;
+    assert_eq!(status, StatusCode::OK, "{updated}");
+    assert_eq!(updated["config"]["api_key"], crate::integrations::MASK);
+    assert_eq!(stored().await, "s3cret");
+
+    let rekeyed = json!({ "name": "Komga", "config": config("fresh") });
+    api.call(Method::PUT, &uri, Some(rekeyed)).await;
+    assert_eq!(stored().await, "fresh");
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn existing_folders_can_be_imported() {
     let api = api(None).await;
     let folder = api.app.ctx.library.join("Old Downloads");

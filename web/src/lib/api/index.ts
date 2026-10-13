@@ -74,7 +74,9 @@ export const api = {
 		http.put<Integration>(`/integrations/${id}`, input),
 	deleteIntegration: (id: number) => http.del<void>(`/integrations/${id}`),
 	testIntegration: (id: number) => http.post<Integration>(`/integrations/${id}/test`),
-	testConfig: (config: Config) => http.post<void>('/integrations/test', config),
+	/** `id`: the saved integration being edited, whose secrets fill in masked fields. */
+	testConfig: (config: Config, id?: number) =>
+		http.post<void>(`/integrations/test${id === undefined ? '' : `?id=${id}`}`, config),
 
 	eventsUrl: () => url('/events')
 };

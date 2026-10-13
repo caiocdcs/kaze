@@ -22,6 +22,15 @@ pub struct Integration {
     pub created_at: DateTime<Utc>,
 }
 
+impl Integration {
+    /// Without its secrets, for the API.
+    #[must_use]
+    pub fn masked(mut self) -> Self {
+        self.config = Json(self.config.0.masked());
+        self
+    }
+}
+
 pub struct NewIntegration<'a> {
     pub name: &'a str,
     pub enabled: bool,
