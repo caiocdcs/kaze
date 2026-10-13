@@ -6,7 +6,7 @@
 //! after its first event, so a long backfill still reports progress.
 
 use std::{
-    collections::{BTreeMap, HashMap},
+    collections::{BTreeMap, BTreeSet, HashMap},
     time::Duration,
 };
 
@@ -46,8 +46,12 @@ struct Batch {
     downloaded: BTreeMap<String, Vec<String>>,
     /// "series chapter: error" lines, for chapters out of retries
     failed: Vec<String>,
+    /// Series of the failed chapters
+    failed_ids: BTreeSet<i64>,
     /// series → new chapters found
     found: BTreeMap<String, usize>,
+    /// series → id, for links into the UI
+    ids: BTreeMap<String, i64>,
     /// Files were added or removed, so library servers should scan.
     library_changed: bool,
     first_at: Option<Instant>,
@@ -67,6 +71,10 @@ impl Batch {
 
     fn deadline(&self, timing: Timing) -> Option<Instant> {
         Some((self.last_at? + timing.quiet).min(self.first_at? + timing.max_wait))
+    }
+
+    fn ids_of<'a>(&self, series: impl Iterator<Item = &'a String>) -> Vec<i64> {
+        series.filter_map(|s| self.ids.get(s).copied()).collect()
     }
 
     fn messages(&self) -> Vec<Message> {
@@ -91,6 +99,7 @@ impl Batch {
                 body,
                 count,
                 series: self.downloaded.keys().cloned().collect(),
+                series_ids: self.ids_of(self.downloaded.keys()),
             });
         }
         if !self.failed.is_empty() {
@@ -105,6 +114,7 @@ impl Batch {
                 body: self.failed.join("\n"),
                 count,
                 series: Vec::new(),
+                series_ids: self.failed_ids.iter().copied().collect(),
             });
         }
         if !self.found.is_empty() {
@@ -120,6 +130,7 @@ impl Batch {
                     .join("\n"),
                 count,
                 series: self.found.keys().cloned().collect(),
+                series_ids: self.ids_of(self.found.keys()),
             });
         }
         out
@@ -148,7 +159,7 @@ pub async fn run(
 ) {
     let mut batch = Batch::default();
     // Attempts that failed, kept until we know whether the job retries.
-    let mut attempts: HashMap<i64, String> = HashMap::new();
+    let mut attempts = Attempts::new();
     loop {
         let deadline = batch.deadline(timing);
         let sleep = async {
@@ -173,11 +184,18 @@ pub async fn run(
     }
 }
 
-fn collect(batch: &mut Batch, attempts: &mut HashMap<i64, String>, event: Event) {
+/// job → (series id, "series chapter: error")
+type Attempts = HashMap<i64, (i64, String)>;
+
+fn collect(batch: &mut Batch, attempts: &mut Attempts, event: Event) {
     match event {
         Event::ChapterDownloaded {
-            series, chapter, ..
+            series_id,
+            series,
+            chapter,
+            ..
         } => {
+            batch.ids.insert(series.clone(), series_id);
             batch.downloaded.entry(series).or_default().push(chapter);
             batch.library_changed = true;
             batch.touch();
@@ -186,26 +204,34 @@ fn collect(batch: &mut Batch, attempts: &mut HashMap<i64, String>, event: Event)
             batch.library_changed = true;
             batch.touch();
         }
-        Event::ChaptersFound { series, count, .. } => {
+        Event::ChaptersFound {
+            series_id,
+            series,
+            count,
+        } => {
+            batch.ids.insert(series.clone(), series_id);
             *batch.found.entry(series).or_default() += count;
             batch.touch();
         }
         Event::ChapterFailed {
             job_id,
+            series_id,
             series,
             chapter,
             error,
             ..
         } => {
-            attempts.insert(job_id, format!("{series} chapter {chapter}: {error}"));
+            let line = format!("{series} chapter {chapter}: {error}");
+            attempts.insert(job_id, (series_id, line));
         }
         Event::JobFailed {
             job_id, will_retry, ..
         } => {
-            if let Some(line) = attempts.remove(&job_id)
+            if let Some((series_id, line)) = attempts.remove(&job_id)
                 && !will_retry
             {
                 batch.failed.push(line);
+                batch.failed_ids.insert(series_id);
                 batch.touch();
             }
         }
@@ -260,7 +286,7 @@ mod tests {
 
     fn downloaded(series: &str, chapter: &str) -> Event {
         Event::ChapterDownloaded {
-            series_id: 1,
+            series_id: if series == "Berserk" { 1 } else { 2 },
             chapter_id: 1,
             series: series.into(),
             chapter: chapter.into(),
@@ -281,6 +307,7 @@ mod tests {
         assert_eq!(messages[0].title, "Downloaded 4 chapters");
         assert_eq!(messages[0].body, "Berserk: 1, 2, 3\nFrieren: 140");
         assert_eq!(messages[0].series, ["Berserk", "Frieren"]);
+        assert_eq!(messages[0].series_ids, [1, 2]);
     }
 
     #[test]
@@ -330,6 +357,7 @@ mod tests {
         collect(&mut batch, &mut attempts, failed(2));
         collect(&mut batch, &mut attempts, gave_up(2, false));
         assert_eq!(batch.failed, ["Berserk chapter 2: HTTP 503"]);
+        assert_eq!(batch.messages()[0].series_ids, [1]);
         assert!(attempts.is_empty());
     }
 

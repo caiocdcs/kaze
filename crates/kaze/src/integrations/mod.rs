@@ -1,5 +1,5 @@
 //! Talking to the outside world: library servers to scan (Komga, Kavita)
-//! and notification targets (a templated webhook, Apprise).
+//! and notification targets (ntfy, a templated webhook, Apprise).
 //!
 //! The [`notifier`] task turns events into `Notify` / `ScanLibrary` jobs,
 //! so every send goes through the job queue and gets its retries.
@@ -8,6 +8,7 @@ pub mod apprise;
 pub mod kavita;
 pub mod komga;
 pub mod notifier;
+pub mod ntfy;
 pub mod webhook;
 
 use reqwest::{Client, RequestBuilder, Response};
@@ -24,6 +25,7 @@ pub use self::webhook::{Preset, WebhookMethod, presets, render};
 pub enum Config {
     Komga(komga::Komga),
     Kavita(kavita::Kavita),
+    Ntfy(ntfy::Ntfy),
     Webhook(webhook::Webhook),
     Apprise(apprise::Apprise),
 }
@@ -34,6 +36,7 @@ impl Config {
         match self {
             Self::Komga(_) => "komga",
             Self::Kavita(_) => "kavita",
+            Self::Ntfy(_) => "ntfy",
             Self::Webhook(_) => "webhook",
             Self::Apprise(_) => "apprise",
         }
@@ -52,6 +55,7 @@ impl Config {
         match &mut config {
             Self::Komga(c) => mask(&mut c.api_key),
             Self::Kavita(c) => mask(&mut c.api_key),
+            Self::Ntfy(c) => c.mask(),
             Self::Webhook(c) => c.mask(),
             Self::Apprise(_) => {}
         }
@@ -63,6 +67,7 @@ impl Config {
         match (self, stored) {
             (Self::Komga(c), Self::Komga(s)) => keep(&mut c.api_key, &s.api_key),
             (Self::Kavita(c), Self::Kavita(s)) => keep(&mut c.api_key, &s.api_key),
+            (Self::Ntfy(c), Self::Ntfy(s)) => c.keep_secrets(s),
             (Self::Webhook(c), Self::Webhook(s)) => c.keep_secrets(s),
             _ => {}
         }
@@ -73,6 +78,7 @@ impl Config {
         match self {
             Self::Komga(c) => c.validate(),
             Self::Kavita(c) => c.validate(),
+            Self::Ntfy(c) => c.validate(),
             Self::Webhook(c) => c.validate(),
             Self::Apprise(c) => c.validate(),
         }
@@ -104,6 +110,9 @@ pub struct Message {
     pub count: usize,
     /// Series involved, for templates that want them.
     pub series: Vec<String>,
+    /// Their ids, for links into the UI. Missing from jobs queued before 0.2.
+    #[serde(default)]
+    pub series_ids: Vec<i64>,
 }
 
 impl Message {
@@ -115,6 +124,7 @@ impl Message {
             body: "If you can read this, notifications work.".into(),
             count: 1,
             series: vec!["Test Series".into()],
+            series_ids: Vec::new(),
         }
     }
 }
@@ -168,6 +178,18 @@ pub const MASK: &str = "********";
 fn mask(secret: &mut String) {
     if !secret.is_empty() {
         MASK.clone_into(secret);
+    }
+}
+
+fn mask_opt(secret: &mut Option<String>) {
+    if let Some(secret) = secret {
+        mask(secret);
+    }
+}
+
+fn keep_opt(secret: &mut Option<String>, stored: Option<&String>) {
+    if secret.as_deref() == Some(MASK) {
+        secret.clone_from(&stored.cloned());
     }
 }
 
@@ -225,6 +247,7 @@ pub async fn send(
     message: &Message,
 ) -> Result<(), IntegrationError> {
     match config {
+        Config::Ntfy(c) => c.send(http, message).await,
         Config::Webhook(c) => c.send(http, message).await,
         Config::Apprise(c) => c.send(http, message).await,
         Config::Komga(_) | Config::Kavita(_) => Err(IntegrationError::Invalid(
@@ -238,9 +261,9 @@ pub async fn scan(http: &Client, config: &Config) -> Result<(), IntegrationError
     match config {
         Config::Komga(c) => c.scan(http).await,
         Config::Kavita(c) => c.scan(http).await,
-        Config::Webhook(_) | Config::Apprise(_) => Err(IntegrationError::Invalid(
-            "only library servers can scan".into(),
-        )),
+        Config::Ntfy(_) | Config::Webhook(_) | Config::Apprise(_) => Err(
+            IntegrationError::Invalid("only library servers can scan".into()),
+        ),
     }
 }
 
@@ -250,7 +273,9 @@ pub async fn test(http: &Client, config: &Config) -> Result<(), IntegrationError
     match config {
         Config::Komga(c) => c.test(http).await,
         Config::Kavita(c) => c.test(http).await,
-        Config::Webhook(_) | Config::Apprise(_) => send(http, config, &Message::test()).await,
+        Config::Ntfy(_) | Config::Webhook(_) | Config::Apprise(_) => {
+            send(http, config, &Message::test()).await
+        }
     }
 }
 
