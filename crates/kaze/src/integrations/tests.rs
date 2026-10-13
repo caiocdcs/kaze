@@ -65,6 +65,7 @@ pub(super) fn message() -> Message {
         body: "line one\nline two".into(),
         count: 1,
         series: vec!["Berserk".into()],
+        series_ids: vec![7],
     }
 }
 

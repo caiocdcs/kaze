@@ -13,4 +13,8 @@ count: number,
 /**
  * Series involved, for templates that want them.
  */
-series: Array<string>, };
+series: Array<string>, 
+/**
+ * Their ids, for links into the UI. Missing from jobs queued before 0.2.
+ */
+series_ids: Array<number>, };

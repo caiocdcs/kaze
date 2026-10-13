@@ -6,6 +6,7 @@
 	export const kindLabel: Record<Config['kind'], string> = {
 		komga: 'Komga',
 		kavita: 'Kavita',
+		ntfy: 'ntfy',
 		webhook: 'Webhook',
 		apprise: 'Apprise'
 	};
@@ -16,6 +17,16 @@
 				return { kind, url: 'http://komga:25600', api_key: '', library_id: null };
 			case 'kavita':
 				return { kind, url: 'http://kavita:5000', api_key: '', library_id: null };
+			case 'ntfy':
+				return {
+					kind,
+					url: 'https://ntfy.sh',
+					topic: '',
+					token: null,
+					username: null,
+					password: null,
+					click_url: location.origin
+				};
 			case 'webhook':
 				return {
 					kind,
@@ -32,6 +43,7 @@
 
 <script lang="ts">
 	import { api } from '#lib/api/index.ts';
+	import Segmented from '#lib/components/Segmented.svelte';
 	import { errorMessage } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
@@ -48,6 +60,17 @@
 	let headers = $state<[string, string][]>(
 		// svelte-ignore state_referenced_locally
 		initial.config.kind === 'webhook' ? Object.entries(initial.config.headers) : []
+	);
+	type NtfyAuth = 'none' | 'token' | 'login';
+	let ntfyAuth = $state<NtfyAuth>(
+		// svelte-ignore state_referenced_locally
+		initial.config.kind !== 'ntfy'
+			? 'none'
+			: initial.config.token
+				? 'token'
+				: initial.config.username
+					? 'login'
+					: 'none'
 	);
 	let busy = $state(false);
 	let testResult = $state<{ ok: boolean; text: string } | null>(null);
@@ -71,6 +94,13 @@
 		// Empty optional fields mean "every library".
 		if (config.kind === 'komga') config.library_id = config.library_id?.trim() || null;
 		if (config.kind === 'kavita') config.library_id = Number(config.library_id) || null;
+		if (config.kind === 'ntfy') {
+			config.topic = config.topic.trim();
+			config.token = ntfyAuth === 'token' ? config.token?.trim() || null : null;
+			config.username = ntfyAuth === 'login' ? config.username?.trim() || null : null;
+			config.password = ntfyAuth === 'login' ? config.password || null : null;
+			config.click_url = config.click_url?.trim() || null;
+		}
 		if (config.kind === 'apprise') {
 			config.urls = config.urls?.trim() || null;
 			config.key = config.urls ? null : config.key?.trim() || null;
@@ -195,6 +225,82 @@
 						placeholder="Every library"
 						class="field w-56 font-mono text-sm font-normal"
 					/>
+				</label>
+			{:else if draft.config.kind === 'ntfy'}
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					Topic
+					<input
+						type="text"
+						required
+						bind:value={draft.config.topic}
+						placeholder="my-manga"
+						class="field w-64 font-mono text-sm font-normal"
+					/>
+					<span class="font-normal text-muted"
+						>On ntfy.sh anyone who knows the topic can read it: pick something hard to guess.</span
+					>
+				</label>
+				<div class="flex flex-col gap-1.5 text-sm font-medium">
+					Access
+					<div class="self-start">
+						<Segmented
+							label="Access"
+							bind:value={ntfyAuth}
+							options={[
+								{ value: 'none', label: 'None' },
+								{ value: 'token', label: 'Token' },
+								{ value: 'login', label: 'User and password' }
+							]}
+						/>
+					</div>
+				</div>
+				{#if ntfyAuth === 'token'}
+					<label class="flex flex-col gap-1.5 text-sm font-medium">
+						Access token
+						<input
+							type="password"
+							required
+							autocomplete="off"
+							bind:value={draft.config.token}
+							placeholder="tk_…"
+							class="field font-mono text-sm font-normal"
+						/>
+					</label>
+				{:else if ntfyAuth === 'login'}
+					<div class="flex flex-wrap gap-3">
+						<label class="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
+							User
+							<input
+								type="text"
+								required
+								autocomplete="off"
+								bind:value={draft.config.username}
+								class="field font-normal"
+							/>
+						</label>
+						<label class="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-medium">
+							Password
+							<input
+								type="password"
+								required
+								autocomplete="off"
+								bind:value={draft.config.password}
+								class="field font-normal"
+							/>
+						</label>
+					</div>
+				{/if}
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					kaze address <span class="font-normal text-muted">(optional)</span>
+					<input
+						type="url"
+						bind:value={draft.config.click_url}
+						placeholder="https://kaze.example.com"
+						class="field font-mono text-sm font-normal"
+					/>
+					<span class="font-normal text-muted"
+						>Tapping a notification opens the series in kaze. Leave empty for no link.</span
+					>
 				</label>
 			{:else if draft.config.kind === 'apprise'}
 				<label class="flex flex-col gap-1.5 text-sm font-medium">

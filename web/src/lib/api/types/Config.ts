@@ -2,9 +2,10 @@
 import type { Apprise } from "./Apprise";
 import type { Kavita } from "./Kavita";
 import type { Komga } from "./Komga";
+import type { Ntfy } from "./Ntfy";
 import type { Webhook } from "./Webhook";
 
 /**
  * Where an integration sends things, and how.
  */
-export type Config = { "kind": "komga" } & Komga | { "kind": "kavita" } & Kavita | { "kind": "webhook" } & Webhook | { "kind": "apprise" } & Apprise;
+export type Config = { "kind": "komga" } & Komga | { "kind": "kavita" } & Kavita | { "kind": "ntfy" } & Ntfy | { "kind": "webhook" } & Webhook | { "kind": "apprise" } & Apprise;
