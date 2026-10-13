@@ -1,10 +1,12 @@
 //! Talking to the outside world: library servers to scan (Komga, Kavita)
-//! and notification targets (ntfy, Gotify, a templated webhook, Apprise).
+//! and notification targets (ntfy, Gotify, email, a templated webhook,
+//! Apprise).
 //!
 //! The [`notifier`] task turns events into `Notify` / `ScanLibrary` jobs,
 //! so every send goes through the job queue and gets its retries.
 
 pub mod apprise;
+pub mod email;
 pub mod gotify;
 pub mod kavita;
 pub mod komga;
@@ -28,6 +30,7 @@ pub enum Config {
     Kavita(kavita::Kavita),
     Ntfy(ntfy::Ntfy),
     Gotify(gotify::Gotify),
+    Email(email::Email),
     Webhook(webhook::Webhook),
     Apprise(apprise::Apprise),
 }
@@ -40,6 +43,7 @@ impl Config {
             Self::Kavita(_) => "kavita",
             Self::Ntfy(_) => "ntfy",
             Self::Gotify(_) => "gotify",
+            Self::Email(_) => "email",
             Self::Webhook(_) => "webhook",
             Self::Apprise(_) => "apprise",
         }
@@ -60,6 +64,7 @@ impl Config {
             Self::Kavita(c) => mask(&mut c.api_key),
             Self::Ntfy(c) => c.mask(),
             Self::Gotify(c) => c.mask(),
+            Self::Email(c) => c.mask(),
             Self::Webhook(c) => c.mask(),
             Self::Apprise(_) => {}
         }
@@ -73,6 +78,7 @@ impl Config {
             (Self::Kavita(c), Self::Kavita(s)) => keep(&mut c.api_key, &s.api_key),
             (Self::Ntfy(c), Self::Ntfy(s)) => c.keep_secrets(s),
             (Self::Gotify(c), Self::Gotify(s)) => c.keep_secrets(s),
+            (Self::Email(c), Self::Email(s)) => c.keep_secrets(s),
             (Self::Webhook(c), Self::Webhook(s)) => c.keep_secrets(s),
             _ => {}
         }
@@ -85,6 +91,7 @@ impl Config {
             Self::Kavita(c) => c.validate(),
             Self::Ntfy(c) => c.validate(),
             Self::Gotify(c) => c.validate(),
+            Self::Email(c) => c.validate(),
             Self::Webhook(c) => c.validate(),
             Self::Apprise(c) => c.validate(),
         }
@@ -145,6 +152,8 @@ pub enum IntegrationError {
         status: u16,
         body: String,
     },
+    #[error("SMTP: {}", with_causes(.0))]
+    Smtp(#[from] lettre::transport::smtp::Error),
     #[error("template: {0}")]
     Template(#[from] minijinja::Error),
     #[error("{0}")]
@@ -157,6 +166,8 @@ impl IntegrationError {
         match self {
             Self::Http(e) => e.is_timeout() || e.is_connect() || e.is_request(),
             Self::Status { status, .. } => *status == 429 || *status >= 500,
+            // Refused connections and 4xx replies; not bad logins or TLS setups.
+            Self::Smtp(e) => !(e.is_permanent() || e.is_tls() || e.is_client()),
             Self::Template(_) | Self::Invalid(_) => false,
         }
     }
@@ -255,6 +266,7 @@ pub async fn send(
     match config {
         Config::Ntfy(c) => c.send(http, message).await,
         Config::Gotify(c) => c.send(http, message).await,
+        Config::Email(c) => c.send(message).await,
         Config::Webhook(c) => c.send(http, message).await,
         Config::Apprise(c) => c.send(http, message).await,
         Config::Komga(_) | Config::Kavita(_) => Err(IntegrationError::Invalid(

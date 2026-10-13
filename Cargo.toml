@@ -35,6 +35,8 @@ strsim = "0.11"
 governor = "0.10"
 # Webhook body templates.
 minijinja = { version = "2", features = ["json"] }
+# Email notifications, on the same rustls + aws-lc-rs stack as reqwest.
+lettre = { version = "0.11", default-features = false, features = ["aws-lc-rs", "builder", "hostname", "rustls-platform-verifier", "smtp-transport", "tokio1-rustls"] }
 reqwest = { version = "0.13", features = ["brotli", "cookies", "gzip", "json", "query"] }
 # The built web UI, compiled into the binary.
 rust-embed = { version = "8", features = ["mime-guess"] }

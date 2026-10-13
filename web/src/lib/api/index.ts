@@ -81,6 +81,8 @@ export const api = {
 	eventsUrl: () => url('/events')
 };
 
+export type { SmtpSecurity } from './types/SmtpSecurity.ts';
+
 export type {
 	Candidate,
 	ChapterRecord,

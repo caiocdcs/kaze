@@ -17,6 +17,7 @@ clap.workspace = true
 figment.workspace = true
 fs4.workspace = true
 futures-util.workspace = true
+lettre.workspace = true
 minijinja.workspace = true
 regex.workspace = true
 reqwest.workspace = true
@@ -42,8 +43,8 @@ figment = { workspace = true, features = ["test"] }
 http-body-util.workspace = true
 tower.workspace = true
 tempfile.workspace = true
-# Paused clocks for timing tests.
-tokio = { workspace = true, features = ["test-util"] }
+# Paused clocks for timing tests; io-util for the SMTP stand-in.
+tokio = { workspace = true, features = ["io-util", "test-util"] }
 
 [lints]
 workspace = true
