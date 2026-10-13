@@ -161,7 +161,7 @@
 					<ul
 						class="card absolute right-0 z-10 m-0 mt-2 flex w-60 list-none flex-col p-1.5 shadow-xl"
 					>
-						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['gotify', 'Gotify'], ['email', 'Email'], ['apprise', 'Apprise'], ['webhook', 'Custom webhook']] as const as [kind, label] (kind)}
+						{#each [['komga', 'Komga'], ['kavita', 'Kavita'], ['ntfy', 'ntfy'], ['gotify', 'Gotify'], ['email', 'Email'], ['webhook', 'Custom webhook'], ['apprise', 'Apprise']] as const as [kind, label] (kind)}
 							<li>
 								<button type="button" class="menu-item" onclick={() => startNew(kind)}
 									>{label}</button
