@@ -7,6 +7,7 @@
 		komga: 'Komga',
 		kavita: 'Kavita',
 		ntfy: 'ntfy',
+		gotify: 'Gotify',
 		webhook: 'Webhook',
 		apprise: 'Apprise'
 	};
@@ -27,6 +28,8 @@
 					password: null,
 					click_url: location.origin
 				};
+			case 'gotify':
+				return { kind, url: 'https://gotify.example.com', token: '' };
 			case 'webhook':
 				return {
 					kind,
@@ -301,6 +304,18 @@
 					<span class="font-normal text-muted"
 						>Tapping a notification opens the series in kaze. Leave empty for no link.</span
 					>
+				</label>
+			{:else if draft.config.kind === 'gotify'}
+				<label class="flex flex-col gap-1.5 text-sm font-medium">
+					Application token
+					<input
+						type="password"
+						required
+						autocomplete="off"
+						bind:value={draft.config.token}
+						class="field font-mono text-sm font-normal"
+					/>
+					<span class="font-normal text-muted">Gotify → Apps → Create application.</span>
 				</label>
 			{:else if draft.config.kind === 'apprise'}
 				<label class="flex flex-col gap-1.5 text-sm font-medium">
