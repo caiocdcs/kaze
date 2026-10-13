@@ -101,40 +101,21 @@ pub struct Preset {
     pub events: Vec<Trigger>,
 }
 
-/// Webhook presets. The UI copies one into a new integration to edit.
+/// Webhook presets for services without a kind of their own. The UI copies
+/// one into a new integration to edit.
 #[must_use]
 #[allow(clippy::expect_used, reason = "literal URLs, covered by tests")]
 pub fn presets() -> Vec<Preset> {
     let url = |s: &str| Url::parse(s).expect("preset URL");
-    let all = vec![Trigger::Downloaded, Trigger::Failed];
-    vec![
-        Preset {
-            id: "ntfy",
-            name: "ntfy",
-            hint: "Change the topic in the body; for a private server, change the URL.",
-            config: Config::Webhook(Webhook {
-                url: url("https://ntfy.sh"),
-                method: WebhookMethod::Post,
-                headers: BTreeMap::new(),
-                body: r#"{
-  "topic": "[YOUR TOPIC]",
-  "title": {{ title | tojson }},
-  "message": {{ message | tojson }},
-  "tags": [{% if event == "failed" %}"warning"{% else %}"books"{% endif %}]
-}"#
-                .into(),
-            }),
-            events: all.clone(),
-        },
-        Preset {
-            id: "discord",
-            name: "Discord",
-            hint: "Paste the channel's webhook URL (Server settings → Integrations → Webhooks).",
-            config: Config::Webhook(Webhook {
-                url: url("https://discord.com/api/webhooks/[ID]/[TOKEN]"),
-                method: WebhookMethod::Post,
-                headers: BTreeMap::new(),
-                body: r#"{
+    vec![Preset {
+        id: "discord",
+        name: "Discord",
+        hint: "Paste the channel's webhook URL (Server settings → Integrations → Webhooks).",
+        config: Config::Webhook(Webhook {
+            url: url("https://discord.com/api/webhooks/[ID]/[TOKEN]"),
+            method: WebhookMethod::Post,
+            headers: BTreeMap::new(),
+            body: r#"{
   "username": "kaze",
   "embeds": [{
     "title": {{ title | tojson }},
@@ -142,28 +123,10 @@ pub fn presets() -> Vec<Preset> {
     "color": {% if event == "failed" %}16747660{% else %}16739133{% endif %}
   }]
 }"#
-                .into(),
-            }),
-            events: all.clone(),
-        },
-        Preset {
-            id: "gotify",
-            name: "Gotify",
-            hint: "Use your server's URL and an application token.",
-            config: Config::Webhook(Webhook {
-                url: url("https://gotify.example.com/message?token=[APP TOKEN]"),
-                method: WebhookMethod::Post,
-                headers: BTreeMap::new(),
-                body: r#"{
-  "title": {{ title | tojson }},
-  "message": {{ message | tojson }},
-  "priority": {% if event == "failed" %}8{% else %}5{% endif %}
-}"#
-                .into(),
-            }),
-            events: all,
-        },
-    ]
+            .into(),
+        }),
+        events: vec![Trigger::Downloaded, Trigger::Failed],
+    }]
 }
 
 fn template_env() -> minijinja::Environment<'static> {

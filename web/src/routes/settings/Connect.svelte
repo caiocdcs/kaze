@@ -128,11 +128,11 @@
 		{ kind: 'email', text: 'Mail yourself through any SMTP server, one mail per batch.' },
 		{
 			kind: 'webhook',
-			text: 'POST a JSON body you template: ntfy, Discord, Gotify, Home Assistant, n8n or your own scripts. Nothing else to run.'
+			text: 'POST a JSON body you template: Discord, Home Assistant, n8n or your own scripts.'
 		},
 		{
 			kind: 'apprise',
-			text: 'If you run apprise-api, reach Telegram, email, Matrix and 100+ more.'
+			text: 'If you run apprise-api, reach Telegram, Matrix and 100+ other services.'
 		}
 	];
 	const unset = $derived(
@@ -277,7 +277,7 @@
 							<h2 class="m-0 text-[15px] font-semibold">{kindLabel[p.kind]}</h2>
 							<p class="m-0 text-[13px] text-muted">
 								{p.kind === 'webhook'
-									? 'Built in · presets for ntfy, Discord, Gotify'
+									? 'Built in · Discord preset'
 									: p.kind === 'apprise'
 										? 'Notifications to 100+ services'
 										: p.kind === 'ntfy' || p.kind === 'gotify'
