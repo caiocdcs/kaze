@@ -301,7 +301,7 @@ async fn downloads_are_announced_in_one_batched_webhook() {
 
     use crate::{
         db::integrations::NewIntegration,
-        integrations::{Config, Trigger, WebhookMethod},
+        integrations::{Config, Trigger, WebhookMethod, webhook::Webhook},
     };
 
     let (tx, mut received) = tokio::sync::mpsc::unbounded_channel::<String>();
@@ -319,12 +319,12 @@ async fn downloads_are_announced_in_one_batched_webhook() {
     tokio::spawn(async move { axum::serve(listener, hook).await.unwrap() });
 
     let db = db::memory().await;
-    let config = Config::Webhook {
+    let config = Config::Webhook(Webhook {
         url: url.parse().unwrap(),
         method: WebhookMethod::Post,
         headers: std::collections::BTreeMap::new(),
         body: "{{ event }}|{{ title }}".into(),
-    };
+    });
     let id = db::integrations::insert(
         &db,
         &NewIntegration {
