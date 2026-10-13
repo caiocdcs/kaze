@@ -1,7 +1,10 @@
 //! A local stand-in server that records requests, shared by every kind's
 //! tests, and the checks that span kinds.
 
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::BTreeMap,
+    sync::{Arc, Mutex},
+};
 
 use axum::{
     Router,
@@ -95,4 +98,41 @@ async fn library_servers_get_no_messages() {
         .await
         .unwrap_err();
     assert!(!err.is_retryable());
+}
+
+#[test]
+fn secrets_are_masked_and_kept_when_sent_back() {
+    let stored = Config::Webhook(webhook::Webhook {
+        url: Url::parse("https://x.test").unwrap(),
+        method: WebhookMethod::Post,
+        headers: BTreeMap::from([
+            ("Authorization".into(), "Bearer s3cret".into()),
+            ("Content-Type".into(), "application/json".into()),
+        ]),
+        body: "{}".into(),
+    });
+    let mut masked = stored.masked();
+    let Config::Webhook(hook) = &masked else {
+        unreachable!()
+    };
+    assert_eq!(hook.headers["Authorization"], MASK);
+    assert_eq!(hook.headers["Content-Type"], "application/json");
+    masked.keep_secrets(&stored);
+    assert_eq!(masked, stored);
+}
+
+#[test]
+fn a_new_secret_replaces_the_stored_one() {
+    let komga = |key: &str| {
+        Config::Komga(komga::Komga {
+            url: Url::parse("http://komga:25600").unwrap(),
+            api_key: key.into(),
+            library_id: None,
+        })
+    };
+    let mut changed = komga("new");
+    changed.keep_secrets(&komga("old"));
+    assert_eq!(changed, komga("new"));
+    // An empty secret stays empty rather than turning into a mask.
+    assert_eq!(komga("").masked(), komga(""));
 }

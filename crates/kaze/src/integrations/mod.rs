@@ -45,6 +45,29 @@ impl Config {
         matches!(self, Self::Komga(_) | Self::Kavita(_))
     }
 
+    /// A copy fit for the API: every secret that is set reads as [`MASK`].
+    #[must_use]
+    pub fn masked(&self) -> Self {
+        let mut config = self.clone();
+        match &mut config {
+            Self::Komga(c) => mask(&mut c.api_key),
+            Self::Kavita(c) => mask(&mut c.api_key),
+            Self::Webhook(c) => c.mask(),
+            Self::Apprise(_) => {}
+        }
+        config
+    }
+
+    /// Put `stored`'s secrets back where the UI sent a [`MASK`] unchanged.
+    pub fn keep_secrets(&mut self, stored: &Self) {
+        match (self, stored) {
+            (Self::Komga(c), Self::Komga(s)) => keep(&mut c.api_key, &s.api_key),
+            (Self::Kavita(c), Self::Kavita(s)) => keep(&mut c.api_key, &s.api_key),
+            (Self::Webhook(c), Self::Webhook(s)) => c.keep_secrets(s),
+            _ => {}
+        }
+    }
+
     /// Check what a user typed before saving it.
     pub fn validate(&self) -> Result<(), String> {
         match self {
@@ -137,6 +160,21 @@ fn with_causes(err: &dyn std::error::Error) -> String {
         source = cause.source();
     }
     text
+}
+
+/// Stands in for a stored secret in API responses.
+pub const MASK: &str = "********";
+
+fn mask(secret: &mut String) {
+    if !secret.is_empty() {
+        MASK.clone_into(secret);
+    }
+}
+
+fn keep(secret: &mut String, stored: &str) {
+    if secret == MASK {
+        stored.clone_into(secret);
+    }
 }
 
 fn filled(value: Option<&str>) -> Option<&str> {

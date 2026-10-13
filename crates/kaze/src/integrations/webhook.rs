@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
 
-use super::{Config, IntegrationError, Message, Trigger, checked, http_url};
+use super::{Config, IntegrationError, Message, Trigger, checked, http_url, keep, mask};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -29,7 +29,31 @@ pub enum WebhookMethod {
     Put,
 }
 
+/// Headers that usually carry credentials; the rest (`Content-Type`) stay readable.
+fn is_secret_header(name: &str) -> bool {
+    let name = name.to_ascii_lowercase();
+    ["auth", "token", "key", "secret", "password", "cookie"]
+        .iter()
+        .any(|word| name.contains(word))
+}
+
 impl Webhook {
+    pub(super) fn mask(&mut self) {
+        for (name, value) in &mut self.headers {
+            if is_secret_header(name) {
+                mask(value);
+            }
+        }
+    }
+
+    pub(super) fn keep_secrets(&mut self, stored: &Self) {
+        for (name, value) in &mut self.headers {
+            if let Some(old) = stored.headers.get(name) {
+                keep(value, old);
+            }
+        }
+    }
+
     pub(super) fn validate(&self) -> Result<(), String> {
         http_url(&self.url)?;
         let env = template_env();
