@@ -91,6 +91,8 @@ async fn health_and_sources() {
     let (status, sources) = api.get("/api/v1/sources").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(sources[0]["id"], "fake");
+    assert_eq!(sources[0]["failing"], false);
+    assert_eq!(sources[0]["health"]["failures_in_row"], 0);
     api.app.shutdown().await;
 }
 

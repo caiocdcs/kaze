@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO source_health (source, last_error_at, last_error, failures_in_row)\n           VALUES (?1, ?2, ?3, 1)\n           ON CONFLICT (source) DO UPDATE\n             SET last_error_at = ?2, last_error = ?3, failures_in_row = failures_in_row + 1\n           RETURNING failures_in_row",
+  "describe": {
+    "columns": [
+      {
+        "name": "failures_in_row",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "source_health",
+            "name": "failures_in_row"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d182daa8f7a6b463c4e21e6c693205747afd81429171075eb8d7a512afc2b856"
+}

@@ -49,6 +49,12 @@
 					>{num(live.wanted)}</span
 				>
 			{/if}
+			{#if item.href === '/settings' && live.failingSources.length > 0}
+				<span
+					class="rounded-full bg-bad-wash px-[7px] py-px font-mono text-xs text-bad"
+					title="Failing: {live.failingSources.join(', ')}">{live.failingSources.length}</span
+				>
+			{/if}
 		</a>
 	{/each}
 
@@ -98,6 +104,12 @@
 				<span
 					class="absolute top-1 left-[calc(50%+6px)] rounded-full bg-wanted px-1.5 font-mono text-[10px] text-wanted-ink"
 					>{live.wanted}</span
+				>
+			{/if}
+			{#if item.href === '/settings' && live.failingSources.length > 0}
+				<span
+					class="absolute top-1 left-[calc(50%+6px)] rounded-full bg-bad px-1.5 font-mono text-[10px] text-bad-wash"
+					title="Failing: {live.failingSources.join(', ')}">{live.failingSources.length}</span
 				>
 			{/if}
 		</a>

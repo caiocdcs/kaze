@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 
 use super::{ApiError, ApiResult, AppState};
-use crate::db;
+use crate::db::{self, sources::SourceHealth};
 
 #[derive(Serialize, TS)]
 #[ts(export)]
@@ -19,24 +19,26 @@ pub struct SourceInfo {
     name: &'static str,
     base_url: Url,
     languages: &'static [&'static str],
+    health: SourceHealth,
+    /// Several jobs in a row failed: the site probably changed or is down.
+    failing: bool,
 }
 
-pub async fn list(State(app): State<AppState>) -> Json<Vec<SourceInfo>> {
-    Json(
-        app.ctx
-            .sources
-            .iter()
-            .map(|s| {
-                let meta = s.meta();
-                SourceInfo {
-                    id: meta.id,
-                    name: meta.name,
-                    base_url: meta.base_url.clone(),
-                    languages: meta.languages,
-                }
-            })
-            .collect(),
-    )
+pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>>> {
+    let mut sources = Vec::new();
+    for source in app.ctx.sources.iter() {
+        let meta = source.meta();
+        let health = db::sources::get(&app.ctx.db, meta.id).await?;
+        sources.push(SourceInfo {
+            id: meta.id,
+            name: meta.name,
+            base_url: meta.base_url.clone(),
+            languages: meta.languages,
+            failing: health.is_failing(),
+            health,
+        });
+    }
+    Ok(Json(sources))
 }
 
 #[derive(Deserialize)]
