@@ -306,6 +306,9 @@ async fn run_one(
         () = token.cancelled() => return Outcome::Interrupted,
         result = handlers::run(ctx, queue, id, &claimed.job) => result,
     };
+    if let Some(source) = claimed.job.source() {
+        record_health(ctx, source, &result).await;
+    }
     let kind = claimed.job.kind();
     match result {
         Ok(()) => {
@@ -328,5 +331,20 @@ async fn run_one(
             attempts: claimed.attempts,
             max_attempts: claimed.max_attempts,
         },
+    }
+}
+
+async fn record_health(ctx: &Context, source: &str, result: &Result<(), handlers::JobError>) {
+    let recorded = match result {
+        Ok(()) => db::sources::record_success(&ctx.db, source).await,
+        Err(err) if err.is_source_failure() => {
+            db::sources::record_failure(&ctx.db, source, &err.to_string())
+                .await
+                .map(drop)
+        }
+        Err(_) => Ok(()),
+    };
+    if let Err(err) = recorded {
+        tracing::warn!(source, "could not record source health: {err}");
     }
 }

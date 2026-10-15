@@ -174,6 +174,11 @@ async fn transient_failures_are_retried() {
     })
     .await;
     assert_eq!(h.downloaded(1).await, ["1"]);
+    h.wait_for(|e| matches!(e, Event::JobFinished { .. })).await;
+    let health = db::sources::get(&h.app.ctx.db, "fake").await.unwrap();
+    assert!(health.last_error.is_some());
+    assert!(health.last_success_at.is_some());
+    assert_eq!(health.failures_in_row, 0, "the retry succeeded");
     h.app.shutdown().await;
 }
 

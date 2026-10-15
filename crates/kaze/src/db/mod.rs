@@ -11,6 +11,7 @@ pub mod integrations;
 pub mod jobs;
 pub mod series;
 pub mod settings;
+pub mod sources;
 
 use std::{path::Path, time::Duration};
 

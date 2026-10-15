@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT last_success_at AS \"last_success_at: _\", last_error_at AS \"last_error_at: _\",\n                  last_error, failures_in_row\n           FROM source_health WHERE source = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "last_success_at: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "source_health",
+            "name": "last_success_at"
+          }
+        }
+      },
+      {
+        "name": "last_error_at: _",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "source_health",
+            "name": "last_error_at"
+          }
+        }
+      },
+      {
+        "name": "last_error",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "source_health",
+            "name": "last_error"
+          }
+        }
+      },
+      {
+        "name": "failures_in_row",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "source_health",
+            "name": "failures_in_row"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      true,
+      true,
+      false
+    ]
+  },
+  "hash": "042dd74ea7721ac359d97319f80232b7d0c8fa2a4dee789d42a885c0a7f308c7"
+}

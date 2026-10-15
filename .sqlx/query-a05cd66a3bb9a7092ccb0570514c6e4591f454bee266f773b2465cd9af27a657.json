@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO source_health (source, last_success_at) VALUES (?1, ?2)\n           ON CONFLICT (source) DO UPDATE SET last_success_at = ?2, failures_in_row = 0",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "a05cd66a3bb9a7092ccb0570514c6e4591f454bee266f773b2465cd9af27a657"
+}

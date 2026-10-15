@@ -19,6 +19,8 @@ class Live {
 	/** Bumped on every job event, for pages showing the queue. */
 	jobsVersion = $state(0);
 	wanted = $state(0);
+	/** Names of the sources whose recent jobs keep failing. */
+	failingSources = $state<string[]>([]);
 
 	running = $derived(this.active.filter((j) => j.state === 'running'));
 	queued = $derived(this.active.filter((j) => j.state === 'queued'));
@@ -102,9 +104,14 @@ class Live {
 
 	async #reload() {
 		try {
-			const [jobs, series] = await Promise.all([api.jobs(500), api.series()]);
+			const [jobs, series, sources] = await Promise.all([
+				api.jobs(500),
+				api.series(),
+				api.sources()
+			]);
 			this.active = jobs.filter((j) => j.state === 'queued' || j.state === 'running');
 			this.wanted = series.reduce((sum, s) => sum + s.wanted, 0);
+			this.failingSources = sources.filter((s) => s.failing).map((s) => s.name);
 			this.jobsVersion++;
 		} catch {
 			// Shown as "offline" through `connected`; the next event retries.

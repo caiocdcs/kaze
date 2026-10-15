@@ -39,6 +39,20 @@ impl JobError {
             Self::Download(_) | Self::Queue(_) | Self::Gone(_) => false,
         }
     }
+
+    /// Whether the site itself misbehaved, as opposed to kaze (disk,
+    /// database) or the library. Only these count against source health.
+    pub const fn is_source_failure(&self) -> bool {
+        matches!(
+            self,
+            Self::Source(_)
+                | Self::Download(
+                    DownloadError::Source(_)
+                        | DownloadError::NotAnImage { .. }
+                        | DownloadError::NoPages
+                )
+        )
+    }
 }
 
 pub async fn run(ctx: &Context, queue: &JobQueue, job_id: i64, job: &Job) -> Result<(), JobError> {
