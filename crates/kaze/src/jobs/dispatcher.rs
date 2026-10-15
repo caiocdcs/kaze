@@ -257,25 +257,26 @@ async fn run_one(
     id: i64,
     token: &CancellationToken,
 ) -> Outcome {
-    let claimed = match db::jobs::claim(&ctx.db, id).await {
-        Ok(Some(claimed)) => claimed,
-        Ok(None) => return Outcome::Skipped,
-        Err(err) => {
-            return Outcome::Failed {
-                kind: "unknown",
-                error: err.to_string(),
-                retryable: true,
-                attempts: 0,
-                max_attempts: 1,
-            };
-        }
+    let db_error = |err: sqlx::Error| Outcome::Failed {
+        kind: "unknown",
+        error: err.to_string(),
+        retryable: true,
+        attempts: 0,
+        max_attempts: 1,
+    };
+    let queued = match db::jobs::get(&ctx.db, id).await {
+        Ok(Some(record)) if record.state == JobState::Queued => record.job.0,
+        Ok(_) => return Outcome::Skipped,
+        Err(err) => return db_error(err),
     };
 
-    // Wait for a free slot, globally and for this source. Permits are
-    // released when the guards drop at the end of this function.
+    // Wait for a free slot, globally and for this source, before claiming:
+    // a job stays `queued` while it waits, so a big refresh does not show
+    // as hundreds of running jobs. Permits are released when the guards
+    // drop at the end of this function.
     let permits = async {
         let global = Arc::clone(&lanes.global.semaphore).acquire_owned().await;
-        let lane = claimed.job.source().and_then(|s| lanes.per_source.get(s));
+        let lane = queued.source().and_then(|s| lanes.per_source.get(s));
         let source = match lane {
             Some(lane) => Some(Arc::clone(&lane.semaphore).acquire_owned().await),
             None => None,
@@ -285,6 +286,13 @@ async fn run_one(
     let _permits = tokio::select! {
         () = token.cancelled() => return Outcome::Interrupted,
         permits = permits => permits,
+    };
+
+    let claimed = match db::jobs::claim(&ctx.db, id).await {
+        Ok(Some(claimed)) => claimed,
+        // Cancelled while waiting for a slot.
+        Ok(None) => return Outcome::Skipped,
+        Err(err) => return db_error(err),
     };
 
     ctx.events.emit(Event::JobStarted {

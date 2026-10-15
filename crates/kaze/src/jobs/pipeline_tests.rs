@@ -201,6 +201,49 @@ async fn cancelled_jobs_stop_retrying() {
 }
 
 #[tokio::test]
+async fn jobs_waiting_for_a_slot_stay_queued() {
+    let numbers: Vec<String> = (1..=10).map(|n| n.to_string()).collect();
+    let numbers: Vec<&str> = numbers.iter().map(String::as_str).collect();
+    let source = FakeSource::new().with_chapters(&numbers);
+    source.pages_open.send_replace(false);
+    let mut h = start(source).await;
+    h.follow(Monitor::All).await;
+
+    // The default per-source limit is 2: two downloads start, the rest wait.
+    for _ in 0..2 {
+        h.wait_for(|e| {
+            matches!(
+                e,
+                Event::JobStarted {
+                    job: Job::DownloadChapter { .. },
+                    ..
+                }
+            )
+        })
+        .await;
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+    let jobs = db::jobs::list(&h.app.ctx.db, 100).await.unwrap();
+    let downloads = |state| {
+        jobs.iter()
+            .filter(|j| j.state == state && matches!(j.job.0, Job::DownloadChapter { .. }))
+            .count()
+    };
+    assert_eq!(downloads(JobState::Running), 2);
+    assert_eq!(downloads(JobState::Queued), 8);
+    assert!(
+        jobs.iter()
+            .filter(|j| j.state == JobState::Queued)
+            .all(|j| j.attempts == 0),
+        "waiting is not an attempt"
+    );
+
+    h.source.pages_open.send_replace(true);
+    assert_eq!(h.downloaded(10).await.len(), 10);
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn duplicate_jobs_are_ignored_while_active() {
     let db = db::memory().await;
     let job = Job::SyncLatest {
