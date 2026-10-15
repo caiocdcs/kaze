@@ -27,6 +27,8 @@ pub struct FakeSource {
     /// The next N `fetch_image` calls fail with a retryable 503.
     pub fail_images: AtomicUsize,
     pub image_fetches: AtomicUsize,
+    /// While `false`, chapter page fetches wait (covers still load).
+    pub pages_open: tokio::sync::watch::Sender<bool>,
 }
 
 impl FakeSource {
@@ -58,6 +60,7 @@ impl FakeSource {
             latest: Mutex::new(Vec::new()),
             fail_images: AtomicUsize::new(0),
             image_fetches: AtomicUsize::new(0),
+            pages_open: tokio::sync::watch::Sender::new(true),
         }
     }
 
@@ -131,6 +134,9 @@ impl Source for FakeSource {
     }
 
     async fn fetch_image(&self, url: &Url) -> Result<Image> {
+        if !url.path().starts_with("/cover/") {
+            let _ = self.pages_open.subscribe().wait_for(|open| *open).await;
+        }
         self.image_fetches.fetch_add(1, Ordering::SeqCst);
         // Decrement only if positive: a compare-and-swap loop in one call.
         let failing = self
