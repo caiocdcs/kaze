@@ -6,6 +6,7 @@
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { errorMessage, num } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
+	import type { Attachment } from 'svelte/attachments';
 
 	type Show = 'all' | 'missing' | 'unmonitored';
 
@@ -34,6 +35,30 @@
 			)
 			.sort((a, b) => a.title.localeCompare(b.title));
 	});
+
+	// Render the grid a page at a time; a big library is slow to lay out at once.
+	const PAGE = 60;
+	let limit = $state(PAGE);
+	$effect(() => {
+		void filter;
+		void show;
+		limit = PAGE;
+	});
+	const visible = $derived(shown.slice(0, limit));
+
+	/** Load the next page as the end of the grid scrolls into view. */
+	const more: Attachment<HTMLElement> = (node) => {
+		// Re-observe after each page: a fresh observer reports a sentinel still in view.
+		void limit;
+		const observer = new IntersectionObserver(
+			(entries) => {
+				if (entries.some((e) => e.isIntersecting)) limit += PAGE;
+			},
+			{ rootMargin: '600px' }
+		);
+		observer.observe(node);
+		return () => observer.disconnect();
+	};
 
 	const totals = $derived(
 		(series ?? []).reduce(
@@ -118,7 +143,7 @@
 		aria-label="Series"
 		class="grid grid-cols-[repeat(auto-fill,minmax(150px,1fr))] gap-x-[22px] gap-y-7 sm:grid-cols-[repeat(auto-fill,minmax(172px,1fr))]"
 	>
-		{#each shown as s (s.id)}
+		{#each visible as s (s.id)}
 			<a
 				href="/series/{s.id}"
 				class="group flex flex-col gap-2.5 text-ink no-underline hover:text-ink"
@@ -155,4 +180,11 @@
 			</a>
 		{/each}
 	</section>
+	{#if visible.length < shown.length}
+		<div {@attach more} class="flex justify-center">
+			<button type="button" class="btn-ghost" onclick={() => (limit += PAGE)}>
+				Show more · {num(shown.length - visible.length)} left
+			</button>
+		</div>
+	{/if}
 {/if}
