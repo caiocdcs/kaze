@@ -1,0 +1,46 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended", ":semanticCommits"],
+  "timezone": "Europe/Lisbon",
+  "schedule": ["before 6am on monday"],
+  "labels": ["dependencies"],
+  "nix": { "enabled": true },
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"],
+    "automerge": true
+  },
+  "packageRules": [
+    {
+      "description": "Patch and minor updates merge themselves once CI is green",
+      "matchUpdateTypes": ["patch", "minor", "digest"],
+      "automerge": true
+    },
+    {
+      "groupName": "cargo",
+      "matchManagers": ["cargo"],
+      "matchUpdateTypes": ["patch", "minor"]
+    },
+    {
+      "groupName": "github actions",
+      "matchManagers": ["github-actions"]
+    },
+    {
+      "groupName": "docker images",
+      "matchManagers": ["dockerfile", "docker-compose"]
+    },
+    {
+      "description": "Any pnpm-lock.yaml change needs new pnpmDeps hashes in flake.nix (one per system), so these stay manual",
+      "groupName": "web",
+      "matchManagers": ["npm"],
+      "automerge": false,
+      "addLabels": ["needs-pnpm-hash"]
+    },
+    {
+      "description": "Lockfile refreshes only for Cargo.lock and flake.lock, for the same reason",
+      "matchManagers": ["npm"],
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "enabled": false
+    }
+  ]
+}
