@@ -211,20 +211,13 @@ impl Dispatcher {
         });
     }
 
-    fn cancel(&mut self, id: i64, stopped: Option<oneshot::Sender<()>>) {
-        match self.running.get(&id) {
-            Some(token) => {
-                token.cancel();
-                if let Some(tx) = stopped {
-                    self.stopping.entry(id).or_default().push(tx);
-                }
-            }
+    fn cancel(&mut self, id: i64, stopped: oneshot::Sender<()>) {
+        if let Some(token) = self.running.get(&id) {
+            token.cancel();
+            self.stopping.entry(id).or_default().push(stopped);
+        } else {
             // Queued or waiting for a retry: it never starts now.
-            None => {
-                if let Some(tx) = stopped {
-                    let _ = tx.send(());
-                }
-            }
+            let _ = stopped.send(());
         }
     }
 
