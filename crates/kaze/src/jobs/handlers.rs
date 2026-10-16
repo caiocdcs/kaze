@@ -86,9 +86,12 @@ fn source<'a>(ctx: &'a Context, id: &str) -> Result<&'a dyn Source, JobError> {
 }
 
 async fn load_series(ctx: &Context, id: i64) -> Result<SeriesRecord, JobError> {
-    db::series::get(&ctx.db, id)
+    let series = db::series::get(&ctx.db, id)
         .await?
-        .ok_or_else(|| JobError::Gone(format!("series {id} was removed")))
+        .ok_or_else(|| JobError::Gone(format!("series {id} was removed")))?;
+    // Fills the job span's empty `series` field (see the dispatcher).
+    tracing::Span::current().record("series", series.title.as_str());
+    Ok(series)
 }
 
 /// Pull metadata and chapters, store new chapters and queue every wanted one.

@@ -16,6 +16,7 @@ use tokio::{
     task::JoinSet,
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker, time::DelayQueue};
+use tracing::Instrument as _;
 
 use super::{Command, Job, JobQueue, RetryPolicy, handlers};
 use crate::{app::Context, db, db::jobs::JobState, events::Event, settings::Settings};
@@ -341,6 +342,15 @@ async fn run_one(
     // the handler mid-flight, wherever it is awaiting.
     let started = std::time::Instant::now();
     let writes = TaskTracker::new();
+    // Every log line of the job carries these; handlers fill in `series`.
+    let span = tracing::info_span!(
+        "job",
+        job_id = id,
+        kind = claimed.job.kind(),
+        source = claimed.job.source(),
+        series = tracing::field::Empty,
+    );
+    let handler = handlers::run(ctx, queue, id, &claimed.job, &writes).instrument(span);
     let result = tokio::select! {
         () = token.cancelled() => {
             // The handler is gone, but a CBZ write on a blocking thread is not.
@@ -348,7 +358,7 @@ async fn run_one(
             writes.wait().await;
             return Outcome::Interrupted;
         }
-        result = handlers::run(ctx, queue, id, &claimed.job, &writes) => result,
+        result = handler => result,
     };
     if let Some(source) = claimed.job.source() {
         record_health(ctx, source, &result).await;
