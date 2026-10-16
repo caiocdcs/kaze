@@ -1,0 +1,5 @@
+# Saved by `just fixtures <source>` into target/fixtures/<source>/ for a diff.
+# One fixture per line: file name, then the URL it came from (tab-separated).
+browse.html	https://asurascans.com/browse?search=solo
+series.html	https://asurascans.com/comics/solo-max-level-newbie
+chapter.html	https://asurascans.com/comics/solo-max-level-newbie/chapter/278

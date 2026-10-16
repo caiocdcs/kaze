@@ -151,7 +151,7 @@ To release, push a version tag, for example `git tag v0.1.0 && git push github v
 | `web/` | SvelteKit UI (Svelte 5, Tailwind 4), built statically and embedded with `rust-embed` |
 | `nix/module.nix` | The NixOS module |
 
-To add a source, write one module in `crates/kaze-sources/src/`. Add a cargo feature and a line in `Registry::new`. Test it against saved fixtures. See `mangadex/` for an API, or `weebcentral/` for HTML.
+To add a source, write one module in `crates/kaze-sources/src/`. Add a cargo feature and a line in `Registry::new`. Test it against saved fixtures, listed with their URLs in `fixtures/urls.tsv` so `just fixtures <id>` can fetch fresh copies to diff when the site changes. See `mangadex/` for an API, or `weebcentral/` for HTML.
 
 ## Acknowledgements
 
