@@ -12,10 +12,10 @@ use std::{
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt as _;
 use tokio::{
-    sync::{Semaphore, mpsc, watch},
+    sync::{Semaphore, mpsc, oneshot, watch},
     task::JoinSet,
 };
-use tokio_util::{sync::CancellationToken, time::DelayQueue};
+use tokio_util::{sync::CancellationToken, task::TaskTracker, time::DelayQueue};
 
 use super::{Command, Job, JobQueue, RetryPolicy, handlers};
 use crate::{app::Context, db, db::jobs::JobState, events::Event, settings::Settings};
@@ -95,6 +95,8 @@ pub struct Dispatcher {
     tasks: JoinSet<(i64, Outcome)>,
     /// Cancel handles of the jobs in flight.
     running: HashMap<i64, CancellationToken>,
+    /// Callers waiting for a cancelled job to stop.
+    stopping: HashMap<i64, Vec<oneshot::Sender<()>>>,
     /// Jobs waiting for a retry (or a future `run_after`).
     delayed: DelayQueue<i64>,
 }
@@ -132,6 +134,7 @@ impl Dispatcher {
             shutdown,
             tasks: JoinSet::new(),
             running: HashMap::new(),
+            stopping: HashMap::new(),
             delayed: DelayQueue::new(),
         };
         (dispatcher, queue)
@@ -155,11 +158,7 @@ impl Dispatcher {
                 () = self.shutdown.cancelled() => break,
                 Some(command) = self.commands.recv() => match command {
                     Command::Run(id) => self.start(id, &queue),
-                    Command::Cancel(id) => {
-                        if let Some(token) = self.running.get(&id) {
-                            token.cancel();
-                        }
-                    }
+                    Command::Cancel { id, stopped } => self.cancel(id, stopped),
                 },
                 Some(expired) = self.delayed.next(), if !self.delayed.is_empty() => {
                     self.start(expired.into_inner(), &queue);
@@ -202,8 +201,28 @@ impl Dispatcher {
         });
     }
 
+    fn cancel(&mut self, id: i64, stopped: Option<oneshot::Sender<()>>) {
+        match self.running.get(&id) {
+            Some(token) => {
+                token.cancel();
+                if let Some(tx) = stopped {
+                    self.stopping.entry(id).or_default().push(tx);
+                }
+            }
+            // Queued or waiting for a retry: it never starts now.
+            None => {
+                if let Some(tx) = stopped {
+                    let _ = tx.send(());
+                }
+            }
+        }
+    }
+
     async fn finished(&mut self, id: i64, outcome: Outcome) {
         self.running.remove(&id);
+        for tx in self.stopping.remove(&id).unwrap_or_default() {
+            let _ = tx.send(());
+        }
         let db = &self.ctx.db;
         let events = &self.ctx.events;
         let result = match outcome {
@@ -302,9 +321,15 @@ async fn run_one(
     // Dropping a future cancels it: when the token fires, `select!` drops
     // the handler mid-flight, wherever it is awaiting.
     let started = std::time::Instant::now();
+    let writes = TaskTracker::new();
     let result = tokio::select! {
-        () = token.cancelled() => return Outcome::Interrupted,
-        result = handlers::run(ctx, queue, id, &claimed.job) => result,
+        () = token.cancelled() => {
+            // The handler is gone, but a CBZ write on a blocking thread is not.
+            writes.close();
+            writes.wait().await;
+            return Outcome::Interrupted;
+        }
+        result = handlers::run(ctx, queue, id, &claimed.job, &writes) => result,
     };
     if let Some(source) = claimed.job.source() {
         record_health(ctx, source, &result).await;

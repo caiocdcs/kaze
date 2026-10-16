@@ -235,6 +235,40 @@ async fn cancelled_jobs_stop_retrying() {
 }
 
 #[tokio::test]
+async fn cancel_and_wait_returns_once_the_job_stopped() {
+    let source = FakeSource::new().with_chapters(&["1"]);
+    source.pages_open.send_replace(false);
+    let mut h = start(source).await;
+    h.follow(Monitor::All).await;
+    let Event::JobStarted { job_id, .. } = h
+        .wait_for(|e| {
+            matches!(
+                e,
+                Event::JobStarted {
+                    job: Job::DownloadChapter { .. },
+                    ..
+                }
+            )
+        })
+        .await
+    else {
+        unreachable!()
+    };
+
+    let stopped = tokio::time::timeout(Duration::from_secs(5), h.app.jobs.cancel_and_wait(job_id))
+        .await
+        .expect("cancel_and_wait hung");
+    assert!(stopped.unwrap());
+    let job = db::jobs::get(&h.app.ctx.db, job_id).await.unwrap().unwrap();
+    assert_eq!(job.state, JobState::Cancelled);
+    assert!(
+        !h.app.jobs.cancel_and_wait(job_id).await.unwrap(),
+        "already stopped"
+    );
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn jobs_waiting_for_a_slot_stay_queued() {
     let numbers: Vec<String> = (1..=10).map(|n| n.to_string()).collect();
     let numbers: Vec<&str> = numbers.iter().map(String::as_str).collect();

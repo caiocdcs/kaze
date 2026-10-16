@@ -17,7 +17,7 @@ use ts_rs::TS;
 
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 
 pub use self::dispatcher::Dispatcher;
 use crate::{
@@ -94,8 +94,12 @@ impl Job {
 enum Command {
     /// A queued job is ready to run.
     Run(i64),
-    /// Stop a running job (already marked cancelled in the database).
-    Cancel(i64),
+    /// Stop a running job (already marked cancelled in the database);
+    /// `stopped` fires once it no longer runs.
+    Cancel {
+        id: i64,
+        stopped: Option<oneshot::Sender<()>>,
+    },
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -130,11 +134,30 @@ impl JobQueue {
     }
 
     pub async fn cancel(&self, id: i64) -> Result<bool, QueueError> {
+        self.cancel_with(id, None).await
+    }
+
+    /// Cancel, then wait until the job has really stopped, its file writes
+    /// included. For callers about to delete what the job writes to.
+    pub async fn cancel_and_wait(&self, id: i64) -> Result<bool, QueueError> {
+        let (tx, rx) = oneshot::channel();
+        let cancelled = self.cancel_with(id, Some(tx)).await?;
+        if cancelled {
+            rx.await.map_err(|_| QueueError::Stopped)?;
+        }
+        Ok(cancelled)
+    }
+
+    async fn cancel_with(
+        &self,
+        id: i64,
+        stopped: Option<oneshot::Sender<()>>,
+    ) -> Result<bool, QueueError> {
         if !db::jobs::cancel(&self.db, id).await? {
             return Ok(false);
         }
         self.commands
-            .send(Command::Cancel(id))
+            .send(Command::Cancel { id, stopped })
             .await
             .map_err(|_| QueueError::Stopped)?;
         self.events.emit(Event::JobCancelled { job_id: id });
