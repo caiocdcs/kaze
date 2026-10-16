@@ -8,7 +8,7 @@ use ts_rs::TS;
 
 use crate::jobs::Job;
 
-/// Where a job is in its life. Every change is one `UPDATE` here:
+/// Where a job is in its life. Every change is one query here:
 ///
 /// | From | To | By |
 /// |---|---|---|
