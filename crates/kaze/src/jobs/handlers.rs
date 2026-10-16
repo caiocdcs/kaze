@@ -1,6 +1,7 @@
 //! What each kind of job actually does.
 
 use kaze_core::{Source, SourceError};
+use tokio_util::task::TaskTracker;
 
 use super::{Job, JobQueue, QueueError};
 use crate::{
@@ -55,10 +56,19 @@ impl JobError {
     }
 }
 
-pub async fn run(ctx: &Context, queue: &JobQueue, job_id: i64, job: &Job) -> Result<(), JobError> {
+/// `writes` tracks blocking file writes, which outlive a cancelled job.
+pub async fn run(
+    ctx: &Context,
+    queue: &JobQueue,
+    job_id: i64,
+    job: &Job,
+    writes: &TaskTracker,
+) -> Result<(), JobError> {
     match job {
         Job::RefreshSeries { series_id, .. } => refresh_series(ctx, queue, *series_id).await,
-        Job::DownloadChapter { chapter_id, .. } => download_chapter(ctx, job_id, *chapter_id).await,
+        Job::DownloadChapter { chapter_id, .. } => {
+            download_chapter(ctx, job_id, *chapter_id, writes).await
+        }
         Job::SyncLatest { source } => sync_latest(ctx, queue, source).await,
         Job::Notify {
             integration_id,
@@ -133,7 +143,12 @@ async fn save_cover(ctx: &Context, source: &dyn Source, folder: &str, url: Optio
     }
 }
 
-async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result<(), JobError> {
+async fn download_chapter(
+    ctx: &Context,
+    job_id: i64,
+    chapter_id: i64,
+    writes: &TaskTracker,
+) -> Result<(), JobError> {
     let chapter = db::chapters::get(&ctx.db, chapter_id)
         .await?
         .ok_or_else(|| JobError::Gone(format!("chapter {chapter_id} was removed")))?;
@@ -169,6 +184,7 @@ async fn download_chapter(ctx: &Context, job_id: i64, chapter_id: i64) -> Result
     let options = download::Options {
         template: settings.naming_template.clone(),
         concurrency: settings.page_concurrency,
+        writes: writes.clone(),
     };
     let result = download::chapter(
         source,

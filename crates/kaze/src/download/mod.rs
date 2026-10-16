@@ -13,6 +13,7 @@ use std::{
 
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
 use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber, Series, Source, SourceError};
+use tokio_util::task::TaskTracker;
 use url::Url;
 
 pub use self::image::ImageFormat;
@@ -95,6 +96,9 @@ pub struct Options {
     pub template: Template,
     /// Pages fetched at the same time (still bounded by the source's rate limit).
     pub concurrency: usize,
+    /// Tracks the blocking CBZ write: dropping the download future does not
+    /// stop it, so a cancelled job waits on this before it counts as stopped.
+    pub writes: TaskTracker,
 }
 
 impl Default for Options {
@@ -102,6 +106,7 @@ impl Default for Options {
         Self {
             template: Template::default(),
             concurrency: 4,
+            writes: TaskTracker::new(),
         }
     }
 }
@@ -157,7 +162,9 @@ pub async fn chapter(
     // library never sees a half-written file.
     let partial = path.with_extension("cbz.part");
     let write_to = partial.clone();
-    tokio::task::spawn_blocking(move || cbz::write(&write_to, &comic_info, &pages))
+    options
+        .writes
+        .spawn_blocking(move || cbz::write(&write_to, &comic_info, &pages))
         .await
         .map_err(std::io::Error::other)?
         .map_err(|source| DownloadError::Write {

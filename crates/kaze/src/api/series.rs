@@ -147,7 +147,9 @@ pub async fn remove(
 ) -> ApiResult<StatusCode> {
     let series = load(&app, id).await?;
     for job_id in db::jobs::active_for_series(&app.ctx.db, id).await? {
-        app.jobs.cancel(job_id).await?;
+        // Wait for it to stop: a download mid-write would otherwise put
+        // files back into the folder deleted below.
+        app.jobs.cancel_and_wait(job_id).await?;
     }
     let files = db::chapters::for_series(&app.ctx.db, id)
         .await?
