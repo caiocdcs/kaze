@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE jobs SET state = 'queued', run_after = ?, last_error = coalesce(?, last_error), updated_at = ? WHERE id = ? AND state = 'running'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "5e10ff0794f3174f5a79103da8d3c1008f5cfd50a96f298335ddee78d1a788f2"
+}
