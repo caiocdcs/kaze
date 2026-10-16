@@ -23,6 +23,19 @@
 		return () => clearInterval(timer);
 	});
 
+	let backingUp = $state(false);
+
+	async function backup() {
+		backingUp = true;
+		try {
+			await api.backup();
+		} catch (e) {
+			toasts.error(e);
+		} finally {
+			backingUp = false;
+		}
+	}
+
 	async function run(t: TaskInfo) {
 		try {
 			await api.runTask(t.task);
@@ -70,6 +83,19 @@
 					</table>
 				</div>
 			{/if}
+		</section>
+		<section aria-labelledby="backup-heading" class="flex flex-col gap-3">
+			<h2 id="backup-heading" class="section-title text-lg">Backup</h2>
+			<div class="card flex flex-wrap items-center justify-between gap-3 p-4">
+				<p class="m-0 text-sm text-muted">
+					A copy of the database: followed series, chapters, settings and integrations. Library
+					files are not included.
+				</p>
+				<button type="button" class="btn-ghost h-10" disabled={backingUp} onclick={backup}>
+					<Icon name="download" size={14} />
+					{backingUp ? 'Preparing…' : 'Download backup'}
+				</button>
+			</div>
 		</section>
 	</div>
 	<div class="flex-[1_1_300px]"><HealthPanel /></div>

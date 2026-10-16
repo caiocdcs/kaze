@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 use axum::{
     Router,
     body::Body,
-    http::{Method, Request, StatusCode},
+    http::{Method, Request, StatusCode, header},
 };
 use http_body_util::BodyExt as _;
 use serde_json::{Value, json};
@@ -28,9 +28,12 @@ struct Api {
 }
 
 async fn api(api_key: Option<&str>) -> Api {
+    api_with(api_key, db::memory().await).await
+}
+
+async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
     let library = tempfile::tempdir().unwrap();
     let source = Arc::new(FakeSource::new().with_chapters(&["1", "2"]));
-    let db = db::memory().await;
     let locked = match api_key {
         Some(key) => json!({ "api_key": key }),
         None => json!({}),
@@ -82,6 +85,28 @@ impl Api {
     async fn get(&self, uri: &str) -> (StatusCode, Value) {
         self.call(Method::GET, uri, None).await
     }
+}
+
+#[tokio::test]
+async fn backup_is_a_database_file() {
+    // `VACUUM INTO` needs a file database.
+    let dir = tempfile::tempdir().unwrap();
+    let db = db::connect(&dir.path().join("kaze.db")).await.unwrap();
+    let api = api_with(None, db).await;
+    let response = api
+        .router
+        .clone()
+        .oneshot(Request::get("/api/v1/backup").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let disposition = response.headers()[header::CONTENT_DISPOSITION]
+        .to_str()
+        .unwrap()
+        .to_owned();
+    assert!(disposition.starts_with("attachment; filename=\"kaze-"));
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(bytes.starts_with(b"SQLite format 3\0"));
 }
 
 #[tokio::test]

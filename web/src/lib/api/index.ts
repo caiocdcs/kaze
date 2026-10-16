@@ -61,6 +61,7 @@ export const api = {
 		http.patch<SettingsView>('/settings', changes),
 	tasks: () => http.get<TaskInfo[]>('/tasks'),
 	runTask: (task: Task) => http.post<void>(`/tasks/${task}/run`),
+	backup: () => http.save('/backup'),
 	health: () => http.get<HealthCheck[]>('/health'),
 
 	importCandidates: () => http.get<Candidate[]>('/import'),
