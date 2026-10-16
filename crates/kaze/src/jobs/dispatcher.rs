@@ -28,6 +28,8 @@ enum Outcome {
     Skipped,
     /// Stopped by a cancel request or by shutdown.
     Interrupted,
+    /// Its source is paused; it waits, still queued, until it resumes.
+    Paused,
     Failed {
         kind: &'static str,
         error: String,
@@ -97,6 +99,8 @@ pub struct Dispatcher {
     running: HashMap<i64, CancellationToken>,
     /// Callers waiting for a cancelled job to stop.
     stopping: HashMap<i64, Vec<oneshot::Sender<()>>>,
+    /// Queued jobs of paused sources.
+    parked: Vec<i64>,
     /// Jobs waiting for a retry (or a future `run_after`).
     delayed: DelayQueue<i64>,
 }
@@ -135,6 +139,7 @@ impl Dispatcher {
             tasks: JoinSet::new(),
             running: HashMap::new(),
             stopping: HashMap::new(),
+            parked: Vec::new(),
             delayed: DelayQueue::new(),
         };
         (dispatcher, queue)
@@ -171,6 +176,10 @@ impl Dispatcher {
                 Ok(()) = self.settings.changed() => {
                     let settings = self.settings.borrow_and_update().clone();
                     self.lanes.resize(&settings);
+                    // A source may have resumed; the rest park themselves again.
+                    for id in std::mem::take(&mut self.parked) {
+                        self.start(id, &queue);
+                    }
                 }
             }
         }
@@ -234,6 +243,10 @@ impl Dispatcher {
                 // Not the job's fault: run it again after the restart.
                 db::jobs::requeue(db, id, Utc::now(), None).await
             }
+            Outcome::Paused => {
+                self.parked.push(id);
+                Ok(())
+            }
             // Cancelled: the cancel already updated the row. Skipped: nothing ran.
             Outcome::Interrupted | Outcome::Skipped => Ok(()),
             Outcome::Failed {
@@ -288,6 +301,12 @@ async fn run_one(
         Ok(_) => return Outcome::Skipped,
         Err(err) => return db_error(err),
     };
+    if queued
+        .source()
+        .is_some_and(|s| ctx.settings.current().is_paused(s))
+    {
+        return Outcome::Paused;
+    }
 
     // Wait for a free slot, globally and for this source, before claiming:
     // a job stays `queued` while it waits, so a big refresh does not show

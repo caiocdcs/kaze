@@ -47,6 +47,8 @@ pub struct Settings {
     pub refresh_hours: u64,
     /// A FlareSolverr instance for sites behind Cloudflare challenges.
     pub flaresolverr_url: Option<url::Url>,
+    /// Sources whose jobs wait instead of running, while a site is broken.
+    pub paused_sources: Vec<String>,
 }
 
 impl Default for Settings {
@@ -60,6 +62,7 @@ impl Default for Settings {
             sync_latest_minutes: 15,
             refresh_hours: 24,
             flaresolverr_url: None,
+            paused_sources: Vec::new(),
         }
     }
 }
@@ -75,6 +78,11 @@ pub enum SettingsError {
 }
 
 impl Settings {
+    #[must_use]
+    pub fn is_paused(&self, source: &str) -> bool {
+        self.paused_sources.iter().any(|s| s == source)
+    }
+
     fn check(&self) -> Result<(), SettingsError> {
         let range = |name: &str, value: u64, min: u64, max: u64| {
             if (min..=max).contains(&value) {

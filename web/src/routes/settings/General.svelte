@@ -28,6 +28,8 @@
 		if (!view || !form) return {};
 		const out: Record<string, unknown> = {};
 		for (const k of Object.keys(form) as Key[]) {
+			// Set from the Sources tab.
+			if (k === 'paused_sources') continue;
 			const a = form[k] === '' ? null : form[k];
 			if (!locked(k) && a !== view.settings[k]) out[k] = a;
 		}

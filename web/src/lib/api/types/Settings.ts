@@ -32,4 +32,8 @@ refresh_hours: number,
 /**
  * A FlareSolverr instance for sites behind Cloudflare challenges.
  */
-flaresolverr_url: string | null, };
+flaresolverr_url: string | null, 
+/**
+ * Sources whose jobs wait instead of running, while a site is broken.
+ */
+paused_sources: Array<string>, };

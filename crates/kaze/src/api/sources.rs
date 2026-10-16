@@ -22,9 +22,12 @@ pub struct SourceInfo {
     health: SourceHealth,
     /// Several jobs in a row failed: the site probably changed or is down.
     failing: bool,
+    /// Its jobs wait until it is resumed (`paused_sources` setting).
+    paused: bool,
 }
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>>> {
+    let settings = app.ctx.settings.current();
     let mut sources = Vec::new();
     for source in app.ctx.sources.iter() {
         let meta = source.meta();
@@ -35,6 +38,7 @@ pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>
             base_url: meta.base_url.clone(),
             languages: meta.languages,
             failing: health.is_failing(),
+            paused: settings.is_paused(meta.id),
             health,
         });
     }
