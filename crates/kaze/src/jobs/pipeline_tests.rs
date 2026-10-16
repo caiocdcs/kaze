@@ -265,7 +265,7 @@ async fn cancelled_jobs_stop_retrying() {
 }
 
 #[tokio::test]
-async fn cancel_and_wait_returns_once_the_job_stopped() {
+async fn cancel_returns_once_the_job_stopped() {
     let source = FakeSource::new().with_chapters(&["1"]);
     source.pages_open.send_replace(false);
     let mut h = start(source).await;
@@ -284,17 +284,19 @@ async fn cancel_and_wait_returns_once_the_job_stopped() {
     else {
         unreachable!()
     };
+    // Cancel while it waits for pages, not mid-query: a dropped query
+    // closes the connection, and with it this in-memory database.
+    while h.source.pages_open.receiver_count() == 0 {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
 
-    let stopped = tokio::time::timeout(Duration::from_secs(5), h.app.jobs.cancel_and_wait(job_id))
+    let stopped = tokio::time::timeout(Duration::from_secs(5), h.app.jobs.cancel(job_id))
         .await
-        .expect("cancel_and_wait hung");
+        .expect("cancel hung");
     assert!(stopped.unwrap());
     let job = db::jobs::get(&h.app.ctx.db, job_id).await.unwrap().unwrap();
     assert_eq!(job.state, JobState::Cancelled);
-    assert!(
-        !h.app.jobs.cancel_and_wait(job_id).await.unwrap(),
-        "already stopped"
-    );
+    assert!(!h.app.jobs.cancel(job_id).await.unwrap(), "already stopped");
     h.app.shutdown().await;
 }
 

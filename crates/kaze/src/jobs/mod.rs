@@ -102,7 +102,7 @@ enum Command {
     /// `stopped` fires once it no longer runs.
     Cancel {
         id: i64,
-        stopped: Option<oneshot::Sender<()>>,
+        stopped: oneshot::Sender<()>,
     },
 }
 
@@ -137,34 +137,19 @@ impl JobQueue {
         Ok(Some(id))
     }
 
+    /// Cancel, and return once the job has really stopped, its file writes
+    /// included, so callers can delete what it was writing to.
     pub async fn cancel(&self, id: i64) -> Result<bool, QueueError> {
-        self.cancel_with(id, None).await
-    }
-
-    /// Cancel, then wait until the job has really stopped, its file writes
-    /// included. For callers about to delete what the job writes to.
-    pub async fn cancel_and_wait(&self, id: i64) -> Result<bool, QueueError> {
-        let (tx, rx) = oneshot::channel();
-        let cancelled = self.cancel_with(id, Some(tx)).await?;
-        if cancelled {
-            rx.await.map_err(|_| QueueError::Stopped)?;
-        }
-        Ok(cancelled)
-    }
-
-    async fn cancel_with(
-        &self,
-        id: i64,
-        stopped: Option<oneshot::Sender<()>>,
-    ) -> Result<bool, QueueError> {
         if !db::jobs::cancel(&self.db, id).await? {
             return Ok(false);
         }
+        let (stopped, wait) = oneshot::channel();
         self.commands
             .send(Command::Cancel { id, stopped })
             .await
             .map_err(|_| QueueError::Stopped)?;
         self.events.emit(Event::JobCancelled { job_id: id });
+        wait.await.map_err(|_| QueueError::Stopped)?;
         Ok(true)
     }
 
