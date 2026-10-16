@@ -70,6 +70,14 @@ pub enum Event {
         chapter: String,
         error: String,
     },
+    /// A source just reached `FAILING_AFTER` failures in a row. Sent once
+    /// per outage: further failures stay quiet until a success resets it.
+    SourceBroken {
+        source: String,
+        name: String,
+        failures: i64,
+        error: String,
+    },
 }
 
 impl Event {
@@ -120,6 +128,17 @@ impl Event {
                 *series_id,
                 None,
                 format!("Deleted {count} file(s) of {series}"),
+            )),
+            Self::SourceBroken {
+                name,
+                failures,
+                error,
+                ..
+            } => Some((
+                "source_broken",
+                None,
+                None,
+                format!("{name} failed {failures} times in a row: {error}"),
             )),
             _ => None,
         }

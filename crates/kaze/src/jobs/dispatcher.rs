@@ -338,9 +338,24 @@ async fn record_health(ctx: &Context, source: &str, result: &Result<(), handlers
     let recorded = match result {
         Ok(()) => db::sources::record_success(&ctx.db, source).await,
         Err(err) if err.is_source_failure() => {
-            db::sources::record_failure(&ctx.db, source, &err.to_string())
+            let error = err.to_string();
+            db::sources::record_failure(&ctx.db, source, &error)
                 .await
-                .map(drop)
+                .map(|failures| {
+                    // Exactly at the threshold, so one outage is one alert.
+                    if failures == db::sources::FAILING_AFTER {
+                        let name = ctx
+                            .sources
+                            .get(source)
+                            .map_or_else(|| source.to_owned(), |s| s.meta().name.to_owned());
+                        ctx.events.emit(Event::SourceBroken {
+                            source: source.to_owned(),
+                            name,
+                            failures,
+                            error,
+                        });
+                    }
+                })
         }
         Err(_) => Ok(()),
     };

@@ -110,6 +110,8 @@ pub enum Trigger {
     Failed,
     /// New chapters were found on a source.
     Found,
+    /// A source keeps failing, so it probably changed or is down.
+    SourceBroken,
 }
 
 /// One notification, already summarised (a batch of events becomes one

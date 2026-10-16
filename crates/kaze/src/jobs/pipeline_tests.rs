@@ -183,6 +183,35 @@ async fn transient_failures_are_retried() {
 }
 
 #[tokio::test]
+async fn a_failing_source_is_reported_once() {
+    let source = FakeSource::new().with_chapters(&["1"]);
+    source
+        .fail_images
+        .store(usize::MAX, std::sync::atomic::Ordering::SeqCst);
+    let mut h = start(source).await;
+    h.follow(Monitor::All).await;
+
+    let mut broken = Vec::new();
+    h.wait_for(|e| {
+        if let Event::SourceBroken { name, failures, .. } = e {
+            broken.push((name.clone(), *failures));
+        }
+        matches!(
+            e,
+            Event::JobFailed {
+                will_retry: false,
+                ..
+            }
+        )
+    })
+    .await;
+    assert_eq!(broken, [("Fake".to_owned(), db::sources::FAILING_AFTER)]);
+    let health = db::sources::get(&h.app.ctx.db, "fake").await.unwrap();
+    assert!(health.failures_in_row > db::sources::FAILING_AFTER);
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn cancelled_jobs_stop_retrying() {
     let source = FakeSource::new().with_chapters(&["1"]);
     source

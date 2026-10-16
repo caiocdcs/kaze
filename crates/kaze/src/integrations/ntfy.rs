@@ -63,7 +63,7 @@ impl Ntfy {
         message: &Message,
     ) -> Result<(), IntegrationError> {
         let (priority, tag) = match message.trigger {
-            Trigger::Failed => (4, "warning"),
+            Trigger::Failed | Trigger::SourceBroken => (4, "warning"),
             Trigger::Downloaded => (3, "books"),
             Trigger::Found => (3, "new"),
         };
