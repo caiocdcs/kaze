@@ -79,7 +79,9 @@
 	/** Slots in use: overall and per source, against the configured limits. */
 	const lanes = $derived.by(() => {
 		if (!settings) return [];
-		const lanes = [{ name: 'All jobs', used: running.length, size: settings.concurrency }];
+		// Notifications and scans skip the limits, so they don't count here.
+		const used = running.filter((j) => sourceOf(j) !== null).length;
+		const lanes = [{ name: 'All sites', used, size: settings.concurrency }];
 		for (const s of sources) {
 			lanes.push({
 				name: s.name,

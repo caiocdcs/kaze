@@ -12,7 +12,7 @@ use std::{
 use chrono::{DateTime, Utc};
 use futures_util::StreamExt as _;
 use tokio::{
-    sync::{Semaphore, mpsc, oneshot, watch},
+    sync::{OwnedSemaphorePermit, Semaphore, mpsc, oneshot, watch},
     task::JoinSet,
 };
 use tokio_util::{sync::CancellationToken, task::TaskTracker, time::DelayQueue};
@@ -78,7 +78,26 @@ struct Lanes {
     per_source: HashMap<String, Lane>,
 }
 
+/// The permits a running job holds; released on drop.
+type Permits = Option<(OwnedSemaphorePermit, OwnedSemaphorePermit)>;
+
 impl Lanes {
+    /// Wait for a slot for a job against `source`. Jobs without a source
+    /// (notifications, scans) are light and skip the limits, so they never
+    /// queue behind a backfill. Neither do jobs of an unknown source,
+    /// which fail as soon as they start.
+    async fn acquire(&self, source: Option<&str>) -> Permits {
+        let lane = self.per_source.get(source?)?;
+        // Source first: a job waiting for its own site must not sit on a
+        // global slot that a job for an idle site could use.
+        let source = Arc::clone(&lane.semaphore).acquire_owned().await.ok()?;
+        let global = Arc::clone(&self.global.semaphore)
+            .acquire_owned()
+            .await
+            .ok()?;
+        Some((source, global))
+    }
+
     fn resize(&self, settings: &Settings) {
         self.global.resize(settings.concurrency);
         for lane in self.per_source.values() {
@@ -302,22 +321,12 @@ async fn run_one(
         return Outcome::Paused;
     }
 
-    // Wait for a free slot, globally and for this source, before claiming:
-    // a job stays `queued` while it waits, so a big refresh does not show
-    // as hundreds of running jobs. Permits are released when the guards
-    // drop at the end of this function.
-    let permits = async {
-        let global = Arc::clone(&lanes.global.semaphore).acquire_owned().await;
-        let lane = queued.source().and_then(|s| lanes.per_source.get(s));
-        let source = match lane {
-            Some(lane) => Some(Arc::clone(&lane.semaphore).acquire_owned().await),
-            None => None,
-        };
-        (global, source)
-    };
+    // Wait for a free slot before claiming: a job stays `queued` while it
+    // waits, so a big refresh does not show as hundreds of running jobs.
+    // Permits are released when the guard drops at the end of this function.
     let _permits = tokio::select! {
         () = token.cancelled() => return Outcome::Interrupted,
-        permits = permits => permits,
+        permits = lanes.acquire(queued.source()) => permits,
     };
 
     let claimed = match db::jobs::claim(&ctx.db, id).await {
@@ -408,5 +417,45 @@ async fn record_health(ctx: &Context, source: &str, result: &Result<(), handlers
     };
     if let Err(err) = recorded {
         tracing::warn!(source, "could not record source health: {err}");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lanes(global: usize, per_source: usize) -> Lanes {
+        Lanes {
+            global: Lane::new(global),
+            per_source: ["a", "b"]
+                .into_iter()
+                .map(|s| (s.to_owned(), Lane::new(per_source)))
+                .collect(),
+        }
+    }
+
+    #[tokio::test]
+    async fn waiting_for_a_busy_source_leaves_global_slots_free() {
+        let lanes = Arc::new(lanes(2, 1));
+        let _a1 = lanes.acquire(Some("a")).await.unwrap();
+        // A second job for "a" waits for its site, holding nothing.
+        let waiting = tokio::spawn({
+            let lanes = Arc::clone(&lanes);
+            async move { lanes.acquire(Some("a")).await.is_some() }
+        });
+        tokio::task::yield_now().await;
+
+        let b1 = tokio::time::timeout(Duration::from_secs(1), lanes.acquire(Some("b"))).await;
+        assert!(b1.is_ok_and(|p| p.is_some()), "source b got the free slot");
+        assert!(!waiting.is_finished());
+        waiting.abort();
+    }
+
+    #[tokio::test]
+    async fn jobs_without_a_source_skip_the_limits() {
+        let lanes = lanes(1, 1);
+        let _a1 = lanes.acquire(Some("a")).await.unwrap();
+        let none = tokio::time::timeout(Duration::from_secs(1), lanes.acquire(None)).await;
+        assert!(none.is_ok_and(|p| p.is_none()));
     }
 }

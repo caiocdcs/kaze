@@ -10,7 +10,7 @@ naming_template: string,
  */
 api_key: string | null, 
 /**
- * Jobs running at once.
+ * Source jobs (downloads, refreshes) running at once.
  */
 concurrency: number, 
 /**

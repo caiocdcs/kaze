@@ -35,7 +35,7 @@ pub struct Settings {
     pub naming_template: Template,
     /// When set, API requests must send it as `X-Api-Key` (or `?apikey=`).
     pub api_key: Option<String>,
-    /// Jobs running at once.
+    /// Source jobs (downloads, refreshes) running at once.
     pub concurrency: usize,
     /// Jobs running at once against one source.
     pub per_source: usize,
