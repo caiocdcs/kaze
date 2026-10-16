@@ -113,7 +113,8 @@
 	const triggers: { value: Trigger; label: string; hint: string }[] = [
 		{ value: 'downloaded', label: 'Downloaded', hint: 'Chapters landed in the library' },
 		{ value: 'failed', label: 'Failed', hint: 'A chapter gave up after its retries' },
-		{ value: 'found', label: 'New chapters', hint: 'A source published new chapters' }
+		{ value: 'found', label: 'New chapters', hint: 'A source published new chapters' },
+		{ value: 'source_broken', label: 'Source broken', hint: 'A source failed 3 times in a row' }
 	];
 
 	function input(): IntegrationInput {

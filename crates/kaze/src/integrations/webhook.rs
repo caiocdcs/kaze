@@ -129,7 +129,7 @@ pub fn presets() -> Vec<Preset> {
 }"#
             .into(),
         }),
-        events: vec![Trigger::Downloaded, Trigger::Failed],
+        events: vec![Trigger::Downloaded, Trigger::Failed, Trigger::SourceBroken],
     }]
 }
 
