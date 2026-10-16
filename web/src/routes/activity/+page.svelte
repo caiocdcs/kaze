@@ -96,7 +96,8 @@
 		downloaded: { icon: 'check', tone: 'text-disk bg-disk-wash' },
 		failed: { icon: 'close', tone: 'text-bad bg-bad-wash' },
 		found: { icon: 'add', tone: 'text-wanted bg-wanted-wash' },
-		deleted: { icon: 'trash', tone: 'text-muted bg-raised' }
+		deleted: { icon: 'trash', tone: 'text-muted bg-raised' },
+		source_broken: { icon: 'close', tone: 'text-bad bg-bad-wash' }
 	};
 
 	async function act(work: () => Promise<unknown>, done?: string) {

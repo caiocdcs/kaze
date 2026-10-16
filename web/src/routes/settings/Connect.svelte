@@ -69,7 +69,8 @@
 	const eventLabels = {
 		downloaded: 'Downloaded',
 		failed: 'Failed',
-		found: 'New chapters'
+		found: 'New chapters',
+		source_broken: 'Source broken'
 	} as const;
 
 	function startNew(kind: Config['kind'], preset?: Preset) {
@@ -79,7 +80,8 @@
 				name: preset?.name ?? kindLabel[kind],
 				enabled: true,
 				events:
-					preset?.events ?? (kind === 'komga' || kind === 'kavita' ? [] : ['downloaded', 'failed']),
+					preset?.events ??
+					(kind === 'komga' || kind === 'kavita' ? [] : ['downloaded', 'failed', 'source_broken']),
 				config: preset ? ($state.snapshot(preset.config) as Config) : blank(kind)
 			},
 			hint: preset?.hint
