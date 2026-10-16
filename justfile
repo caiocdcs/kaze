@@ -49,6 +49,32 @@ test *args: db
 test-live *args:
     cargo nextest run --workspace --run-ignored only {{args}}
 
+# Fetch a source's fixtures fresh into target/fixtures/<source> and diff them
+fixtures source:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    saved=crates/kaze-sources/src/{{source}}/fixtures
+    fresh=target/fixtures/{{source}}
+    [ -f "$saved/urls.tsv" ] || { echo "no $saved/urls.tsv"; exit 1; }
+    mkdir -p "$fresh"
+    grep -v '^#' "$saved/urls.tsv" | while IFS=$'\t' read -r name url; do
+        # MangaDex asks API clients to name themselves; sites expect a browser.
+        case "$url" in
+            *api.mangadex.org*) ua="kaze-fixtures" ;;
+            *) ua="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" ;;
+        esac
+        if curl -fsSL --max-time 30 -A "$ua" -o "$fresh/$name" "$url"; then
+            echo "ok    $name"
+        else
+            echo "FAIL  $name  $url"
+        fi
+    done
+    # Saved fixtures are trimmed by hand, so expect noise; look for changed markup.
+    for file in "$fresh"/*; do
+        git diff --no-index --stat "$saved/${file##*/}" "$file" | head -1
+    done
+    echo "full diff: git diff --no-index $saved/<file> $fresh/<file>"
+
 # Run the kaze CLI, e.g. `just run search one piece`
 run *args:
     cargo run --package kaze -- {{args}}

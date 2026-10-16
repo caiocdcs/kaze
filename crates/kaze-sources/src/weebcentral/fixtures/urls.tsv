@@ -1,0 +1,8 @@
+# Saved by `just fixtures <source>` into target/fixtures/<source>/ for a diff.
+# One fixture per line: file name, then the URL it came from (tab-separated).
+search.html	https://weebcentral.com/search/data?limit=32&offset=0&text=one+piece&sort=Best+Match&order=Ascending&official=Any&display_mode=Full+Display
+series_one_piece.html	https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK
+chapters_one_piece.html	https://weebcentral.com/series/01J76XY7E9FNDZ1DBBM6PBJPFK/full-chapter-list
+chapters_berserk.html	https://weebcentral.com/series/01J76XY7EF75DJNQCV04HTPDZK/full-chapter-list
+images.html	https://weebcentral.com/chapters/01M4FFVTBPS4RKXQWZ2REYGH3M/images?is_prev=False&current_page=1&reading_style=long_strip
+latest_updates.html	https://weebcentral.com/latest-updates/1

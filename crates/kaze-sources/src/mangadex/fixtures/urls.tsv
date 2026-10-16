@@ -1,0 +1,7 @@
+# Saved by `just fixtures <source>` into target/fixtures/<source>/ for a diff.
+# One fixture per line: file name, then the URL it came from (tab-separated).
+search.json	https://api.mangadex.org/manga?title=apothecary+diaries&limit=20&includes%5B%5D=cover_art&order%5Brelevance%5D=desc&hasAvailableChapters=true&availableTranslatedLanguage%5B%5D=en&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica
+manga.json	https://api.mangadex.org/manga/e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c?includes%5B%5D=cover_art&includes%5B%5D=author&includes%5B%5D=artist&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica
+feed.json	https://api.mangadex.org/manga/e18fe8c6-f6dc-4f05-8462-7b2083ff9a6c/feed?translatedLanguage%5B%5D=en&limit=500&offset=0&order%5Bchapter%5D=asc&includes%5B%5D=scanlation_group&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica
+at-home.json	https://api.mangadex.org/at-home/server/97193d1f-ce85-4f2c-8d8a-d65ece82a0b4
+latest.json	https://api.mangadex.org/chapter?translatedLanguage%5B%5D=en&order%5BreadableAt%5D=desc&limit=100&includeExternalUrl=0&contentRating%5B%5D=safe&contentRating%5B%5D=suggestive&contentRating%5B%5D=erotica

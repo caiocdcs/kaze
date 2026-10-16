@@ -1,0 +1,6 @@
+# Saved by `just fixtures <source>` into target/fixtures/<source>/ for a diff.
+# One fixture per line: file name, then the URL it came from (tab-separated).
+search.html	https://www.mangaworld.mx/archive?keyword=one+piece
+series.html	https://www.mangaworld.mx/manga/1708/one-piece/
+read.html	https://www.mangaworld.mx/manga/1708/one-piece/read/5fa0d57e9c5b631f15d5b491?style=list
+home.html	https://www.mangaworld.mx/
