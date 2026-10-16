@@ -50,6 +50,8 @@ struct Batch {
     failed_ids: BTreeSet<i64>,
     /// series → new chapters found
     found: BTreeMap<String, usize>,
+    /// "Source: error" lines, for sources that just broke
+    broken: Vec<String>,
     /// series → id, for links into the UI
     ids: BTreeMap<String, i64>,
     /// Files were added or removed, so library servers should scan.
@@ -131,6 +133,21 @@ impl Batch {
                 count,
                 series: self.found.keys().cloned().collect(),
                 series_ids: self.ids_of(self.found.keys()),
+            });
+        }
+        if !self.broken.is_empty() {
+            let count = self.broken.len();
+            out.push(Message {
+                trigger: Trigger::SourceBroken,
+                title: if count == 1 {
+                    "A source looks broken".into()
+                } else {
+                    format!("{count} sources look broken")
+                },
+                body: self.broken.join("\n"),
+                count,
+                series: Vec::new(),
+                series_ids: Vec::new(),
             });
         }
         out
@@ -234,6 +251,17 @@ fn collect(batch: &mut Batch, attempts: &mut Attempts, event: Event) {
                 batch.failed_ids.insert(series_id);
                 batch.touch();
             }
+        }
+        Event::SourceBroken {
+            name,
+            failures,
+            error,
+            ..
+        } => {
+            batch.broken.push(format!(
+                "{name}: {failures} failures in a row, last: {error}"
+            ));
+            batch.touch();
         }
         Event::JobFinished { job_id } | Event::JobCancelled { job_id } => {
             attempts.remove(&job_id);
@@ -359,6 +387,28 @@ mod tests {
         assert_eq!(batch.failed, ["Berserk chapter 2: HTTP 503"]);
         assert_eq!(batch.messages()[0].series_ids, [1]);
         assert!(attempts.is_empty());
+    }
+
+    #[test]
+    fn broken_sources_become_one_message() {
+        let mut batch = Batch::default();
+        let broken = |name: &str| Event::SourceBroken {
+            source: name.to_lowercase(),
+            name: name.into(),
+            failures: 3,
+            error: "HTTP 503".into(),
+        };
+        collect(&mut batch, &mut HashMap::new(), broken("WeebCentral"));
+        let messages = batch.messages();
+        assert_eq!(messages[0].trigger, Trigger::SourceBroken);
+        assert_eq!(messages[0].title, "A source looks broken");
+        assert_eq!(
+            messages[0].body,
+            "WeebCentral: 3 failures in a row, last: HTTP 503"
+        );
+        collect(&mut batch, &mut HashMap::new(), broken("MangaDex"));
+        assert_eq!(batch.messages()[0].title, "2 sources look broken");
+        assert!(!batch.library_changed);
     }
 
     #[test]

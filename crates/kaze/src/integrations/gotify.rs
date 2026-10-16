@@ -39,7 +39,7 @@ impl Gotify {
         message: &Message,
     ) -> Result<(), IntegrationError> {
         let priority = match message.trigger {
-            Trigger::Failed => 8,
+            Trigger::Failed | Trigger::SourceBroken => 8,
             Trigger::Downloaded | Trigger::Found => 5,
         };
         let body = json!({

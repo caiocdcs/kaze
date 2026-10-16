@@ -3,4 +3,4 @@
 /**
  * What a notification integration can be told about.
  */
-export type Trigger = "downloaded" | "failed" | "found";
+export type Trigger = "downloaded" | "failed" | "found" | "source_broken";

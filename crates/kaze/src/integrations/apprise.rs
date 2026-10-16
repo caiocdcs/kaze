@@ -55,7 +55,7 @@ impl Apprise {
     ) -> Result<(), IntegrationError> {
         let kind = match message.trigger {
             Trigger::Downloaded => "success",
-            Trigger::Failed => "failure",
+            Trigger::Failed | Trigger::SourceBroken => "failure",
             Trigger::Found => "info",
         };
         let mut body = json!({ "title": message.title, "body": message.body, "type": kind });
