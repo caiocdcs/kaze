@@ -43,7 +43,12 @@ export function url(path: string, query?: Query): string {
 	return `${BASE}${path}${qs ? `?${qs}` : ''}`;
 }
 
-async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
+async function send(
+	method: string,
+	path: string,
+	body?: unknown,
+	query?: Query
+): Promise<Response> {
 	const headers: Record<string, string> = { Accept: 'application/json' };
 	const key = apiKey();
 	if (key) headers['X-Api-Key'] = key;
@@ -65,6 +70,11 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
 		}
 		throw new ApiError(res.status, message);
 	}
+	return res;
+}
+
+async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
+	const res = await send(method, path, body, query);
 	if (res.status === 204) return undefined as T;
 	const text = await res.text();
 	return (text ? JSON.parse(text) : undefined) as T;
@@ -75,5 +85,15 @@ export const http = {
 	post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
 	patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
 	put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
-	del: <T>(path: string) => request<T>('DELETE', path)
+	del: <T>(path: string) => request<T>('DELETE', path),
+	/** Fetch a file and hand it to the browser as a download. */
+	save: async (path: string) => {
+		const res = await send('GET', path);
+		const name = /filename="([^"]+)"/.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
+		const link = document.createElement('a');
+		link.href = URL.createObjectURL(await res.blob());
+		link.download = name ?? 'download';
+		link.click();
+		URL.revokeObjectURL(link.href);
+	}
 };

@@ -1,6 +1,7 @@
 //! The JSON API under `/api/v1`, plus live events over SSE.
 
 mod auth;
+mod backup;
 mod chapters;
 mod error;
 mod events;
@@ -80,6 +81,7 @@ pub fn router(app: AppState) -> Router {
         .route("/history", get(jobs::history))
         .route("/settings", get(settings::get).patch(settings::update))
         .route("/health", get(health::check))
+        .route("/backup", get(backup::download))
         .route("/import", get(import::candidates).post(import::import))
         .route("/import/match", get(import::matches))
         .route("/tasks", get(jobs::tasks))

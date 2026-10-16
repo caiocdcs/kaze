@@ -41,6 +41,16 @@ pub async fn connect(path: &Path) -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
+/// Write a consistent copy of the database to `path`, which must not
+/// exist. `VACUUM INTO` is safe while workers keep writing.
+pub async fn backup(db: &SqlitePool, path: &Path) -> Result<(), sqlx::Error> {
+    sqlx::query("VACUUM INTO ?")
+        .bind(path.to_string_lossy())
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
 /// A fresh, migrated in-memory database for tests.
 ///
 /// Every SQLite connection to `:memory:` is a separate database, so the
@@ -59,4 +69,30 @@ pub async fn memory() -> SqlitePool {
         .expect("open in-memory database");
     MIGRATOR.run(&pool).await.expect("run migrations");
     pool
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn backup_copies_the_database() {
+        // A file database: `VACUUM INTO` from `:memory:` writes no file.
+        let dir = tempfile::tempdir().unwrap();
+        let db = connect(&dir.path().join("kaze.db")).await.unwrap();
+        sqlx::query("INSERT INTO settings (key, value) VALUES ('marker', '1')")
+            .execute(&db)
+            .await
+            .unwrap();
+        let path = dir.path().join("copy.db");
+        backup(&db, &path).await.unwrap();
+        assert!(backup(&db, &path).await.is_err(), "never overwrites");
+
+        let copy = connect(&path).await.unwrap();
+        let marker: String = sqlx::query_scalar("SELECT value FROM settings WHERE key = 'marker'")
+            .fetch_one(&copy)
+            .await
+            .unwrap();
+        assert_eq!(marker, "1");
+    }
 }
