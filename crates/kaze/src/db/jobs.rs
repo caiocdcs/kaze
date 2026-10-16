@@ -22,6 +22,8 @@ use crate::jobs::Job;
 /// | failed, cancelled | queued | [`retry`] from the API; attempts reset |
 ///
 /// A paused source's job stays queued and is parked in the dispatcher.
+/// The dispatcher only moves running jobs, so a cancel that races the
+/// end of a job wins.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
@@ -115,7 +117,7 @@ pub async fn finish(
 ) -> sqlx::Result<()> {
     let now = Utc::now();
     sqlx::query!(
-        "UPDATE jobs SET state = ?, last_error = coalesce(?, last_error), updated_at = ? WHERE id = ?",
+        "UPDATE jobs SET state = ?, last_error = coalesce(?, last_error), updated_at = ? WHERE id = ? AND state = 'running'",
         state,
         error,
         now,
@@ -135,7 +137,7 @@ pub async fn requeue(
 ) -> sqlx::Result<()> {
     let now = Utc::now();
     sqlx::query!(
-        "UPDATE jobs SET state = 'queued', run_after = ?, last_error = coalesce(?, last_error), updated_at = ? WHERE id = ?",
+        "UPDATE jobs SET state = 'queued', run_after = ?, last_error = coalesce(?, last_error), updated_at = ? WHERE id = ? AND state = 'running'",
         run_after,
         error,
         now,
@@ -242,4 +244,31 @@ pub async fn get(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Option<Jo
     )
     .fetch_optional(db)
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::db;
+
+    #[tokio::test]
+    async fn a_cancel_racing_the_end_of_a_job_wins() {
+        let db = db::memory().await;
+        let job = Job::SyncLatest {
+            source: "fake".into(),
+        };
+        for end in [JobState::Done, JobState::Failed, JobState::Queued] {
+            let id = insert(&db, &job).await.unwrap().unwrap();
+            claim(&db, id).await.unwrap().unwrap();
+            // Cancelled from the API after the job's outcome was decided.
+            assert!(cancel(&db, id).await.unwrap());
+            if end == JobState::Queued {
+                requeue(&db, id, Utc::now(), Some("boom")).await.unwrap();
+            } else {
+                finish(&db, id, end, None).await.unwrap();
+            }
+            let state = get(&db, id).await.unwrap().unwrap().state;
+            assert_eq!(state, JobState::Cancelled, "after {end:?}");
+        }
+    }
 }

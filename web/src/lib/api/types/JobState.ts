@@ -15,5 +15,7 @@
  * | failed, cancelled | queued | [`retry`] from the API; attempts reset |
  *
  * A paused source's job stays queued and is parked in the dispatcher.
+ * The dispatcher only moves running jobs, so a cancel that races the
+ * end of a job wins.
  */
 export type JobState = "queued" | "running" | "done" | "failed" | "cancelled";
