@@ -54,7 +54,8 @@ impl Lane {
         }
     }
 
-    fn resize(&self, size: usize) {
+    /// Drains of surplus permits are spawned on `drains`.
+    fn resize(&self, size: usize, drains: &TaskTracker) {
         let old = self.size.swap(size, Ordering::Relaxed);
         if size > old {
             self.semaphore.add_permits(size - old);
@@ -63,7 +64,7 @@ impl Lane {
             // wait for them to be returned and then throw them away.
             let surplus = u32::try_from(old - size).unwrap_or(u32::MAX);
             let semaphore = Arc::clone(&self.semaphore);
-            tokio::spawn(async move {
+            drains.spawn(async move {
                 if let Ok(permits) = semaphore.acquire_many_owned(surplus).await {
                     permits.forget();
                 }
@@ -76,6 +77,8 @@ impl Lane {
 struct Lanes {
     global: Lane,
     per_source: HashMap<String, Lane>,
+    /// Tasks taking back permits after a lane shrank.
+    drains: TaskTracker,
 }
 
 /// The permits a running job holds; released on drop.
@@ -99,9 +102,9 @@ impl Lanes {
     }
 
     fn resize(&self, settings: &Settings) {
-        self.global.resize(settings.concurrency);
+        self.global.resize(settings.concurrency, &self.drains);
         for lane in self.per_source.values() {
-            lane.resize(settings.per_source);
+            lane.resize(settings.per_source, &self.drains);
         }
     }
 }
@@ -148,6 +151,7 @@ impl Dispatcher {
                 .iter()
                 .map(|s| (s.meta().id.to_owned(), Lane::new(current.per_source)))
                 .collect(),
+            drains: TaskTracker::new(),
         });
         let dispatcher = Self {
             ctx,
@@ -212,6 +216,9 @@ impl Dispatcher {
                 self.finished(id, outcome).await;
             }
         }
+        // Every permit is back now, so pending drains finish at once.
+        self.lanes.drains.close();
+        self.lanes.drains.wait().await;
     }
 
     fn start(&mut self, id: i64, queue: &JobQueue) {
@@ -431,6 +438,7 @@ mod tests {
                 .into_iter()
                 .map(|s| (s.to_owned(), Lane::new(per_source)))
                 .collect(),
+            drains: TaskTracker::new(),
         }
     }
 
@@ -449,6 +457,21 @@ mod tests {
         assert!(b1.is_ok_and(|p| p.is_some()), "source b got the free slot");
         assert!(!waiting.is_finished());
         waiting.abort();
+    }
+
+    #[tokio::test]
+    async fn shrinking_a_lane_takes_permits_back_once_returned() {
+        let lanes = lanes(2, 2);
+        let a = lanes.acquire(Some("a")).await.unwrap();
+        let b = lanes.acquire(Some("b")).await.unwrap();
+        lanes.global.resize(1, &lanes.drains);
+        drop((a, b));
+
+        lanes.drains.close();
+        tokio::time::timeout(Duration::from_secs(1), lanes.drains.wait())
+            .await
+            .unwrap();
+        assert_eq!(lanes.global.semaphore.available_permits(), 1);
     }
 
     #[tokio::test]
