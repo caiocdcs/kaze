@@ -55,7 +55,7 @@ macro_rules! select_chapters {
                       number AS "number: _", volume, title, url, language, scanlator,
                       published_at AS "published_at: _",
                       monitored AS "monitored: bool",
-                      file_path,
+                      file_path, size_bytes,
                       downloaded_at AS "downloaded_at: _",
                       discovered_at AS "discovered_at: _"
                FROM chapters
@@ -135,10 +135,14 @@ pub async fn mark_downloaded(
     db: impl SqliteExecutor<'_>,
     id: i64,
     file_path: &str,
+    size_bytes: Option<i64>,
 ) -> sqlx::Result<()> {
     sqlx::query!(
-        "UPDATE chapters SET file_path = ?, downloaded_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now') WHERE id = ?",
+        "UPDATE chapters SET file_path = ?, size_bytes = ?,
+                downloaded_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
+         WHERE id = ?",
         file_path,
+        size_bytes,
         id
     )
     .execute(db)
@@ -148,10 +152,39 @@ pub async fn mark_downloaded(
 
 pub async fn clear_file(db: impl SqliteExecutor<'_>, id: i64, unmonitor: bool) -> sqlx::Result<()> {
     sqlx::query!(
-        "UPDATE chapters SET file_path = NULL, downloaded_at = NULL,
+        "UPDATE chapters SET file_path = NULL, size_bytes = NULL, downloaded_at = NULL,
                 monitored = CASE WHEN ? THEN 0 ELSE monitored END
          WHERE id = ?",
         unmonitor,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// Every chapter with a file, as (id, path, recorded size).
+pub async fn files(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<(i64, String, Option<i64>)>> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", file_path AS "file_path!", size_bytes FROM chapters
+           WHERE file_path IS NOT NULL"#
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.id, r.file_path, r.size_bytes))
+        .collect())
+}
+
+pub async fn set_size(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    size_bytes: Option<i64>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE chapters SET size_bytes = ? WHERE id = ?",
+        size_bytes,
         id
     )
     .execute(db)
@@ -314,7 +347,7 @@ mod tests {
             .unwrap();
         assert_eq!(wanted(&pool, 100).await.unwrap().len(), 2);
 
-        mark_downloaded(&pool, ids[1], "/lib/One Piece/Ch.2.cbz")
+        mark_downloaded(&pool, ids[1], "/lib/One Piece/Ch.2.cbz", Some(10))
             .await
             .unwrap();
         let wanted_now = wanted(&pool, 100).await.unwrap();

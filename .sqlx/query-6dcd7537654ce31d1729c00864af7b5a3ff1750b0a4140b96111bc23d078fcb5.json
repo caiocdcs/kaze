@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE series_id = ? ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -147,8 +147,19 @@
         }
       },
       {
-        "name": "downloaded_at: _",
+        "name": "size_bytes",
         "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "downloaded_at: _",
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "discovered_at: _",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -187,8 +198,9 @@
       false,
       true,
       true,
+      true,
       false
     ]
   },
-  "hash": "27310643c054e9dc6bc94fb1d386a0a0a2c9a111cd2c24c466535dc4aa2b3cd0"
+  "hash": "6dcd7537654ce31d1729c00864af7b5a3ff1750b0a4140b96111bc23d078fcb5"
 }

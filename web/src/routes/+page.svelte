@@ -4,7 +4,7 @@
 	import Icon from '#lib/components/Icon.svelte';
 	import ProgressBar from '#lib/components/ProgressBar.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
-	import { errorMessage, num } from '#lib/format.ts';
+	import { bytes, errorMessage, num } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
 	import type { Attachment } from 'svelte/attachments';
 
@@ -62,8 +62,12 @@
 
 	const totals = $derived(
 		(series ?? []).reduce(
-			(t, s) => ({ downloaded: t.downloaded + s.downloaded, wanted: t.wanted + s.wanted }),
-			{ downloaded: 0, wanted: 0 }
+			(t, s) => ({
+				downloaded: t.downloaded + s.downloaded,
+				wanted: t.wanted + s.wanted,
+				size: t.size + s.size_bytes
+			}),
+			{ downloaded: 0, wanted: 0, size: 0 }
 		)
 	);
 
@@ -82,7 +86,7 @@
 			<p class="m-0 text-muted">
 				{num(series.length)} series · {num(totals.downloaded)} chapters on disk · {num(
 					totals.wanted
-				)} wanted
+				)} wanted · {bytes(totals.size)}
 			</p>
 		{/if}
 	</div>
@@ -169,7 +173,9 @@
 					<span class="leading-tight font-semibold group-hover:text-seal-soft">{s.title}</span>
 					<span class="flex justify-between gap-2 text-xs text-muted">
 						<span class="truncate">{statusLabel(s)}</span>
-						<span class="font-mono">{num(s.downloaded)} / {num(s.chapters)}</span>
+						<span class="font-mono" title={bytes(s.size_bytes)}
+							>{num(s.downloaded)} / {num(s.chapters)}</span
+						>
 					</span>
 					<ProgressBar
 						value={s.chapters ? s.downloaded / s.chapters : 0}

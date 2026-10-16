@@ -14,7 +14,7 @@ use crate::{
     import,
     integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
-    library::Monitor,
+    library::{self, Monitor},
     settings::SettingsStore,
 };
 
@@ -218,8 +218,14 @@ impl App {
         let mut matched = 0;
         for chapter in db::chapters::for_series(&self.ctx.db, id).await? {
             if let Some(path) = files.get(&chapter.number).and_then(|paths| paths.first()) {
-                db::chapters::mark_downloaded(&self.ctx.db, chapter.id, &path.to_string_lossy())
-                    .await?;
+                let size = library::file_size(path).await;
+                db::chapters::mark_downloaded(
+                    &self.ctx.db,
+                    chapter.id,
+                    &path.to_string_lossy(),
+                    size,
+                )
+                .await?;
                 matched += 1;
             }
         }

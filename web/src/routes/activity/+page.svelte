@@ -70,7 +70,8 @@
 		refresh_series: 'Refresh',
 		sync_latest: 'Latest',
 		notify: 'Notify',
-		scan_library: 'Scan'
+		scan_library: 'Scan',
+		measure_library: 'Measure'
 	};
 	const sourceOf = (j: JobRecord) => ('source' in j.job ? j.job.source : null);
 	const sourceName = (id: string) => sources.find((s) => s.id === id)?.name ?? id;

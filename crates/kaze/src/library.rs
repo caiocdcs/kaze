@@ -83,6 +83,8 @@ pub struct SeriesSummary {
     pub chapters: i64,
     pub downloaded: i64,
     pub wanted: i64,
+    /// Bytes on disk, as last measured.
+    pub size_bytes: i64,
     pub latest_chapter_at: Option<DateTime<Utc>>,
     pub added_at: DateTime<Utc>,
 }
@@ -121,6 +123,7 @@ pub struct ChapterRecord {
     pub published_at: Option<DateTime<Utc>>,
     pub monitored: bool,
     pub file_path: Option<String>,
+    pub size_bytes: Option<i64>,
     pub downloaded_at: Option<DateTime<Utc>>,
     pub discovered_at: DateTime<Utc>,
 }
@@ -130,6 +133,12 @@ impl ChapterRecord {
     pub fn is_wanted(&self) -> bool {
         self.monitored && self.file_path.is_none()
     }
+}
+
+/// A file's size for disk usage; `None` if it is gone or unreadable.
+pub async fn file_size(path: impl AsRef<Path>) -> Option<i64> {
+    let meta = tokio::fs::metadata(path).await.ok()?;
+    i64::try_from(meta.len()).ok()
 }
 
 /// Delete a file or folder, refusing anything that resolves outside the

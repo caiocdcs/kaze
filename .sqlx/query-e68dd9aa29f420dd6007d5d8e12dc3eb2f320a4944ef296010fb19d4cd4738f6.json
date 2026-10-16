@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chapters SET file_path = ?, size_bytes = ?,\n                downloaded_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')\n         WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e68dd9aa29f420dd6007d5d8e12dc3eb2f320a4944ef296010fb19d4cd4738f6"
+}

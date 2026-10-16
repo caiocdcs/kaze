@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE monitored = 1 AND file_path IS NULL ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
+  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE series_id = ? ORDER BY number_whole, number_frac, id",
   "describe": {
     "columns": [
       {
@@ -147,8 +147,19 @@
         }
       },
       {
-        "name": "downloaded_at: _",
+        "name": "size_bytes",
         "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "downloaded_at: _",
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "discovered_at: _",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -185,10 +196,11 @@
       true,
       true,
       false,
-      false,
+      true,
+      true,
       true,
       false
     ]
   },
-  "hash": "9139518d84d1d9ce10bd0a147f684c546df31ffbf872f08250e751edecd354a8"
+  "hash": "79025a095972c6a4f75e0beb5a429d8c59e6a984d56eae9bbb53815fa8a9273d"
 }

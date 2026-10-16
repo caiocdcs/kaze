@@ -45,6 +45,8 @@ pub enum Job {
     },
     /// Ask a library server (Komga, Kavita) to scan.
     ScanLibrary { integration_id: i64 },
+    /// Record the size of every chapter file, for disk usage.
+    MeasureLibrary,
 }
 
 impl Job {
@@ -56,6 +58,7 @@ impl Job {
             Self::SyncLatest { .. } => "sync_latest",
             Self::Notify { .. } => "notify",
             Self::ScanLibrary { .. } => "scan_library",
+            Self::MeasureLibrary => "measure_library",
         }
     }
 
@@ -74,6 +77,7 @@ impl Job {
             ),
             // A scan picks up everything on disk, so one pending scan is enough.
             Self::ScanLibrary { integration_id } => format!("scan:{integration_id}"),
+            Self::MeasureLibrary => "measure".into(),
         }
     }
 
@@ -84,7 +88,7 @@ impl Job {
             Self::RefreshSeries { source, .. }
             | Self::DownloadChapter { source, .. }
             | Self::SyncLatest { source } => Some(source),
-            Self::Notify { .. } | Self::ScanLibrary { .. } => None,
+            Self::Notify { .. } | Self::ScanLibrary { .. } | Self::MeasureLibrary => None,
         }
     }
 }
