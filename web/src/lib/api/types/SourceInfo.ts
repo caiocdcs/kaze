@@ -5,4 +5,8 @@ export type SourceInfo = { id: string, name: string, base_url: string, languages
 /**
  * Several jobs in a row failed: the site probably changed or is down.
  */
-failing: boolean, };
+failing: boolean, 
+/**
+ * Its jobs wait until it is resumed (`paused_sources` setting).
+ */
+paused: boolean, };

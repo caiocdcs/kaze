@@ -269,6 +269,40 @@ async fn cancel_and_wait_returns_once_the_job_stopped() {
 }
 
 #[tokio::test]
+async fn paused_sources_hold_their_jobs_until_resumed() {
+    let mut h = start(FakeSource::new().with_chapters(&["1"])).await;
+    let pause = |sources: serde_json::Value| {
+        serde_json::json!({ "paused_sources": sources })
+            .as_object()
+            .unwrap()
+            .clone()
+    };
+    h.app
+        .ctx
+        .settings
+        .update(pause(serde_json::json!(["fake"])))
+        .await
+        .unwrap();
+    h.follow(Monitor::All).await;
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let jobs = db::jobs::list(&h.app.ctx.db, 10).await.unwrap();
+    assert!(!jobs.is_empty());
+    assert!(
+        jobs.iter().all(|j| j.state == JobState::Queued),
+        "nothing ran"
+    );
+
+    h.app
+        .ctx
+        .settings
+        .update(pause(serde_json::json!([])))
+        .await
+        .unwrap();
+    assert_eq!(h.downloaded(1).await, ["1"]);
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn jobs_waiting_for_a_slot_stay_queued() {
     let numbers: Vec<String> = (1..=10).map(|n| n.to_string()).collect();
     let numbers: Vec<&str> = numbers.iter().map(String::as_str).collect();

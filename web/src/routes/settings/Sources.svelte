@@ -3,20 +3,37 @@
 	import StateChip, { type ChipTone } from '#lib/components/StateChip.svelte';
 	import { ago, dateTime, errorMessage } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 
 	let sources = $state<SourceInfo[] | null>(null);
 	let error = $state<string | null>(null);
 
-	$effect(() => {
-		void live.jobsVersion;
+	function load() {
 		api
 			.sources()
 			.then((s) => (sources = s))
 			.catch((e) => (error = errorMessage(e)));
+	}
+
+	$effect(() => {
+		void live.jobsVersion;
+		load();
 	});
+
+	async function setPaused(s: SourceInfo, paused: boolean) {
+		const others = (sources ?? []).filter((o) => o.paused && o.id !== s.id).map((o) => o.id);
+		try {
+			await api.updateSettings({ paused_sources: paused ? [...others, s.id] : others });
+			toasts.show(`${s.name} ${paused ? 'paused' : 'resumed'}`);
+		} catch (e) {
+			toasts.error(e);
+		}
+		load();
+	}
 
 	function status(s: SourceInfo): { tone: ChipTone; label: string } {
 		const h = s.health;
+		if (s.paused) return { tone: 'off', label: 'Paused · jobs wait' };
 		if (s.failing) return { tone: 'bad', label: `Failing · ${h.failures_in_row} in a row` };
 		if (h.failures_in_row > 0) return { tone: 'wanted', label: 'Recent errors' };
 		if (h.last_success_at) return { tone: 'ok', label: 'Working' };
@@ -53,6 +70,15 @@
 					<span class="font-mono text-xs text-muted uppercase"
 						>{s.languages.join(' · ') || 'any'}</span
 					>
+					<label class="flex items-center gap-1.5 text-sm">
+						<input
+							type="checkbox"
+							role="switch"
+							checked={!s.paused}
+							onchange={(e) => setPaused(s, !e.currentTarget.checked)}
+						/>
+						On
+					</label>
 					<div class="flex w-full flex-col gap-1.5 border-t border-line pt-3">
 						<p class="m-0 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
 							<StateChip {...status(s)} />
