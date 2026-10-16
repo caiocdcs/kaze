@@ -8,6 +8,20 @@ use ts_rs::TS;
 
 use crate::jobs::Job;
 
+/// Where a job is in its life. Every change is one `UPDATE` here:
+///
+/// | From | To | By |
+/// |---|---|---|
+/// | (new) | queued | [`insert`] (skipped when its dedupe key is active) |
+/// | queued | running | [`claim`], once the job has its slots; +1 attempt |
+/// | running | done | the dispatcher, on success ([`finish`]) |
+/// | running | queued | the dispatcher, on a retryable failure or shutdown ([`requeue`]) |
+/// | running | failed | the dispatcher, when out of attempts or not retryable ([`finish`]) |
+/// | running | queued | [`recover`] at startup: the process died mid-job |
+/// | queued, running | cancelled | [`cancel`] from the API |
+/// | failed, cancelled | queued | [`retry`] from the API; attempts reset |
+///
+/// A paused source's job stays queued and is parked in the dispatcher.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
