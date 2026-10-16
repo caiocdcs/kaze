@@ -127,6 +127,36 @@ async fn following_downloads_every_chapter() {
 }
 
 #[tokio::test]
+async fn disk_usage_is_recorded_and_remeasured() {
+    let mut h = start(FakeSource::new().with_chapters(&["1", "2"])).await;
+    let series_id = h.follow(Monitor::All).await;
+    h.downloaded(2).await;
+    h.wait_for(|e| matches!(e, Event::JobFinished { .. })).await;
+    let chapters = db::chapters::for_series(&h.app.ctx.db, series_id)
+        .await
+        .unwrap();
+    assert!(chapters.iter().all(|c| c.size_bytes.is_some_and(|n| n > 0)));
+    let total: i64 = chapters.iter().filter_map(|c| c.size_bytes).sum();
+    let summary = &db::series::summaries(&h.app.ctx.db).await.unwrap()[0];
+    assert_eq!(summary.size_bytes, total);
+
+    // A file removed behind kaze's back stops counting after a measure.
+    std::fs::remove_file(chapters[0].file_path.as_ref().unwrap()).unwrap();
+    let job_id = h
+        .app
+        .jobs
+        .submit(Job::MeasureLibrary)
+        .await
+        .unwrap()
+        .unwrap();
+    h.wait_for(|e| matches!(e, Event::JobFinished { job_id: id } if *id == job_id))
+        .await;
+    let summary = &db::series::summaries(&h.app.ctx.db).await.unwrap()[0];
+    assert_eq!(summary.size_bytes, chapters[1].size_bytes.unwrap());
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn future_monitoring_only_takes_new_chapters() {
     let mut h = start(FakeSource::new().with_chapters(&["1", "2"])).await;
     let series_id = h.follow(Monitor::Future).await;

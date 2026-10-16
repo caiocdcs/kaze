@@ -10,7 +10,7 @@ use crate::{
     download::{self, ChapterMeta, DownloadError, Outcome},
     events::Event,
     integrations::{self, IntegrationError, Message},
-    library::SeriesRecord,
+    library::{self, SeriesRecord},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -75,7 +75,30 @@ pub async fn run(
             message,
         } => deliver(ctx, *integration_id, Some(message)).await,
         Job::ScanLibrary { integration_id } => deliver(ctx, *integration_id, None).await,
+        Job::MeasureLibrary => measure_library(ctx).await,
     }
+}
+
+/// Re-read the size of every chapter file: fills in files from before
+/// sizes were recorded, and anything changed outside kaze.
+async fn measure_library(ctx: &Context) -> Result<(), JobError> {
+    let files = db::chapters::files(&ctx.db).await?;
+    let (mut total, mut changed) = (0_i64, 0_usize);
+    for (id, path, recorded) in &files {
+        let size = library::file_size(path).await;
+        total += size.unwrap_or(0);
+        if size != *recorded {
+            db::chapters::set_size(&ctx.db, *id, size).await?;
+            changed += 1;
+        }
+    }
+    tracing::info!(
+        files = files.len(),
+        changed,
+        total_bytes = total,
+        "measured library"
+    );
+    Ok(())
 }
 
 fn source<'a>(ctx: &'a Context, id: &str) -> Result<&'a dyn Source, JobError> {
@@ -213,8 +236,9 @@ async fn download_chapter(
             return Err(err.into());
         }
     };
+    let size = library::file_size(outcome.path()).await;
     let path = outcome.path().to_string_lossy().into_owned();
-    db::chapters::mark_downloaded(&ctx.db, chapter_id, &path).await?;
+    db::chapters::mark_downloaded(&ctx.db, chapter_id, &path, size).await?;
     if matches!(outcome, Outcome::Downloaded { .. }) {
         tracing::info!(series = series.title, chapter = %chapter.number, path, "downloaded");
         ctx.events.emit(Event::ChapterDownloaded {

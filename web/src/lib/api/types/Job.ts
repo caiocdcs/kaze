@@ -4,4 +4,4 @@ import type { Message } from "./Message";
 /**
  * A unit of background work. Stored as JSON in `jobs.payload`.
  */
-export type Job = { "type": "refresh_series", series_id: number, source: string, } | { "type": "download_chapter", chapter_id: number, source: string, } | { "type": "sync_latest", source: string, } | { "type": "notify", integration_id: number, message: Message, } | { "type": "scan_library", integration_id: number, };
+export type Job = { "type": "refresh_series", series_id: number, source: string, } | { "type": "download_chapter", chapter_id: number, source: string, } | { "type": "sync_latest", source: string, } | { "type": "notify", integration_id: number, message: Message, } | { "type": "scan_library", integration_id: number, } | { "type": "measure_library" };

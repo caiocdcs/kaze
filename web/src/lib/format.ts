@@ -34,6 +34,17 @@ export function every(secs: number): string {
 }
 
 /** A short human label for what a job does. */
+/** 1.2 GB, 340 MB: disk usage. */
+export function bytes(n: number): string {
+	const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+	let i = 0;
+	while (n >= 1000 && i < units.length - 1) {
+		n /= 1000;
+		i++;
+	}
+	return `${n.toFixed(n < 10 && i > 0 ? 1 : 0)} ${units[i]}`;
+}
+
 export function jobLabel(j: JobRecord): string {
 	const series = j.series_title ?? 'Unknown series';
 	switch (j.job.type) {
@@ -47,6 +58,8 @@ export function jobLabel(j: JobRecord): string {
 			return `Notify: ${j.job.message.title}`;
 		case 'scan_library':
 			return 'Library server scan';
+		case 'measure_library':
+			return 'Measure library';
 	}
 }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE id = ?",
+  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE monitored = 1 AND file_path IS NULL ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -147,8 +147,19 @@
         }
       },
       {
-        "name": "downloaded_at: _",
+        "name": "size_bytes",
         "ordinal": 13,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "size_bytes"
+          }
+        }
+      },
+      {
+        "name": "downloaded_at: _",
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "discovered_at: _",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -185,10 +196,11 @@
       true,
       true,
       false,
+      false,
       true,
       true,
       false
     ]
   },
-  "hash": "83176c8cfdbb03fa559ad3ace6eab69bbf43bd8bbcb35c35018dbb43282fc6cc"
+  "hash": "20587d5b4bbd0b61e8eaf60ed461dadc7885ff60a2846143dce071c9aaac9e17"
 }

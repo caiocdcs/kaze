@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chapters SET file_path = NULL, size_bytes = NULL, downloaded_at = NULL,\n                monitored = CASE WHEN ? THEN 0 ELSE monitored END\n         WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "ba8f096de4dc97a588a0a5006506bb495118fb0f1df3653af57d97ce7f59d346"
+}

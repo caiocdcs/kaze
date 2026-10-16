@@ -244,6 +244,7 @@ pub async fn summaries(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesSu
                   COUNT(c.id) AS "chapters!: i64",
                   COALESCE(SUM(c.file_path IS NOT NULL), 0) AS "downloaded!: i64",
                   COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS "wanted!: i64",
+                  COALESCE(SUM(c.size_bytes), 0) AS "size_bytes!: i64",
                   MAX(c.published_at) AS "latest_chapter_at: _",
                   s.added_at AS "added_at!: _"
            FROM series s

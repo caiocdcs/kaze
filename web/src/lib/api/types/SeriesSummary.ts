@@ -5,4 +5,8 @@ import type { SeriesStatus } from "./SeriesStatus";
 /**
  * A row of the library grid.
  */
-export type SeriesSummary = { id: number, title: string, status: SeriesStatus, monitor: Monitor, source: string, url: string, chapters: number, downloaded: number, wanted: number, latest_chapter_at: string | null, added_at: string, };
+export type SeriesSummary = { id: number, title: string, status: SeriesStatus, monitor: Monitor, source: string, url: string, chapters: number, downloaded: number, wanted: number, 
+/**
+ * Bytes on disk, as last measured.
+ */
+size_bytes: number, latest_chapter_at: string | null, added_at: string, };

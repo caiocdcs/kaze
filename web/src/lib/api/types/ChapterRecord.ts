@@ -2,4 +2,4 @@
 import type { ChapterKey } from "./ChapterKey";
 import type { ChapterNumber } from "./ChapterNumber";
 
-export type ChapterRecord = { id: number, series_id: number, source: string, source_key: ChapterKey, number: ChapterNumber, volume: number | null, title: string | null, url: string, language: string | null, scanlator: string | null, published_at: string | null, monitored: boolean, file_path: string | null, downloaded_at: string | null, discovered_at: string, };
+export type ChapterRecord = { id: number, series_id: number, source: string, source_key: ChapterKey, number: ChapterNumber, volume: number | null, title: string | null, url: string, language: string | null, scanlator: string | null, published_at: string | null, monitored: boolean, file_path: string | null, size_bytes: number | null, downloaded_at: string | null, discovered_at: string, };

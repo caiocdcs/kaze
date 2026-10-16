@@ -25,6 +25,10 @@ use crate::{app::Context, db};
 
 /// How often to look for series due a full refresh.
 const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
+/// Downloads record their own size; this catches older and outside changes.
+const MEASURE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// The first measure waits for startup work (sync, refreshes) to settle.
+const MEASURE_FIRST_AFTER: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -35,15 +39,18 @@ pub enum Task {
     SyncLatest,
     /// Refresh series whose full refresh is due ("run now": all of them).
     RefreshSeries,
+    /// Re-read the size of every chapter file.
+    MeasureLibrary,
 }
 
 impl Task {
-    const ALL: [Self; 2] = [Self::SyncLatest, Self::RefreshSeries];
+    const ALL: [Self; 3] = [Self::SyncLatest, Self::RefreshSeries, Self::MeasureLibrary];
 
     fn name(self) -> &'static str {
         match self {
             Self::SyncLatest => "Check latest updates",
             Self::RefreshSeries => "Refresh series",
+            Self::MeasureLibrary => "Measure library",
         }
     }
 }
@@ -144,6 +151,8 @@ pub async fn run(
     // The first tick of a fresh interval fires at once: sync on startup.
     let mut latest = every(latest_period, true);
     let mut refresh = every(REFRESH_CHECK_EVERY, true);
+    let mut measure = interval_at(Instant::now() + MEASURE_FIRST_AFTER, MEASURE_EVERY);
+    measure.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
     loop {
         tokio::select! {
@@ -164,10 +173,15 @@ pub async fn run(
                 refresh_due(&ctx, &queue).await;
                 tasks.record(Task::RefreshSeries, REFRESH_CHECK_EVERY, true);
             }
+            _ = measure.tick() => {
+                submit(&queue, Job::MeasureLibrary).await;
+                tasks.record(Task::MeasureLibrary, MEASURE_EVERY, true);
+            }
             Some(task) = run_now.recv() => {
                 match task {
                     Task::SyncLatest => sync_latest(&ctx, &queue).await,
                     Task::RefreshSeries => refresh_all(&ctx, &queue).await,
+                    Task::MeasureLibrary => submit(&queue, Job::MeasureLibrary).await,
                 }
                 let mut status = tasks.status.lock().unwrap_or_else(PoisonError::into_inner);
                 status.entry(task).or_default().last_run = Some(Utc::now());
