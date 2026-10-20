@@ -46,12 +46,15 @@
 			sources = s;
 			enabled = new Set(s.map((x) => x.id));
 		});
+		api.series().then((s) => (followed = s));
+		// A search from the URL waits for the default language.
 		api
 			.settings()
 			.then((v) => (language = v.settings.default_language))
-			.catch(() => {});
-		api.series().then((s) => (followed = s));
-		if (query) search();
+			.catch(() => {})
+			.finally(() => {
+				if (query) search();
+			});
 	});
 
 	const languages = $derived(offeredLanguages(sources));
