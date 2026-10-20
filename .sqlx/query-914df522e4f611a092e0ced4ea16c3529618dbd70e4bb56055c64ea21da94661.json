@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO series_sources (series_id, source, source_key, language, url) VALUES (?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "914df522e4f611a092e0ced4ea16c3529618dbd70e4bb56055c64ea21da94661"
+}

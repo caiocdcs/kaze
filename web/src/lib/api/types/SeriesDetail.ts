@@ -5,7 +5,11 @@ import type { Monitor } from "./Monitor";
 import type { SeriesKey } from "./SeriesKey";
 import type { SeriesStatus } from "./SeriesStatus";
 
-export type SeriesDetail = { chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, url: string, added_at: string, last_checked_at: string | null, 
+export type SeriesDetail = { chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
+/**
+ * BCP 47 tag, e.g. `pt-BR`.
+ */
+language: string, url: string, added_at: string, last_checked_at: string | null, 
 /**
  * Hours between full refreshes; `None` = global setting, `Some(0)` = never.
  */

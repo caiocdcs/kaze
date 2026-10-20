@@ -251,6 +251,7 @@ mod tests {
                 &NewSeries {
                     series: &source.series,
                     source: folder, // distinct (source, key) pairs
+                    language: "en",
                     folder,
                     monitor: Monitor::All,
                     monitor_from: None,

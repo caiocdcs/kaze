@@ -49,6 +49,8 @@ pub struct Settings {
     pub flaresolverr_url: Option<url::Url>,
     /// Sources whose jobs wait instead of running, while a site is broken.
     pub paused_sources: Vec<String>,
+    /// What new series are followed in, when the source offers it.
+    pub default_language: String,
 }
 
 impl Default for Settings {
@@ -63,6 +65,7 @@ impl Default for Settings {
             refresh_hours: 24,
             flaresolverr_url: None,
             paused_sources: Vec::new(),
+            default_language: "en".into(),
         }
     }
 }
@@ -110,6 +113,13 @@ impl Settings {
         {
             return Err(SettingsError::Invalid(
                 "flaresolverr_url must start with http:// or https://".into(),
+            ));
+        }
+        if kaze_core::language::normalize(&self.default_language).as_ref()
+            != Some(&self.default_language)
+        {
+            return Err(SettingsError::Invalid(
+                "default_language must be a language tag like en or pt-BR".into(),
             ));
         }
         if self.api_key.as_ref().is_some_and(|k| k.trim().len() < 8) {

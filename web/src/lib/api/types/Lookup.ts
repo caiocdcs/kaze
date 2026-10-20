@@ -2,8 +2,12 @@
 import type { Series } from "./Series";
 import type { SeriesKey } from "./SeriesKey";
 
-export type Lookup = { source: string, key: SeriesKey, series: Series, 
+export type Lookup = { source: string, key: SeriesKey, 
 /**
- * Set when this series is already followed.
+ * What `series` was read in: the asked language, else the default.
+ */
+language: string, series: Series, 
+/**
+ * Set when this series is already followed in `language`.
  */
 followed_id: number | null, };

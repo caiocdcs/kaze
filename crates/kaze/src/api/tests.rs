@@ -471,6 +471,41 @@ async fn existing_folders_can_be_imported() {
     api.app.shutdown().await;
 }
 
+#[tokio::test]
+async fn one_series_in_two_languages() {
+    let api = api(None).await;
+    let follow = |language: &str| json!({ "source": "fake", "key": "S1", "language": language });
+    let (status, en) = api
+        .call(Method::POST, "/api/v1/series", Some(follow("en")))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{en}");
+    let (status, pt) = api
+        .call(Method::POST, "/api/v1/series", Some(follow("pt-br")))
+        .await;
+    assert_eq!(status, StatusCode::CREATED, "{pt}");
+    assert_ne!(en["id"], pt["id"]);
+
+    let (_, detail) = api.get(&format!("/api/v1/series/{}", pt["id"])).await;
+    assert_eq!(detail["language"], "pt-BR");
+    assert_eq!(detail["folder"], "Test Series (Fake)");
+
+    let (status, _) = api
+        .call(Method::POST, "/api/v1/series", Some(follow("pt-BR")))
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    let (status, error) = api
+        .call(Method::POST, "/api/v1/series", Some(follow("fr")))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert_eq!(error["error"], "Fake has no fr; it offers en, pt-BR");
+
+    let (_, lookup) = api
+        .get("/api/v1/lookup?url=https://fake.test/series/S1&language=pt-BR")
+        .await;
+    assert_eq!(lookup["followed_id"], pt["id"]);
+    api.app.shutdown().await;
+}
+
 async fn imported_series(api: &Api, folder: &str) -> (i64, std::path::PathBuf) {
     let dir = api.app.ctx.library.join(folder);
     std::fs::create_dir(&dir).unwrap();

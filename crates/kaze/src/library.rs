@@ -63,6 +63,8 @@ pub struct SeriesRecord {
     pub monitor_from: Option<ChapterNumber>,
     pub source: String,
     pub source_key: SeriesKey,
+    /// BCP 47 tag, e.g. `pt-BR`.
+    pub language: String,
     pub url: String,
     pub added_at: DateTime<Utc>,
     pub last_checked_at: Option<DateTime<Utc>>,

@@ -36,4 +36,8 @@ flaresolverr_url: string | null,
 /**
  * Sources whose jobs wait instead of running, while a site is broken.
  */
-paused_sources: Array<string>, };
+paused_sources: Array<string>, 
+/**
+ * What new series are followed in, when the source offers it.
+ */
+default_language: string, };

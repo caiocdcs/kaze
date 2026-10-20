@@ -16,8 +16,9 @@ use url::Url;
 pub const JPEG: &[u8] = &[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3];
 pub const PNG: &[u8] = b"\x89PNG\r\n\x1a\nrest";
 
-/// An in-memory source: one series, configurable chapters and pages, and
-/// a switch to make the next image downloads fail.
+/// An in-memory source: one series in English and Portuguese,
+/// configurable chapters and pages, and a switch to make the next image
+/// downloads fail.
 pub struct FakeSource {
     meta: SourceMeta,
     pub series: Series,
@@ -52,7 +53,7 @@ impl FakeSource {
                 id: "fake",
                 name: "Fake",
                 base_url: base,
-                languages: &["en"],
+                languages: &["en", "pt-BR"],
                 rate_limit: RateLimit::per_second(1000),
             },
             chapters: Mutex::new(Vec::new()),
@@ -106,8 +107,9 @@ impl Source for FakeSource {
         &self.meta
     }
 
-    fn parse_url(&self, _: &Url) -> Option<UrlTarget> {
-        None
+    fn parse_url(&self, url: &Url) -> Option<UrlTarget> {
+        let key = url.path().strip_prefix("/series/")?;
+        (url.host_str() == self.meta.base_url.host_str()).then(|| UrlTarget::Series(key.into()))
     }
 
     async fn search(&self, _: &str, _: &str) -> Result<Vec<SeriesHit>> {
@@ -119,12 +121,23 @@ impl Source for FakeSource {
         }])
     }
 
-    async fn series(&self, _: &SeriesKey, _: &str) -> Result<Series> {
-        Ok(self.series.clone())
+    async fn series(&self, _: &SeriesKey, language: &str) -> Result<Series> {
+        Ok(Series {
+            language: Some(language.to_owned()),
+            ..self.series.clone()
+        })
     }
 
-    async fn chapters(&self, _: &SeriesKey, _: &str) -> Result<Vec<ChapterInfo>> {
-        Ok(self.chapters.lock().unwrap().clone())
+    /// English keys are `C<n>`; other languages get their own, as on MangaDex.
+    async fn chapters(&self, _: &SeriesKey, language: &str) -> Result<Vec<ChapterInfo>> {
+        let mut chapters = self.chapters.lock().unwrap().clone();
+        if language != "en" {
+            for c in &mut chapters {
+                c.key = format!("{language}-{}", c.key).into();
+                c.language = Some(language.to_owned());
+            }
+        }
+        Ok(chapters)
     }
 
     async fn pages(&self, chapter: &ChapterKey) -> Result<Vec<Url>> {

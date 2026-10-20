@@ -74,7 +74,9 @@ impl From<SourceError> for ApiError {
 impl From<FollowError> for ApiError {
     fn from(err: FollowError) -> Self {
         match err {
-            FollowError::UnknownSource(_) => Self::BadRequest(err.to_string()),
+            FollowError::UnknownSource(_) | FollowError::Language { .. } => {
+                Self::BadRequest(err.to_string())
+            }
             FollowError::AlreadyFollowing(_) | FollowError::FolderTaken(_) => {
                 Self::Conflict(err.to_string())
             }

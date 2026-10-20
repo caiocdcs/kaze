@@ -2,7 +2,7 @@
 
 use std::{path::PathBuf, sync::Arc};
 
-use kaze_core::{ChapterNumber, SeriesKey, SourceError};
+use kaze_core::{ChapterNumber, SeriesKey, Source, SourceError};
 use kaze_sources::{Registry, flaresolverr::FlareSolverr};
 use sqlx::SqlitePool;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
@@ -47,6 +47,12 @@ pub struct App {
 pub enum FollowError {
     #[error("unknown source {0:?}")]
     UnknownSource(String),
+    #[error("{name} has no {language}; it offers {offered}")]
+    Language {
+        name: &'static str,
+        language: String,
+        offered: String,
+    },
     #[error("already following this series (id {0})")]
     AlreadyFollowing(i64),
     #[error("another series already uses the folder {0:?}")]
@@ -121,11 +127,34 @@ impl App {
         })
     }
 
+    /// The language to follow a series in: `wanted` (any spelling), else the
+    /// default setting, else the source's main language.
+    pub fn language_for(
+        &self,
+        source: &dyn Source,
+        wanted: Option<&str>,
+    ) -> Result<&'static str, FollowError> {
+        let meta = source.meta();
+        let offered = |tag: &str| meta.languages.iter().copied().find(|l| *l == tag);
+        let Some(wanted) = wanted else {
+            let default = self.ctx.settings.current().default_language.clone();
+            return Ok(offered(&default).unwrap_or_else(|| meta.main_language()));
+        };
+        kaze_core::language::normalize(wanted)
+            .and_then(|tag| offered(&tag))
+            .ok_or_else(|| FollowError::Language {
+                name: meta.name,
+                language: wanted.to_owned(),
+                offered: meta.languages.join(", "),
+            })
+    }
+
     /// Follow a series and queue its first refresh. Returns the series id.
     pub async fn follow(
         &self,
         source_id: &str,
         key: &SeriesKey,
+        language: Option<&str>,
         monitor: Monitor,
         from: Option<&ChapterNumber>,
     ) -> Result<i64, FollowError> {
@@ -134,21 +163,33 @@ impl App {
             .sources
             .get(source_id)
             .ok_or_else(|| FollowError::UnknownSource(source_id.to_owned()))?;
-        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key).await? {
+        let language = self.language_for(source.as_ref(), language)?;
+        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key, language).await?
+        {
             return Err(FollowError::AlreadyFollowing(id));
         }
-        let series = source.series(key, source.meta().main_language()).await?;
+        let series = source.series(key, language).await?;
 
-        // Two series may share a title on different sources: keep folders apart.
-        let mut folder = sanitize_file_name(&series.title);
-        if db::series::folder_taken(&self.ctx.db, &folder).await? {
-            folder = sanitize_file_name(&format!("{} ({})", series.title, source.meta().name));
+        // Two series may share a title on different sources or languages:
+        // keep folders apart.
+        let name = source.meta().name;
+        let mut folder = String::new();
+        for candidate in [
+            series.title.clone(),
+            format!("{} ({name})", series.title),
+            format!("{} ({name} {language})", series.title),
+        ] {
+            folder = sanitize_file_name(&candidate);
+            if !db::series::folder_taken(&self.ctx.db, &folder).await? {
+                break;
+            }
         }
         let id = db::series::insert(
             &self.ctx.db,
             &NewSeries {
                 series: &series,
                 source: source_id,
+                language,
                 folder: &folder,
                 monitor,
                 monitor_from: from,
@@ -173,6 +214,7 @@ impl App {
         folder: &str,
         source_id: &str,
         key: &SeriesKey,
+        language: Option<&str>,
         monitor: Monitor,
         from: Option<&ChapterNumber>,
     ) -> Result<(i64, usize), FollowError> {
@@ -181,7 +223,9 @@ impl App {
             .sources
             .get(source_id)
             .ok_or_else(|| FollowError::UnknownSource(source_id.to_owned()))?;
-        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key).await? {
+        let language = self.language_for(source.as_ref(), language)?;
+        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key, language).await?
+        {
             return Err(FollowError::AlreadyFollowing(id));
         }
         if db::series::folder_taken(&self.ctx.db, folder).await? {
@@ -197,7 +241,6 @@ impl App {
             .map_err(|e| FollowError::Io(std::io::Error::other(e)))??
         };
 
-        let language = source.meta().main_language();
         let (series, chapters) =
             tokio::try_join!(source.series(key, language), source.chapters(key, language))?;
         let id = db::series::insert(
@@ -205,6 +248,7 @@ impl App {
             &NewSeries {
                 series: &series,
                 source: source_id,
+                language,
                 folder,
                 monitor,
                 monitor_from: from,

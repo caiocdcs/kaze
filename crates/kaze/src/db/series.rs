@@ -8,6 +8,8 @@ use crate::library::{Monitor, SeriesRecord, SeriesSummary};
 pub struct NewSeries<'a> {
     pub series: &'a Series,
     pub source: &'a str,
+    /// What the series is followed in; a normalized BCP 47 tag.
+    pub language: &'a str,
     pub folder: &'a str,
     pub monitor: Monitor,
     pub monitor_from: Option<&'a ChapterNumber>,
@@ -42,10 +44,11 @@ pub async fn insert(db: &SqlitePool, new: &NewSeries<'_>) -> sqlx::Result<i64> {
     .fetch_one(&mut *tx)
     .await?;
     sqlx::query!(
-        "INSERT INTO series_sources (series_id, source, source_key, url) VALUES (?, ?, ?, ?)",
+        "INSERT INTO series_sources (series_id, source, source_key, language, url) VALUES (?, ?, ?, ?, ?)",
         id,
         new.source,
         s.key,
+        new.language,
         url,
     )
     .execute(&mut *tx)
@@ -67,7 +70,7 @@ macro_rules! select_series {
                       s.year, s.cover_url, s.folder,
                       s.monitor AS "monitor: Monitor",
                       s.monitor_from AS "monitor_from: _",
-                      ss.source, ss.source_key AS "source_key: SeriesKey", ss.url,
+                      ss.source, ss.source_key AS "source_key: SeriesKey", ss.language, ss.url,
                       s.added_at AS "added_at: _",
                       s.last_checked_at AS "last_checked_at: _",
                       s.refresh_hours
@@ -91,18 +94,35 @@ pub async fn list(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesRecord>
         .await
 }
 
-/// The followed series with this key on this source, if any.
+/// The series followed with this key on this source in `language`, if any.
 pub async fn find_by_source(
     db: impl SqliteExecutor<'_>,
     source: &str,
     key: &SeriesKey,
+    language: &str,
 ) -> sqlx::Result<Option<i64>> {
+    sqlx::query_scalar!(
+        "SELECT series_id FROM series_sources WHERE source = ? AND source_key = ? AND language = ?",
+        source,
+        key,
+        language,
+    )
+    .fetch_optional(db)
+    .await
+}
+
+/// Every series followed with this key on this source, one per language.
+pub async fn find_all_by_source(
+    db: impl SqliteExecutor<'_>,
+    source: &str,
+    key: &SeriesKey,
+) -> sqlx::Result<Vec<i64>> {
     sqlx::query_scalar!(
         "SELECT series_id FROM series_sources WHERE source = ? AND source_key = ?",
         source,
         key,
     )
-    .fetch_optional(db)
+    .fetch_all(db)
     .await
 }
 

@@ -97,7 +97,7 @@ impl Harness {
 
     async fn follow(&self, monitor: Monitor) -> i64 {
         self.app
-            .follow("fake", &"S1".into(), monitor, None)
+            .follow("fake", &"S1".into(), None, monitor, None)
             .await
             .unwrap()
     }
@@ -444,6 +444,7 @@ async fn interrupted_jobs_resume_after_restart() {
         &db::series::NewSeries {
             series: &source.series,
             source: "fake",
+            language: "en",
             folder: "Test Series",
             monitor: Monitor::All,
             monitor_from: None,

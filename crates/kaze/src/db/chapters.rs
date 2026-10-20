@@ -260,6 +260,7 @@ mod tests {
             &NewSeries {
                 series: &s,
                 source: "test",
+                language: "en",
                 folder: "One Piece",
                 monitor: Monitor::All,
                 monitor_from: None,
@@ -279,7 +280,7 @@ mod tests {
         assert_eq!(record.status, SeriesStatus::Ongoing);
         assert_eq!(record.source_key.as_str(), "S1");
         assert_eq!(
-            db::series::find_by_source(&pool, "test", &"S1".into())
+            db::series::find_by_source(&pool, "test", &"S1".into(), "en")
                 .await
                 .unwrap(),
             Some(id)
@@ -374,7 +375,7 @@ mod tests {
         assert!(db::series::delete(&pool, id).await.unwrap());
         assert_eq!(wanted(&pool, 100).await.unwrap().len(), 0);
         assert!(
-            db::series::find_by_source(&pool, "test", &"S1".into())
+            db::series::find_by_source(&pool, "test", &"S1".into(), "en")
                 .await
                 .unwrap()
                 .is_none()

@@ -49,6 +49,9 @@ pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>
 pub struct SearchQuery {
     q: String,
     source: Option<String>,
+    /// Only sources offering it are searched; without it, each source
+    /// searches its main language.
+    language: Option<String>,
 }
 
 /// Results of one source; a failing source reports its error instead.
@@ -72,16 +75,29 @@ pub async fn search(
     if q.is_empty() {
         return Err(ApiError::BadRequest("empty search".into()));
     }
+    let language = query
+        .language
+        .as_deref()
+        .map(|tag| {
+            kaze_core::language::normalize(tag)
+                .ok_or_else(|| ApiError::BadRequest(format!("not a language tag: {tag:?}")))
+        })
+        .transpose()?;
     let sources = &app.ctx.sources;
     let outcomes = match &query.source {
         Some(id) => {
             let source = sources.get(id).ok_or(ApiError::NotFound("source"))?;
+            let language = app.language_for(source.as_ref(), language.as_deref())?;
             vec![kaze_sources::SearchOutcome {
                 source: source.meta().id,
-                result: source.search(q, source.meta().main_language()).await,
+                result: source.search(q, language).await,
             }]
         }
-        None => sources.search_all(q, None, Duration::from_secs(20)).await,
+        None => {
+            sources
+                .search_all(q, language.as_deref(), Duration::from_secs(20))
+                .await
+        }
     };
     Ok(Json(
         outcomes
@@ -105,6 +121,7 @@ pub async fn search(
 #[derive(Deserialize)]
 pub struct LookupQuery {
     url: Url,
+    language: Option<String>,
 }
 
 #[derive(Serialize, TS)]
@@ -112,8 +129,10 @@ pub struct LookupQuery {
 pub struct Lookup {
     source: &'static str,
     key: SeriesKey,
+    /// What `series` was read in: the asked language, else the default.
+    language: &'static str,
     series: Series,
-    /// Set when this series is already followed.
+    /// Set when this series is already followed in `language`.
     followed_id: Option<i64>,
 }
 
@@ -131,11 +150,13 @@ pub async fn lookup(
         ));
     };
     let id = source.meta().id;
-    let series = source.series(&key, source.meta().main_language()).await?;
-    let followed_id = db::series::find_by_source(&app.ctx.db, id, &key).await?;
+    let language = app.language_for(source.as_ref(), query.language.as_deref())?;
+    let series = source.series(&key, language).await?;
+    let followed_id = db::series::find_by_source(&app.ctx.db, id, &key, language).await?;
     Ok(Json(Lookup {
         source: id,
         key,
+        language,
         series,
         followed_id,
     }))

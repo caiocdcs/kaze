@@ -62,6 +62,9 @@ pub struct ImportRequest {
     folder: String,
     source: String,
     key: SeriesKey,
+    /// Defaults to the `default_language` setting.
+    #[ts(optional)]
+    language: Option<String>,
     #[serde(default)]
     monitor: Monitor,
     monitor_from: Option<ChapterNumber>,
@@ -84,6 +87,7 @@ pub async fn import(
             &req.folder,
             &req.source,
             &req.key,
+            req.language.as_deref(),
             req.monitor,
             req.monitor_from.as_ref(),
         )

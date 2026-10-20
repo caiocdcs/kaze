@@ -3,4 +3,8 @@ import type { ChapterNumber } from "./ChapterNumber";
 import type { Monitor } from "./Monitor";
 import type { SeriesKey } from "./SeriesKey";
 
-export type ImportRequest = { folder: string, source: string, key: SeriesKey, monitor: Monitor, monitor_from: ChapterNumber | null, };
+export type ImportRequest = { folder: string, source: string, key: SeriesKey, 
+/**
+ * Defaults to the `default_language` setting.
+ */
+language?: string, monitor: Monitor, monitor_from: ChapterNumber | null, };
