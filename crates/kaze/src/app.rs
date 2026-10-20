@@ -1,6 +1,6 @@
 //! Wiring: shared context plus the background tasks around it.
 
-use std::{path::PathBuf, sync::Arc};
+use std::sync::Arc;
 
 use kaze_core::{ChapterNumber, SeriesKey, Source, SourceError};
 use kaze_sources::{Registry, flaresolverr::FlareSolverr};
@@ -14,7 +14,7 @@ use crate::{
     import,
     integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
-    library::{self, Monitor},
+    library::{self, Libraries, Monitor},
     settings::SettingsStore,
 };
 
@@ -24,8 +24,8 @@ pub struct Context {
     pub db: SqlitePool,
     pub sources: Registry,
     pub events: Events,
-    /// Library root: each series gets a folder inside.
-    pub library: PathBuf,
+    /// Library roots: each series gets a folder in its language's root.
+    pub libraries: Libraries,
     pub settings: SettingsStore,
     /// For integrations (Komga, webhooks, ...); sources have their own.
     pub http: reqwest::Client,
@@ -231,7 +231,7 @@ impl App {
         if db::series::folder_taken(&self.ctx.db, folder).await? {
             return Err(FollowError::FolderTaken(folder.to_owned()));
         }
-        let dir = self.ctx.library.join(folder);
+        let dir = self.ctx.libraries.root(language).join(folder);
         let files = {
             let dir = dir.clone();
             tokio::task::spawn_blocking(move || {

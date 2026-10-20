@@ -6,7 +6,7 @@
 //! `[settings]` overrides — and locks — the matching UI setting (see
 //! `crate::settings`).
 
-use std::{net::SocketAddr, path::PathBuf, time::Duration};
+use std::{collections::BTreeMap, net::SocketAddr, path::PathBuf, time::Duration};
 
 use figment::{
     Figment,
@@ -14,6 +14,8 @@ use figment::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+
+use crate::library::Libraries;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -24,6 +26,9 @@ pub struct Config {
     pub data_dir: PathBuf,
     /// Library root; each series gets a folder inside.
     pub library_dir: PathBuf,
+    /// A root per language, e.g. `"pt-BR" = "/manga-pt"`; languages not
+    /// listed use `library_dir`.
+    pub library_dirs: BTreeMap<String, PathBuf>,
     pub http: HttpConfig,
     /// Locked settings; validated by `SettingsStore::load`.
     pub settings: Map<String, Value>,
@@ -42,6 +47,7 @@ impl Default for Config {
             listen: ([0, 0, 0, 0], 6531).into(),
             data_dir: "data".into(),
             library_dir: "library".into(),
+            library_dirs: BTreeMap::new(),
             http: HttpConfig::default(),
             settings: Map::new(),
         }
@@ -74,6 +80,10 @@ impl Config {
             .map_err(Box::new)
     }
 
+    pub fn libraries(&self) -> Result<Libraries, String> {
+        Libraries::new(self.library_dir.clone(), self.library_dirs.clone())
+    }
+
     #[must_use]
     pub fn database_path(&self) -> PathBuf {
         self.data_dir.join("kaze.db")
@@ -104,6 +114,8 @@ mod tests {
                 "kaze.toml",
                 r#"
                 library_dir = "/manga"
+                [library_dirs]
+                pt-br = "/manga-pt"
                 [settings]
                 concurrency = 8
                 "#,
@@ -116,6 +128,8 @@ mod tests {
 
             let config = Config::load(Some("kaze.toml".as_ref())).unwrap();
             assert_eq!(config.library_dir, PathBuf::from("/manga"));
+            let libraries = config.libraries().unwrap();
+            assert_eq!(libraries.root("pt-BR"), PathBuf::from("/manga-pt"));
             assert_eq!(config.http.timeout_secs, 5);
             assert_eq!(config.settings["concurrency"], 8);
             assert_eq!(config.settings["per_source"], 1);
@@ -124,6 +138,17 @@ mod tests {
                 PathBuf::from("data"),
                 "untouched defaults remain"
             );
+            Ok(())
+        });
+    }
+
+    #[test]
+    #[allow(clippy::result_large_err)]
+    fn library_dirs_from_env() {
+        Jail::expect_with(|jail| {
+            jail.set_env("KAZE_LIBRARY_DIRS__PT-BR", "/manga-pt");
+            let libraries = Config::load(None).unwrap().libraries().unwrap();
+            assert_eq!(libraries.root("pt-BR"), PathBuf::from("/manga-pt"));
             Ok(())
         });
     }

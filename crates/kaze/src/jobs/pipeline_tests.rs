@@ -20,11 +20,14 @@ struct Harness {
     source: Arc<FakeSource>,
     events: broadcast::Receiver<Event>,
     library: tempfile::TempDir,
+    /// The pt-BR root, beside `library`.
+    library_pt: tempfile::TempDir,
 }
 
 async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
     let source = Arc::new(source);
     let library = tempfile::tempdir().unwrap();
+    let library_pt = tempfile::tempdir().unwrap();
     let events = Events::new(1024);
     let receiver = events.subscribe();
     // Keep the scheduler quiet after its startup run; tests queue work themselves.
@@ -36,7 +39,11 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         db,
         sources: kaze_sources::Registry::from_sources(vec![source.clone()]),
         events,
-        library: library.path().to_owned(),
+        libraries: crate::library::Libraries::new(
+            library.path().to_owned(),
+            [("pt-BR".to_owned(), library_pt.path().to_owned())].into(),
+        )
+        .unwrap(),
         http: reqwest::Client::new(),
         flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
             .unwrap()
@@ -52,6 +59,7 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         source,
         events: receiver,
         library,
+        library_pt,
     }
 }
 
@@ -123,6 +131,29 @@ async fn following_downloads_every_chapter() {
         .unwrap()
         .unwrap();
     assert!(record.last_checked_at.is_some());
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn each_language_downloads_into_its_root() {
+    let mut h = start(FakeSource::new().with_chapters(&["1"])).await;
+    h.follow(Monitor::All).await;
+    h.app
+        .follow("fake", &"S1".into(), Some("pt-BR"), Monitor::All, None)
+        .await
+        .unwrap();
+    h.downloaded(2).await;
+
+    assert!(
+        h.library
+            .path()
+            .join("Test Series/Test Series - Ch.1.cbz")
+            .exists()
+    );
+    // Same title, so the folder name differs; the root keeps them apart.
+    let pt = h.library_pt.path().join("Test Series (Fake)");
+    assert!(pt.join("Test Series - Ch.1.cbz").exists());
+    assert!(pt.join("cover.jpg").exists());
     h.app.shutdown().await;
 }
 

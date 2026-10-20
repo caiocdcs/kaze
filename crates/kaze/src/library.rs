@@ -1,6 +1,10 @@
 //! What kaze tracks: followed series and their chapters, as stored.
 
-use std::{io, path::Path};
+use std::{
+    collections::BTreeMap,
+    io,
+    path::{Path, PathBuf},
+};
 
 use chrono::{DateTime, Utc};
 use kaze_core::{ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
@@ -137,6 +141,68 @@ impl ChapterRecord {
     }
 }
 
+/// Where series folders live: a root per language that has its own (so
+/// each is its own Komga/Kavita library) and `default` for the rest.
+#[derive(Debug, Clone)]
+pub struct Libraries {
+    default: PathBuf,
+    by_language: BTreeMap<String, PathBuf>,
+}
+
+impl Libraries {
+    /// Keys may be spelled any way (`pt-br`); they are normalized. Roots
+    /// must not sit inside one another, or a library server would show
+    /// one language's series in the other's library.
+    pub fn new(default: PathBuf, by_language: BTreeMap<String, PathBuf>) -> Result<Self, String> {
+        let mut normalized = BTreeMap::new();
+        for (tag, root) in by_language {
+            let language = kaze_core::language::normalize(&tag)
+                .ok_or_else(|| format!("library_dirs: {tag:?} is not a language tag"))?;
+            normalized.insert(language, root);
+        }
+        let all: Vec<&PathBuf> = std::iter::once(&default)
+            .chain(normalized.values())
+            .collect();
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                if a.starts_with(b) || b.starts_with(a) {
+                    return Err(format!(
+                        "library folders {} and {} overlap; put each language's folder beside the others, not inside",
+                        a.display(),
+                        b.display()
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            default,
+            by_language: normalized,
+        })
+    }
+
+    #[must_use]
+    pub fn single(default: PathBuf) -> Self {
+        Self {
+            default,
+            by_language: BTreeMap::new(),
+        }
+    }
+
+    #[must_use]
+    pub fn root(&self, language: &str) -> &Path {
+        self.by_language.get(language).unwrap_or(&self.default)
+    }
+
+    /// Every root, with its language (`None` for the default one).
+    pub fn roots(&self) -> impl Iterator<Item = (Option<&str>, &Path)> {
+        std::iter::once((None, self.default.as_path())).chain(
+            self.by_language
+                .iter()
+                .map(|(l, root)| (Some(l.as_str()), root.as_path())),
+        )
+    }
+}
+
 /// A file's size for disk usage; `None` if it is gone or unreadable.
 pub async fn file_size(path: impl AsRef<Path>) -> Option<i64> {
     let meta = tokio::fs::metadata(path).await.ok()?;
@@ -183,6 +249,23 @@ mod tests {
         assert!(!Monitor::Future.wants(&n("50"), None, true));
         assert!(Monitor::Future.wants(&n("51"), None, false));
         assert!(!Monitor::None.wants(&n("51"), None, false));
+    }
+
+    #[test]
+    fn libraries_per_language() {
+        let libraries = Libraries::new(
+            "/manga".into(),
+            BTreeMap::from([("pt-br".into(), "/manga-pt".into())]),
+        )
+        .unwrap();
+        assert_eq!(libraries.root("pt-BR"), Path::new("/manga-pt"));
+        assert_eq!(libraries.root("en"), Path::new("/manga"));
+        assert_eq!(libraries.roots().count(), 2);
+
+        let nested = BTreeMap::from([("pt-BR".into(), "/manga/pt-br".into())]);
+        assert!(Libraries::new("/manga".into(), nested).is_err());
+        let junk = BTreeMap::from([("portuguese".into(), "/pt".into())]);
+        assert!(Libraries::new("/manga".into(), junk).is_err());
     }
 
     #[tokio::test]

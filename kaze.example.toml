@@ -12,6 +12,12 @@ data_dir = "data"
 # Library root (point Komga/Kavita here). Each series gets a folder.
 library_dir = "library"
 
+# A separate root per language, each its own Komga/Kavita library. Keep them
+# beside library_dir, not inside it. Unlisted languages use library_dir.
+# Env: KAZE_LIBRARY_DIRS__PT-BR=/manga-pt
+[library_dirs]
+# "pt-BR" = "/manga-pt"
+
 [http]
 timeout_secs = 30
 # user_agent = "..."
@@ -31,3 +37,4 @@ timeout_secs = 30
 # refresh_hours = 24             # full chapter list refresh per series
 # flaresolverr_url = "http://flaresolverr:8191"  # get past Cloudflare challenges
 # paused_sources = ["asura"]    # jobs of these sites wait until resumed
+# default_language = "en"        # what new series are followed in, e.g. "pt-BR"

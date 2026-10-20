@@ -73,9 +73,15 @@ pub async fn delete_files(
         let Some(path) = &chapter.file_path else {
             continue;
         };
-        library::remove(&app.ctx.library, std::path::Path::new(path))
-            .await
-            .map_err(|e| ApiError::Conflict(format!("deleting {path}: {e}")))?;
+        let Some(series) = db::series::get(&app.ctx.db, chapter.series_id).await? else {
+            continue;
+        };
+        library::remove(
+            app.ctx.libraries.root(&series.language),
+            std::path::Path::new(path),
+        )
+        .await
+        .map_err(|e| ApiError::Conflict(format!("deleting {path}: {e}")))?;
         db::chapters::clear_file(&app.ctx.db, id, req.unmonitor).await?;
         *per_series.entry(chapter.series_id).or_default() += 1;
         if !req.unmonitor && chapter.monitored {

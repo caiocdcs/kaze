@@ -146,7 +146,9 @@ impl Cli {
 
 async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     let config = Config::load(config_file).context("reading configuration")?;
-    for dir in [&config.data_dir, &config.library_dir] {
+    let libraries = config.libraries().map_err(anyhow::Error::msg)?;
+    let dirs = std::iter::once(config.data_dir.as_path()).chain(libraries.roots().map(|(_, r)| r));
+    for dir in dirs {
         tokio::fs::create_dir_all(dir)
             .await
             .with_context(|| format!("creating {}", dir.display()))?;
@@ -163,7 +165,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         db,
         sources: Registry::new(&http),
         events: Events::new(1024),
-        library: config.library_dir.clone(),
+        libraries,
         settings,
         http: http.client(),
         flaresolverr: http.flaresolverr(),

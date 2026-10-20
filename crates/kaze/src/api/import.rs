@@ -23,11 +23,20 @@ pub async fn candidates(State(app): State<AppState>) -> ApiResult<Json<Vec<Candi
         .into_iter()
         .map(|s| s.folder)
         .collect();
-    let library = app.ctx.library.clone();
-    let found = tokio::task::spawn_blocking(move || import::scan(&library, &followed))
-        .await
-        .map_err(|_| ApiError::Internal)?
-        .map_err(|e| ApiError::BadRequest(format!("reading the library: {e}")))?;
+    let libraries = app.ctx.libraries.clone();
+    let found = tokio::task::spawn_blocking(move || {
+        let mut found = Vec::new();
+        for (language, root) in libraries.roots() {
+            for mut candidate in import::scan(root, &followed)? {
+                candidate.language = language.map(ToOwned::to_owned);
+                found.push(candidate);
+            }
+        }
+        std::io::Result::Ok(found)
+    })
+    .await
+    .map_err(|_| ApiError::Internal)?
+    .map_err(|e| ApiError::BadRequest(format!("reading the library: {e}")))?;
     Ok(Json(found))
 }
 

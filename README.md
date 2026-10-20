@@ -27,7 +27,7 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
 | Source | Language | Notes |
 |---|---|---|
 | [WeebCentral](https://weebcentral.com) | English | |
-| [MangaDex](https://mangadex.org) | English | Official API. Publisher-only chapters are skipped. |
+| [MangaDex](https://mangadex.org) | English, Portuguese (Brazil) | Official API. Publisher-only chapters are skipped. |
 | [Asura Scans](https://asurascans.com) | English | Premium and early-access chapters are skipped until they're free. |
 | [Mangaworld](https://www.mangaworld.mx) | Italian | |
 
@@ -105,17 +105,33 @@ kaze works with them the way Sonarr works with Plex: kaze owns the files, and th
 - Add that folder as a library in Komga or Kavita. Then add the server in kaze under **Settings → Connect** with an API key. Leave the library ID empty to scan every library.
 - New downloads and deleted files trigger one debounced scan, so the server picks up new chapters and drops removed ones.
 
+## More than one language
+
+Each series is followed in one language, picked when you add it (the default is a setting). The same series can be followed in several languages; each is its own series in kaze.
+
+Give each extra language its own folder with `library_dirs`, and add that folder as a separate library in Komga or Kavita. Languages without an entry use `library_dir`.
+
+```toml
+library_dir = "/manga"
+
+[library_dirs]
+"pt-BR" = "/manga-pt"
+```
+
+Put the folders beside each other, never one inside another: Komga and Kavita scan subfolders, so `/manga/pt-br` would show up inside the English library too. kaze refuses to start with overlapping folders. In Docker, mount each folder into kaze and into Komga or Kavita.
+
 ## Configuration
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
 
-- **Boot settings:** `listen`, `data_dir` and `library_dir` are read at startup.
+- **Boot settings:** `listen`, `data_dir`, `library_dir` and `library_dirs` are read at startup.
 - **Everything else** can be changed in the UI under **Settings** while kaze runs:
   - the naming template
   - concurrency
   - check intervals
   - the API key
   - the FlareSolverr URL
+  - the default language
 - **Locked settings:** a value set under `[settings]` in `kaze.toml`, or as `KAZE_SETTINGS__*` in the environment, wins over the UI. The UI shows it as locked. This keeps declarative setups (NixOS, compose files) the source of truth.
 
 Environment variables use the `KAZE_` prefix, with `__` for nesting. For example, `KAZE_LIBRARY_DIR=/manga` or `KAZE_SETTINGS__CONCURRENCY=2`.

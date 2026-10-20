@@ -16,4 +16,9 @@ chapters: Array<ChapterNumber>,
 /**
  * Files whose chapter number couldn't be worked out.
  */
-unparsed: number, };
+unparsed: number, 
+/**
+ * The language whose library folder holds it; `None` for the default
+ * `library_dir`.
+ */
+language: string | null, };

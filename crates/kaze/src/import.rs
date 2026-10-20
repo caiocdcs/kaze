@@ -26,6 +26,9 @@ pub struct Candidate {
     pub chapters: Vec<ChapterNumber>,
     /// Files whose chapter number couldn't be worked out.
     pub unparsed: usize,
+    /// The language whose library folder holds it; `None` for the default
+    /// `library_dir`.
+    pub language: Option<String>,
 }
 
 /// A source series that may be what a folder holds.
@@ -63,6 +66,7 @@ pub fn scan<S: std::hash::BuildHasher>(
             files: files.len(),
             chapters: found.into_keys().collect(),
             unparsed,
+            language: None,
         });
     }
     out.sort_by_key(|c| c.folder.to_lowercase());
@@ -225,6 +229,7 @@ mod tests {
                 files: 3,
                 chapters: vec![n("10.5"), n("11")],
                 unparsed: 1,
+                language: None,
             }]
         );
     }

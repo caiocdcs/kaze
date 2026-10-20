@@ -1,5 +1,7 @@
 //! What each kind of job actually does.
 
+use std::path::Path;
+
 use kaze_core::{Source, SourceError};
 use tokio_util::task::TaskTracker;
 
@@ -129,7 +131,8 @@ async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Resu
     db::series::update_metadata(&ctx.db, series_id, &series).await?;
     // Saved now, not with the first chapter, so the library shows it at once.
     let cover = series.cover_url.as_ref().map(ToString::to_string);
-    save_cover(ctx, source, &record.folder, cover.as_deref()).await;
+    let dir = ctx.libraries.root(&record.language).join(&record.folder);
+    save_cover(source, &dir, cover.as_deref()).await;
     // The first check after following decides between `All` and `Future`.
     let initial = record.last_checked_at.is_none();
     let from = record.monitor_from.as_ref();
@@ -160,12 +163,12 @@ async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Resu
 }
 
 /// Best effort: a missing cover never fails the job.
-async fn save_cover(ctx: &Context, source: &dyn Source, folder: &str, url: Option<&str>) {
+async fn save_cover(source: &dyn Source, dir: &Path, url: Option<&str>) {
     let Some(url) = url.and_then(|u| u.parse().ok()) else {
         return;
     };
-    if let Err(err) = download::cover(source, &url, &ctx.library.join(folder)).await {
-        tracing::warn!(folder, "could not save cover: {err}");
+    if let Err(err) = download::cover(source, &url, dir).await {
+        tracing::warn!(dir = %dir.display(), "could not save cover: {err}");
     }
 }
 
@@ -183,9 +186,9 @@ async fn download_chapter(
     }
     let series = load_series(ctx, chapter.series_id).await?;
     let source = source(ctx, &chapter.source)?;
-    let dir = ctx.library.join(&series.folder);
+    let dir = ctx.libraries.root(&series.language).join(&series.folder);
 
-    save_cover(ctx, source, &series.folder, series.cover_url.as_deref()).await;
+    save_cover(source, &dir, series.cover_url.as_deref()).await;
 
     let meta = ChapterMeta {
         series_title: series.title.clone(),

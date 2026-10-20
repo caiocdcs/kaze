@@ -4,6 +4,7 @@
 #   services.kaze = {
 #     enable = true;
 #     libraryDir = "/srv/manga";
+#     libraryDirs."pt-BR" = "/srv/manga-pt";
 #     openFirewall = true;
 #     settings.settings.flaresolverr_url = "http://127.0.0.1:8191";
 #   };
@@ -25,6 +26,7 @@ let
       listen = "${cfg.address}:${toString cfg.port}";
       data_dir = cfg.dataDir;
       library_dir = cfg.libraryDir;
+      library_dirs = cfg.libraryDirs;
     } cfg.settings
   );
 in
@@ -61,6 +63,18 @@ in
       type = lib.types.path;
       default = "/var/lib/kaze/library";
       description = "Where series folders and .cbz files go. Point Komga or Kavita here.";
+    };
+
+    libraryDirs = lib.mkOption {
+      type = lib.types.attrsOf lib.types.path;
+      default = { };
+      example = {
+        "pt-BR" = "/srv/manga-pt";
+      };
+      description = ''
+        A folder per language, each its own Komga or Kavita library.
+        Languages not listed use `libraryDir`. Keep them beside it, not inside.
+      '';
     };
 
     user = lib.mkOption {
@@ -125,11 +139,13 @@ in
         inherit (cfg) user group;
         mode = "0750";
       };
-      ${cfg.libraryDir}.d = {
+    }
+    // lib.genAttrs ([ cfg.libraryDir ] ++ lib.attrValues cfg.libraryDirs) (_: {
+      d = {
         inherit (cfg) user group;
         mode = "0775";
       };
-    };
+    });
 
     systemd.services.kaze = {
       description = "kaze manga downloader";
@@ -148,7 +164,8 @@ in
         ReadWritePaths = [
           cfg.dataDir
           cfg.libraryDir
-        ];
+        ]
+        ++ lib.attrValues cfg.libraryDirs;
         NoNewPrivileges = true;
         PrivateTmp = true;
         PrivateDevices = true;

@@ -82,24 +82,26 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
         detail,
     });
 
-    let library = app.ctx.library.clone();
-    let space = tokio::task::spawn_blocking(move || fs4::available_space(&library))
-        .await
-        .ok()
-        .and_then(Result::ok);
-    checks.push(HealthCheck {
-        name: "Library disk".into(),
-        kind: "disk",
-        state: match space {
-            Some(free) if free < LOW_DISK => HealthState::Slow,
-            Some(_) => HealthState::Ok,
-            None => HealthState::Down,
-        },
-        detail: space.map_or_else(
-            || "can't read free space".into(),
-            |b| format!("{} free", size(b)),
-        ),
-    });
+    for (language, root) in app.ctx.libraries.roots() {
+        let root = root.to_owned();
+        let space = tokio::task::spawn_blocking(move || fs4::available_space(&root))
+            .await
+            .ok()
+            .and_then(Result::ok);
+        checks.push(HealthCheck {
+            name: language.map_or_else(|| "Library disk".into(), |l| format!("Library disk ({l})")),
+            kind: "disk",
+            state: match space {
+                Some(free) if free < LOW_DISK => HealthState::Slow,
+                Some(_) => HealthState::Ok,
+                None => HealthState::Down,
+            },
+            detail: space.map_or_else(
+                || "can't read free space".into(),
+                |b| format!("{} free", size(b)),
+            ),
+        });
+    }
 
     for i in db::integrations::list(&app.ctx.db).await? {
         let state = match (i.enabled, i.last_ok) {

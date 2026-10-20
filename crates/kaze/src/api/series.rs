@@ -167,8 +167,9 @@ pub async fn remove(
         "unfollowed"
     );
     if opts.delete_files {
-        let folder = app.ctx.library.join(&series.folder);
-        if library::remove(&app.ctx.library, &folder)
+        let root = app.ctx.libraries.root(&series.language);
+        let folder = root.join(&series.folder);
+        if library::remove(root, &folder)
             .await
             .map_err(|e| ApiError::Conflict(format!("deleting {}: {e}", folder.display())))?
         {
@@ -203,7 +204,11 @@ pub async fn cover(
     Path(id): Path<i64>,
 ) -> ApiResult<impl IntoResponse> {
     let series = load(&app, id).await?;
-    let dir = app.ctx.library.join(&series.folder);
+    let dir = app
+        .ctx
+        .libraries
+        .root(&series.language)
+        .join(&series.folder);
     for ext in ["jpg", "png", "webp", "gif", "avif"] {
         let path = dir.join(format!("cover.{ext}"));
         if let Ok(bytes) = tokio::fs::read(&path).await {

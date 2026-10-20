@@ -45,7 +45,7 @@ async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
         db,
         sources: kaze_sources::Registry::from_sources(vec![source]),
         events: Events::new(256),
-        library: library.path().to_owned(),
+        libraries: crate::library::Libraries::single(library.path().to_owned()),
         http: reqwest::Client::new(),
         flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
             .unwrap()
@@ -421,7 +421,7 @@ async fn integration_secrets_stay_on_the_server() {
 #[tokio::test]
 async fn existing_folders_can_be_imported() {
     let api = api(None).await;
-    let folder = api.app.ctx.library.join("Old Downloads");
+    let folder = api.app.ctx.libraries.root("en").join("Old Downloads");
     std::fs::create_dir(&folder).unwrap();
     let file = std::fs::File::create(folder.join("Test Series Ch.1.cbz")).unwrap();
     let mut zip = zip::ZipWriter::new(file);
@@ -433,7 +433,9 @@ async fn existing_folders_can_be_imported() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(
         found,
-        json!([{ "folder": "Old Downloads", "files": 1, "chapters": ["1"], "unparsed": 0 }])
+        json!([{
+            "folder": "Old Downloads", "files": 1, "chapters": ["1"], "unparsed": 0, "language": null
+        }])
     );
 
     let (_, matches) = api.get("/api/v1/import/match?folder=Test%20Series").await;
@@ -507,7 +509,7 @@ async fn one_series_in_two_languages() {
 }
 
 async fn imported_series(api: &Api, folder: &str) -> (i64, std::path::PathBuf) {
-    let dir = api.app.ctx.library.join(folder);
+    let dir = api.app.ctx.libraries.root("en").join(folder);
     std::fs::create_dir(&dir).unwrap();
     let file = std::fs::File::create(dir.join("Test Series Ch.1.cbz")).unwrap();
     let mut zip = zip::ZipWriter::new(file);
@@ -574,6 +576,6 @@ async fn unfollowing_deletes_the_folder_only_when_asked() {
         .await;
     assert_eq!(status, StatusCode::NO_CONTENT);
     assert!(!dir.exists());
-    assert!(api.app.ctx.library.exists());
+    assert!(api.app.ctx.libraries.root("en").exists());
     api.app.shutdown().await;
 }
