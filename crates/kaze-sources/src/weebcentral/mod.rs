@@ -75,7 +75,7 @@ impl Source for WeebCentral {
         }
     }
 
-    async fn search(&self, query: &str) -> Result<Vec<SeriesHit>> {
+    async fn search(&self, query: &str, _: &str) -> Result<Vec<SeriesHit>> {
         let mut url = self.url("/search/data");
         url.query_pairs_mut()
             .append_pair("limit", "32")
@@ -89,13 +89,13 @@ impl Source for WeebCentral {
         parse::search(&html, &self.meta.base_url)
     }
 
-    async fn series(&self, key: &SeriesKey) -> Result<Series> {
+    async fn series(&self, key: &SeriesKey, _: &str) -> Result<Series> {
         let url = self.url(&format!("/series/{key}"));
         let html = self.site.get_text(&url).await?;
         parse::series(&html, key, &url)
     }
 
-    async fn chapters(&self, key: &SeriesKey) -> Result<Vec<ChapterInfo>> {
+    async fn chapters(&self, key: &SeriesKey, _: &str) -> Result<Vec<ChapterInfo>> {
         let url = self.url(&format!("/series/{key}/full-chapter-list"));
         let html = self.site.get_text(&url).await?;
         parse::chapters(&html, &self.meta.base_url)
@@ -192,7 +192,10 @@ mod tests {
             .mount(&server)
             .await;
 
-        let hits = source(&server.uri()).search("one piece").await.unwrap();
+        let hits = source(&server.uri())
+            .search("one piece", "en")
+            .await
+            .unwrap();
         assert_eq!(hits[0].key.as_str(), ONE_PIECE);
     }
 
@@ -201,13 +204,13 @@ mod tests {
     #[ignore = "network"]
     async fn live_one_piece() {
         let wc = source(BASE_URL);
-        let hits = wc.search("one piece").await.unwrap();
+        let hits = wc.search("one piece", "en").await.unwrap();
         assert!(hits.iter().any(|h| h.key.as_str() == ONE_PIECE));
 
-        let series = wc.series(&ONE_PIECE.into()).await.unwrap();
+        let series = wc.series(&ONE_PIECE.into(), "en").await.unwrap();
         assert_eq!(series.title, "One Piece");
 
-        let chapters = wc.chapters(&ONE_PIECE.into()).await.unwrap();
+        let chapters = wc.chapters(&ONE_PIECE.into(), "en").await.unwrap();
         assert!(chapters.len() > 1000);
 
         let newest = chapters

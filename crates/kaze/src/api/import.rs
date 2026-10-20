@@ -44,7 +44,7 @@ pub async fn matches(
     let outcomes = app
         .ctx
         .sources
-        .search_all(&q.folder, Duration::from_secs(20))
+        .search_all(&q.folder, None, Duration::from_secs(20))
         .await;
     let hits = outcomes
         .into_iter()

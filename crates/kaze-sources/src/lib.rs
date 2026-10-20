@@ -87,16 +87,27 @@ impl Registry {
             .find_map(|s| s.parse_url(url).map(|target| (s, target)))
     }
 
-    /// Search every source concurrently. A slow or failing source only
-    /// affects its own entry; results come back in registry order.
-    pub async fn search_all(&self, query: &str, timeout: Duration) -> Vec<SearchOutcome> {
+    /// Search every source offering `language` concurrently, or every
+    /// source in its main language when `None`. A slow or failing source
+    /// only affects its own entry; results come back in registry order.
+    pub async fn search_all(
+        &self,
+        query: &str,
+        language: Option<&str>,
+        timeout: Duration,
+    ) -> Vec<SearchOutcome> {
         let mut tasks = JoinSet::new();
-        for (index, source) in self.sources.iter().enumerate() {
+        let offering = self.sources.iter().filter_map(|s| match language {
+            Some(l) => s.meta().languages.contains(&l).then_some((s, l)),
+            None => Some((s, s.meta().main_language())),
+        });
+        for (index, (source, language)) in offering.enumerate() {
             // Spawned tasks must be 'static: give each its own handles.
             let source = Arc::clone(source);
             let query = query.to_owned();
+            let language = language.to_owned();
             tasks.spawn(async move {
-                let result = tokio::time::timeout(timeout, source.search(&query))
+                let result = tokio::time::timeout(timeout, source.search(&query, &language))
                     .await
                     .unwrap_or(Err(SourceError::Timeout(timeout)));
                 (

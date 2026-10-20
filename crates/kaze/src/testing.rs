@@ -110,7 +110,7 @@ impl Source for FakeSource {
         None
     }
 
-    async fn search(&self, _: &str) -> Result<Vec<SeriesHit>> {
+    async fn search(&self, _: &str, _: &str) -> Result<Vec<SeriesHit>> {
         Ok(vec![SeriesHit {
             key: self.series.key.clone(),
             title: self.series.title.clone(),
@@ -119,11 +119,11 @@ impl Source for FakeSource {
         }])
     }
 
-    async fn series(&self, _: &SeriesKey) -> Result<Series> {
+    async fn series(&self, _: &SeriesKey, _: &str) -> Result<Series> {
         Ok(self.series.clone())
     }
 
-    async fn chapters(&self, _: &SeriesKey) -> Result<Vec<ChapterInfo>> {
+    async fn chapters(&self, _: &SeriesKey, _: &str) -> Result<Vec<ChapterInfo>> {
         Ok(self.chapters.lock().unwrap().clone())
     }
 

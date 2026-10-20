@@ -77,20 +77,20 @@ impl Source for Mangaworld {
         parse::series_key(url).map(|key| UrlTarget::Series(key.into()))
     }
 
-    async fn search(&self, query: &str) -> Result<Vec<SeriesHit>> {
+    async fn search(&self, query: &str, _: &str) -> Result<Vec<SeriesHit>> {
         let mut url = self.url("/archive");
         url.query_pairs_mut().append_pair("keyword", query);
         let html = self.site.get_text(&url).await?;
         Ok(parse::search(&html, &self.meta.base_url))
     }
 
-    async fn series(&self, key: &SeriesKey) -> Result<Series> {
+    async fn series(&self, key: &SeriesKey, _: &str) -> Result<Series> {
         let url = self.url(&format!("/manga/{key}/"));
         let html = self.site.get_text(&url).await?;
         parse::series(&html, key, &url)
     }
 
-    async fn chapters(&self, key: &SeriesKey) -> Result<Vec<ChapterInfo>> {
+    async fn chapters(&self, key: &SeriesKey, _: &str) -> Result<Vec<ChapterInfo>> {
         let html = self
             .site
             .get_text(&self.url(&format!("/manga/{key}/")))
@@ -169,7 +169,10 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let hits = source(&server.uri()).search("one piece").await.unwrap();
+        let hits = source(&server.uri())
+            .search("one piece", "it")
+            .await
+            .unwrap();
         assert_eq!(hits.len(), 3);
         let one_piece = hits.iter().find(|h| h.title == "One Piece").unwrap();
         assert_eq!(one_piece.key.as_str(), "1708/one-piece");
@@ -244,11 +247,11 @@ mod tests {
     #[ignore = "network"]
     async fn live_one_piece() {
         let mw = Mangaworld::new(&Http::new(HttpConfig::default()).unwrap());
-        let hits = mw.search("one piece").await.unwrap();
+        let hits = mw.search("one piece", "it").await.unwrap();
         let hit = hits.iter().find(|h| h.title == "One Piece").unwrap();
-        let series = mw.series(&hit.key).await.unwrap();
+        let series = mw.series(&hit.key, "it").await.unwrap();
         assert_eq!(series.title, "One Piece");
-        let chapters = mw.chapters(&hit.key).await.unwrap();
+        let chapters = mw.chapters(&hit.key, "it").await.unwrap();
         assert!(chapters.len() > 1000);
         let pages = mw.pages(&chapters[0].key).await.unwrap();
         let image = mw.fetch_image(&pages[0]).await.unwrap();

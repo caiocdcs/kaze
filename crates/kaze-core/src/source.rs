@@ -42,9 +42,17 @@ pub struct SourceMeta {
     /// Human readable name, e.g. `"WeebCentral"`.
     pub name: &'static str,
     pub base_url: Url,
-    /// ISO 639-1 codes of languages the source offers.
+    /// Languages the source offers, as normalized BCP 47 tags (`en`, `pt-BR`).
     pub languages: &'static [&'static str],
     pub rate_limit: RateLimit,
+}
+
+impl SourceMeta {
+    /// The first language listed: what a search without a language uses.
+    #[must_use]
+    pub fn main_language(&self) -> &'static str {
+        self.languages.first().copied().unwrap_or("en")
+    }
 }
 
 /// What a pasted URL points to.
@@ -65,12 +73,15 @@ pub trait Source: Send + Sync + 'static {
     /// Recognise a URL from this site, e.g. one pasted into "Add series".
     fn parse_url(&self, url: &Url) -> Option<UrlTarget>;
 
-    async fn search(&self, query: &str) -> Result<Vec<SeriesHit>>;
+    // `language` is one of `meta().languages`; sources with only one
+    // language can ignore it.
 
-    async fn series(&self, key: &SeriesKey) -> Result<Series>;
+    async fn search(&self, query: &str, language: &str) -> Result<Vec<SeriesHit>>;
 
-    /// All chapters of a series, in any order.
-    async fn chapters(&self, key: &SeriesKey) -> Result<Vec<ChapterInfo>>;
+    async fn series(&self, key: &SeriesKey, language: &str) -> Result<Series>;
+
+    /// All chapters of a series in `language`, in any order.
+    async fn chapters(&self, key: &SeriesKey, language: &str) -> Result<Vec<ChapterInfo>>;
 
     /// Image URLs of a chapter's pages, in reading order.
     async fn pages(&self, chapter: &ChapterKey) -> Result<Vec<Url>>;

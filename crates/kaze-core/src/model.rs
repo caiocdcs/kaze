@@ -92,7 +92,7 @@ pub struct Series {
     pub tags: Vec<String>,
     pub status: SeriesStatus,
     pub year: Option<u16>,
-    /// ISO 639-1 code of the language the chapters are in, when known.
+    /// BCP 47 tag of the language the chapters are in, when known.
     pub language: Option<String>,
 }
 

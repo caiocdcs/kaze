@@ -137,7 +137,7 @@ impl App {
         if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key).await? {
             return Err(FollowError::AlreadyFollowing(id));
         }
-        let series = source.series(key).await?;
+        let series = source.series(key, source.meta().main_language()).await?;
 
         // Two series may share a title on different sources: keep folders apart.
         let mut folder = sanitize_file_name(&series.title);
@@ -197,7 +197,9 @@ impl App {
             .map_err(|e| FollowError::Io(std::io::Error::other(e)))??
         };
 
-        let (series, chapters) = tokio::try_join!(source.series(key), source.chapters(key))?;
+        let language = source.meta().main_language();
+        let (series, chapters) =
+            tokio::try_join!(source.series(key, language), source.chapters(key, language))?;
         let id = db::series::insert(
             &self.ctx.db,
             &NewSeries {

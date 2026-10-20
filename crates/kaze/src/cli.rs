@@ -54,6 +54,9 @@ enum Command {
         /// Only search this source, e.g. `weebcentral`.
         #[arg(long, short)]
         source: Option<String>,
+        /// Language, e.g. `pt-BR`; defaults to the source's main one.
+        #[arg(long, short, value_parser = parse_language)]
+        language: Option<String>,
         /// Print JSON instead of text.
         #[arg(long)]
         json: bool,
@@ -62,6 +65,9 @@ enum Command {
     /// Show what a series or chapter URL points to.
     Info {
         url: Url,
+        /// Language, e.g. `pt-BR`; defaults to the source's main one.
+        #[arg(long, short, value_parser = parse_language)]
+        language: Option<String>,
         /// Print JSON instead of text.
         #[arg(long)]
         json: bool,
@@ -71,6 +77,9 @@ enum Command {
     Download {
         /// Series URL, e.g. https://weebcentral.com/series/<id>/<name>
         url: Url,
+        /// Language, e.g. `pt-BR`; defaults to the source's main one.
+        #[arg(long, short, value_parser = parse_language)]
+        language: Option<String>,
         /// Which chapters: `5`, `1-10`, `1-3,7`, `latest` or `all`.
         #[arg(long, short)]
         chapters: Selection,
@@ -102,17 +111,34 @@ impl Cli {
             Command::Search {
                 query,
                 source,
+                language,
                 json,
             } => {
-                search(&registry, &query.join(" "), source.as_deref(), json).await?;
+                let query = query.join(" ");
+                search(
+                    &registry,
+                    &query,
+                    source.as_deref(),
+                    language.as_deref(),
+                    json,
+                )
+                .await?;
             }
-            Command::Info { url, json } => info(&registry, &url, json).await?,
+            Command::Info {
+                url,
+                language,
+                json,
+            } => info(&registry, &url, language.as_deref(), json).await?,
             Command::Download {
                 url,
+                language,
                 chapters,
                 out,
                 template,
-            } => download(&registry, &url, &chapters, &out, template).await?,
+            } => {
+                let language = language.as_deref();
+                download(&registry, &url, language, &chapters, &out, template).await?;
+            }
         }
         Ok(())
     }
@@ -221,10 +247,29 @@ async fn shutdown_signal() {
     }
 }
 
+fn parse_language(tag: &str) -> Result<String, String> {
+    kaze_core::language::normalize(tag).ok_or_else(|| format!("not a language tag: {tag:?}"))
+}
+
+/// `wanted` if the source offers it, else its main language.
+fn language_of<'a>(source: &dyn Source, wanted: Option<&'a str>) -> anyhow::Result<&'a str> {
+    let meta = source.meta();
+    match wanted {
+        Some(l) if meta.languages.contains(&l) => Ok(l),
+        Some(l) => bail!(
+            "{} has no {l}; it offers {}",
+            meta.name,
+            meta.languages.join(", ")
+        ),
+        None => Ok(meta.main_language()),
+    }
+}
+
 async fn search(
     registry: &Registry,
     query: &str,
     only: Option<&str>,
+    language: Option<&str>,
     json: bool,
 ) -> anyhow::Result<()> {
     let outcomes = match only {
@@ -232,11 +277,12 @@ async fn search(
             let source = registry
                 .get(id)
                 .with_context(|| format!("unknown source {id:?}"))?;
-            let hits = source.search(query).await?;
+            let language = language_of(source.as_ref(), language)?;
+            let hits = source.search(query, language).await?;
             vec![(id.to_owned(), hits)]
         }
         None => registry
-            .search_all(query, Duration::from_secs(20))
+            .search_all(query, language, Duration::from_secs(20))
             .await
             .into_iter()
             .filter_map(|outcome| match outcome.result {
@@ -267,15 +313,23 @@ async fn search(
     Ok(())
 }
 
-async fn info(registry: &Registry, url: &Url, json: bool) -> anyhow::Result<()> {
+async fn info(
+    registry: &Registry,
+    url: &Url,
+    language: Option<&str>,
+    json: bool,
+) -> anyhow::Result<()> {
     let Some((source, target)) = registry.resolve(url) else {
         bail!("no source recognises {url}");
     };
     match target {
         UrlTarget::Series(key) => {
+            let language = language_of(source.as_ref(), language)?;
             // Metadata and chapter list are independent: fetch both at once.
-            let (series, mut chapters) =
-                tokio::try_join!(source.series(&key), source.chapters(&key))?;
+            let (series, mut chapters) = tokio::try_join!(
+                source.series(&key, language),
+                source.chapters(&key, language)
+            )?;
             chapters.sort_by(|a, b| a.number.cmp(&b.number));
             if json {
                 let value = serde_json::json!({ "series": series, "chapters": chapters });
@@ -302,6 +356,7 @@ async fn info(registry: &Registry, url: &Url, json: bool) -> anyhow::Result<()> 
 async fn download(
     registry: &Registry,
     url: &Url,
+    language: Option<&str>,
     selection: &Selection,
     library: &std::path::Path,
     template: Template,
@@ -309,7 +364,11 @@ async fn download(
     let Some((source, UrlTarget::Series(key))) = registry.resolve(url) else {
         bail!("{url} is not a series URL of a known source");
     };
-    let (series, chapters) = tokio::try_join!(source.series(&key), source.chapters(&key))?;
+    let language = language_of(source.as_ref(), language)?;
+    let (series, chapters) = tokio::try_join!(
+        source.series(&key, language),
+        source.chapters(&key, language)
+    )?;
     let mut selected = selection.filter(&chapters, |c| &c.number);
     selected.sort_by(|a, b| a.number.cmp(&b.number));
     if selected.is_empty() {

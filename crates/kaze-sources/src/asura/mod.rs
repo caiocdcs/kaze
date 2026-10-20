@@ -84,20 +84,20 @@ impl Source for Asura {
         }
     }
 
-    async fn search(&self, query: &str) -> Result<Vec<SeriesHit>> {
+    async fn search(&self, query: &str, _: &str) -> Result<Vec<SeriesHit>> {
         let mut url = self.url("/browse");
         url.query_pairs_mut().append_pair("search", query);
         let html = self.site.get_text(&url).await?;
         Ok(parse::cards(&html, &self.meta.base_url))
     }
 
-    async fn series(&self, key: &SeriesKey) -> Result<Series> {
+    async fn series(&self, key: &SeriesKey, _: &str) -> Result<Series> {
         let url = self.url(&format!("/comics/{key}"));
         let html = self.site.get_text(&url).await?;
         parse::series(&html, key, &url)
     }
 
-    async fn chapters(&self, key: &SeriesKey) -> Result<Vec<ChapterInfo>> {
+    async fn chapters(&self, key: &SeriesKey, _: &str) -> Result<Vec<ChapterInfo>> {
         let html = self
             .site
             .get_text(&self.url(&format!("/comics/{key}")))
@@ -181,7 +181,7 @@ mod tests {
             .expect(1)
             .mount(&server)
             .await;
-        let hits = source(&server.uri()).search("solo").await.unwrap();
+        let hits = source(&server.uri()).search("solo", "en").await.unwrap();
         assert_eq!(hits.len(), 4);
         let hit = &hits[0];
         assert_eq!(hit.title, "Only I Have an EX-Grade Summon");
@@ -274,11 +274,11 @@ mod tests {
     #[ignore = "network"]
     async fn live_solo_leveling() {
         let asura = Asura::new(&Http::new(HttpConfig::default()).unwrap());
-        let hits = asura.search("solo leveling").await.unwrap();
+        let hits = asura.search("solo leveling", "en").await.unwrap();
         let hit = hits.iter().find(|h| h.title == "Solo Leveling").unwrap();
-        let series = asura.series(&hit.key).await.unwrap();
+        let series = asura.series(&hit.key, "en").await.unwrap();
         assert_eq!(series.title, "Solo Leveling");
-        let chapters = asura.chapters(&hit.key).await.unwrap();
+        let chapters = asura.chapters(&hit.key, "en").await.unwrap();
         assert!(chapters.len() > 100);
         let pages = asura.pages(&chapters[0].key).await.unwrap();
         let image = asura.fetch_image(&pages[0]).await.unwrap();

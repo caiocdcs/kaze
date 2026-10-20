@@ -7,6 +7,6 @@ import type { SeriesStatus } from "./SeriesStatus";
  */
 export type Series = { key: SeriesKey, title: string, alt_titles: Array<string>, url: string, cover_url: string | null, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, 
 /**
- * ISO 639-1 code of the language the chapters are in, when known.
+ * BCP 47 tag of the language the chapters are in, when known.
  */
 language: string | null, };

@@ -5,6 +5,7 @@
 
 mod chapter_number;
 mod error;
+pub mod language;
 mod model;
 mod source;
 #[cfg(feature = "sqlx")]

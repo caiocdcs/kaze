@@ -20,8 +20,7 @@ const SITE_URL: &str = "https://mangadex.org";
 const API_URL: &str = "https://api.mangadex.org";
 /// The API asks clients to say who they are rather than pose as a browser.
 const USER_AGENT: &str = concat!("kaze/", env!("CARGO_PKG_VERSION"));
-/// Chapters in this language are downloaded.
-const LANGUAGE: &str = "en";
+const LANGUAGES: &[&str] = &["en", "pt-BR"];
 /// Everything but pornographic, which MangaDex also hides by default.
 const RATINGS: [&str; 3] = ["safe", "suggestive", "erotica"];
 /// The feed endpoint's maximum page size.
@@ -57,7 +56,7 @@ impl MangaDex {
                 id: "mangadex",
                 name: "MangaDex",
                 base_url: url!(SITE_URL),
-                languages: &[LANGUAGE],
+                languages: LANGUAGES,
                 rate_limit,
             },
         }
@@ -77,6 +76,11 @@ impl MangaDex {
         }
         url
     }
+}
+
+/// MangaDex spells tags in lower case: `pt-br`.
+fn api_language(language: &str) -> String {
+    language.to_ascii_lowercase()
 }
 
 /// MangaDex ids are UUIDs.
@@ -105,7 +109,8 @@ impl Source for MangaDex {
         }
     }
 
-    async fn search(&self, query: &str) -> Result<Vec<SeriesHit>> {
+    async fn search(&self, query: &str, language: &str) -> Result<Vec<SeriesHit>> {
+        let language = api_language(language);
         let url = self.url(
             "/manga",
             &[
@@ -115,14 +120,14 @@ impl Source for MangaDex {
                 ("order[relevance]", "desc"),
                 // Hide series with nothing to download in our language.
                 ("hasAvailableChapters", "true"),
-                ("availableTranslatedLanguage[]", LANGUAGE),
+                ("availableTranslatedLanguage[]", &language),
             ],
         );
         let found: Collection<Manga> = self.api.get_json(&url).await?;
-        Ok(found.data.iter().map(Manga::hit).collect())
+        Ok(found.data.iter().map(|m| m.hit(&language)).collect())
     }
 
-    async fn series(&self, key: &SeriesKey) -> Result<Series> {
+    async fn series(&self, key: &SeriesKey, language: &str) -> Result<Series> {
         let url = self.url(
             &format!("/manga/{key}"),
             &[
@@ -132,10 +137,11 @@ impl Source for MangaDex {
             ],
         );
         let manga: Entity<Manga> = self.api.get_json(&url).await?;
-        Ok(manga.data.series(LANGUAGE))
+        Ok(manga.data.series(&api_language(language)))
     }
 
-    async fn chapters(&self, key: &SeriesKey) -> Result<Vec<ChapterInfo>> {
+    async fn chapters(&self, key: &SeriesKey, language: &str) -> Result<Vec<ChapterInfo>> {
+        let language = api_language(language);
         let limit = FEED_PAGE.to_string();
         let mut chapters = Vec::new();
         let mut offset = 0;
@@ -144,7 +150,7 @@ impl Source for MangaDex {
             let url = self.url(
                 &format!("/manga/{key}/feed"),
                 &[
-                    ("translatedLanguage[]", LANGUAGE),
+                    ("translatedLanguage[]", &language),
                     ("limit", &limit),
                     ("offset", &offset_text),
                     ("order[chapter]", "asc"),
@@ -185,15 +191,18 @@ impl Source for MangaDex {
     }
 
     async fn latest_updates(&self) -> Result<Vec<SeriesKey>> {
-        let url = self.url(
-            "/chapter",
-            &[
-                ("translatedLanguage[]", LANGUAGE),
-                ("order[readableAt]", "desc"),
-                ("limit", "100"),
-                ("includeExternalUrl", "0"),
-            ],
-        );
+        // Every language: refreshing a series reads only its own.
+        let languages: Vec<String> = LANGUAGES.iter().map(|l| api_language(l)).collect();
+        let mut query: Vec<(&str, &str)> = languages
+            .iter()
+            .map(|l| ("translatedLanguage[]", l.as_str()))
+            .collect();
+        query.extend([
+            ("order[readableAt]", "desc"),
+            ("limit", "100"),
+            ("includeExternalUrl", "0"),
+        ]);
+        let url = self.url("/chapter", &query);
         let latest: Collection<Chapter> = self.api.get_json(&url).await?;
         let mut keys: Vec<SeriesKey> = Vec::new();
         for chapter in &latest.data {
@@ -264,7 +273,7 @@ mod tests {
     async fn search_maps_hits_with_covers() {
         let server = serve("/manga", include_str!("fixtures/search.json")).await;
         let hits = source(&server.uri())
-            .search("apothecary diaries")
+            .search("apothecary diaries", "en")
             .await
             .unwrap();
         let hit = hits.iter().find(|h| h.key.as_str() == APOTHECARY).unwrap();
@@ -288,7 +297,7 @@ mod tests {
         )
         .await;
         let series = source(&server.uri())
-            .series(&APOTHECARY.into())
+            .series(&APOTHECARY.into(), "en")
             .await
             .unwrap();
         assert_eq!(series.title, "The Apothecary Diaries");
@@ -320,7 +329,7 @@ mod tests {
             .mount(&server)
             .await;
         let chapters = source(&server.uri())
-            .chapters(&APOTHECARY.into())
+            .chapters(&APOTHECARY.into(), "en")
             .await
             .unwrap();
         let numbers: Vec<String> = chapters.iter().map(|c| c.number.to_string()).collect();
@@ -331,6 +340,42 @@ mod tests {
         );
         assert_eq!(chapters[0].scanlator.as_deref(), Some("Knox"));
         assert_eq!(chapters[0].volume, Some(1));
+    }
+
+    #[tokio::test]
+    async fn series_in_portuguese() {
+        let server = serve(
+            &format!("/manga/{APOTHECARY}"),
+            include_str!("fixtures/manga.json"),
+        )
+        .await;
+        let series = source(&server.uri())
+            .series(&APOTHECARY.into(), "pt-BR")
+            .await
+            .unwrap();
+        assert_eq!(series.title, "Diários de uma apotecária");
+        assert_eq!(series.language.as_deref(), Some("pt-BR"));
+    }
+
+    #[tokio::test]
+    async fn chapters_in_portuguese() {
+        let server = MockServer::start().await;
+        let feed = include_str!("fixtures/feed.json").replace(
+            r#""translatedLanguage": "en""#,
+            r#""translatedLanguage": "pt-br""#,
+        );
+        Mock::given(path(format!("/manga/{APOTHECARY}/feed")))
+            .and(query_param("translatedLanguage[]", "pt-br"))
+            .respond_with(ResponseTemplate::new(200).set_body_string(feed))
+            .expect(1)
+            .mount(&server)
+            .await;
+        let chapters = source(&server.uri())
+            .chapters(&APOTHECARY.into(), "pt-BR")
+            .await
+            .unwrap();
+        assert_ne!(chapters.len(), 0);
+        assert_eq!(chapters[0].language.as_deref(), Some("pt-BR"));
     }
 
     #[tokio::test]
@@ -380,13 +425,13 @@ mod tests {
     #[ignore = "network"]
     async fn live_apothecary_diaries() {
         let md = MangaDex::new(&Http::new(HttpConfig::default()).unwrap());
-        let hits = md.search("apothecary diaries").await.unwrap();
+        let hits = md.search("apothecary diaries", "en").await.unwrap();
         assert_ne!(hits.len(), 0);
-        let series = md.series(&APOTHECARY.into()).await.unwrap();
+        let series = md.series(&APOTHECARY.into(), "en").await.unwrap();
         assert_eq!(series.title, "The Apothecary Diaries");
         let latest = md.latest_updates().await.unwrap();
         let key = latest.first().unwrap();
-        let chapters = md.chapters(key).await.unwrap();
+        let chapters = md.chapters(key, "en").await.unwrap();
         let pages = md.pages(&chapters.last().unwrap().key).await.unwrap();
         let image = md.fetch_image(&pages[0]).await.unwrap();
         assert!(image.bytes.len() > 1000);

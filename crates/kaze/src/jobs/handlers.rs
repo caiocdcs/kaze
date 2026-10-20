@@ -121,9 +121,10 @@ async fn load_series(ctx: &Context, id: i64) -> Result<SeriesRecord, JobError> {
 async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Result<(), JobError> {
     let record = load_series(ctx, series_id).await?;
     let source = source(ctx, &record.source)?;
+    let language = source.meta().main_language();
     let (series, chapters) = tokio::try_join!(
-        source.series(&record.source_key),
-        source.chapters(&record.source_key)
+        source.series(&record.source_key, language),
+        source.chapters(&record.source_key, language)
     )?;
 
     db::series::update_metadata(&ctx.db, series_id, &series).await?;

@@ -78,10 +78,10 @@ pub async fn search(
             let source = sources.get(id).ok_or(ApiError::NotFound("source"))?;
             vec![kaze_sources::SearchOutcome {
                 source: source.meta().id,
-                result: source.search(q).await,
+                result: source.search(q, source.meta().main_language()).await,
             }]
         }
-        None => sources.search_all(q, Duration::from_secs(20)).await,
+        None => sources.search_all(q, None, Duration::from_secs(20)).await,
     };
     Ok(Json(
         outcomes
@@ -131,7 +131,7 @@ pub async fn lookup(
         ));
     };
     let id = source.meta().id;
-    let series = source.series(&key).await?;
+    let series = source.series(&key, source.meta().main_language()).await?;
     let followed_id = db::series::find_by_source(&app.ctx.db, id, &key).await?;
     Ok(Json(Lookup {
         source: id,

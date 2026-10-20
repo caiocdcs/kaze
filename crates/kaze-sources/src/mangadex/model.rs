@@ -118,13 +118,17 @@ impl Manga {
         url
     }
 
-    /// The English title when there is one: that's what users search for
-    /// and what the folder will be called.
-    pub fn title(&self) -> String {
+    /// The title in `language` (a MangaDex code), else the English one:
+    /// that's what users search for and what the folder will be called.
+    pub fn title(&self, language: &str) -> String {
         let a = &self.attributes;
-        a.title
-            .get("en")
-            .or_else(|| a.alt_titles.iter().find_map(|t| t.get("en")))
+        let localized = |code: &str| {
+            a.title
+                .get(code)
+                .or_else(|| a.alt_titles.iter().find_map(|t| t.get(code)))
+        };
+        localized(language)
+            .or_else(|| localized("en"))
             .or_else(|| a.title.values().next())
             .cloned()
             .unwrap_or_else(|| self.id.clone())
@@ -139,18 +143,19 @@ impl Manga {
         Url::parse(&format!("{UPLOADS}/covers/{}/{file}", self.id)).ok()
     }
 
-    pub fn hit(&self) -> SeriesHit {
+    pub fn hit(&self, language: &str) -> SeriesHit {
         SeriesHit {
             key: self.id.clone().into(),
-            title: self.title(),
+            title: self.title(language),
             url: self.url(),
             cover_url: self.cover_url(),
         }
     }
 
+    /// `language` is the MangaDex code; the series gets the normalized tag.
     pub fn series(&self, language: &str) -> Series {
         let a = &self.attributes;
-        let title = self.title();
+        let title = self.title(language);
         let mut alt_titles: Vec<String> = a
             .title
             .values()
@@ -176,7 +181,8 @@ impl Manga {
             cover_url: self.cover_url(),
             description: a
                 .description
-                .get("en")
+                .get(language)
+                .or_else(|| a.description.get("en"))
                 .or_else(|| a.description.values().next())
                 .filter(|d| !d.trim().is_empty())
                 .cloned(),
@@ -194,7 +200,7 @@ impl Manga {
                 _ => SeriesStatus::Unknown,
             },
             year: a.year,
-            language: Some(language.to_owned()),
+            language: kaze_core::language::normalize(language),
         }
     }
 }
@@ -224,7 +230,10 @@ impl Chapter {
             volume: a.volume.as_deref().and_then(|v| v.parse().ok()),
             title: a.title.clone().filter(|t| !t.trim().is_empty()),
             url: Url::parse(&format!("{SITE}/chapter/{}", self.id)).ok()?,
-            language: a.translated_language.clone(),
+            language: a
+                .translated_language
+                .as_deref()
+                .and_then(kaze_core::language::normalize),
             scanlator,
             published_at: a.readable_at,
         })
