@@ -57,9 +57,9 @@
 </script>
 
 <script lang="ts">
-	import { api } from '#lib/api/index.ts';
+	import { api, type SourceInfo } from '#lib/api/index.ts';
 	import Segmented from '#lib/components/Segmented.svelte';
-	import { errorMessage } from '#lib/format.ts';
+	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	let {
@@ -81,6 +81,18 @@
 		initial.config.kind === 'email' ? initial.config.to.join(', ') : ''
 	);
 	const smtpPorts: Record<SmtpSecurity, number> = { starttls: 587, tls: 465, none: 25 };
+
+	// Library ids per language, edited as text for both servers.
+	let libraryIds = $state<Record<string, string>>(
+		// svelte-ignore state_referenced_locally
+		initial.config.kind === 'komga' || initial.config.kind === 'kavita'
+			? Object.fromEntries(
+					Object.entries(initial.config.libraries ?? {}).map(([l, id]) => [l, String(id)])
+				)
+			: {}
+	);
+	let sources = $state<SourceInfo[]>([]);
+	const languages = $derived(offeredLanguages(sources));
 
 	/** Follow the usual port for the chosen security, unless a custom one was typed. */
 	function setSecurity(security: SmtpSecurity) {
@@ -107,6 +119,13 @@
 	let dialog: HTMLDialogElement;
 
 	$effect(() => {
+		api
+			.sources()
+			.then((s) => (sources = s))
+			.catch(() => {});
+	});
+
+	$effect(() => {
 		dialog.showModal();
 	});
 
@@ -123,8 +142,17 @@
 			config.headers = Object.fromEntries(headers.filter(([k]) => k.trim()));
 		}
 		// Empty optional fields mean "every library".
-		if (config.kind === 'komga') config.library_id = config.library_id?.trim() || null;
-		if (config.kind === 'kavita') config.library_id = Number(config.library_id) || null;
+		const ids = Object.entries(libraryIds).map(([l, id]) => [l, id.trim()] as const);
+		if (config.kind === 'komga') {
+			config.library_id = config.library_id?.trim() || null;
+			config.libraries = Object.fromEntries(ids.filter(([, id]) => id));
+		}
+		if (config.kind === 'kavita') {
+			config.library_id = Number(config.library_id) || null;
+			config.libraries = Object.fromEntries(
+				ids.map(([l, id]) => [l, Number(id)] as const).filter(([, id]) => id > 0)
+			);
+		}
 		if (config.kind === 'ntfy') {
 			config.topic = config.topic.trim();
 			config.token = ntfyAuth === 'token' ? config.token?.trim() || null : null;
@@ -268,6 +296,28 @@
 						class="field w-56 font-mono text-sm font-normal"
 					/>
 				</label>
+				{#if languages.length > 1}
+					<fieldset class="m-0 flex flex-col gap-2 border-0 p-0 text-sm">
+						<legend class="mb-1.5 font-medium">
+							Library per language <span class="font-normal text-muted">(optional)</span>
+						</legend>
+						{#each languages as l (l)}
+							<label class="flex max-w-md items-center justify-between gap-3">
+								{languageName(l)}
+								<input
+									type={draft.config.kind === 'kavita' ? 'number' : 'text'}
+									bind:value={() => libraryIds[l] ?? '', (v) => (libraryIds[l] = String(v ?? ''))}
+									placeholder="Library ID above"
+									class="field-sm w-56 font-mono"
+								/>
+							</label>
+						{/each}
+						<span class="text-muted">
+							For languages with their own folder (<code class="font-mono">library_dirs</code>):
+							their downloads scan only this library.
+						</span>
+					</fieldset>
+				{/if}
 			{:else if draft.config.kind === 'ntfy'}
 				<label class="flex flex-col gap-1.5 text-sm font-medium">
 					Topic

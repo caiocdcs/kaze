@@ -13,6 +13,24 @@ const UNITS: [Intl.RelativeTimeFormatUnit, number][] = [
 	['minute', 60]
 ];
 
+const languages = new Intl.DisplayNames(['en'], { type: 'language' });
+/** "English", "Brazilian Portuguese"; the tag itself if the browser doesn't know it. */
+export function languageName(tag: string): string {
+	try {
+		return languages.of(tag) ?? tag;
+	} catch {
+		return tag;
+	}
+}
+
+/** Every language the sources offer, English first. */
+export function offeredLanguages(sources: { languages: string[] }[]): string[] {
+	const all = new Set(sources.flatMap((s) => s.languages));
+	return [...all].sort((a, b) =>
+		a === 'en' ? -1 : b === 'en' ? 1 : languageName(a).localeCompare(languageName(b))
+	);
+}
+
 /** "2 days ago", "in 3 hours", "just now". */
 export function ago(iso: string | null | undefined): string {
 	if (!iso) return '—';

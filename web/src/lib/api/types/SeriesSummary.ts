@@ -5,7 +5,7 @@ import type { SeriesStatus } from "./SeriesStatus";
 /**
  * A row of the library grid.
  */
-export type SeriesSummary = { id: number, title: string, status: SeriesStatus, monitor: Monitor, source: string, url: string, chapters: number, downloaded: number, wanted: number, 
+export type SeriesSummary = { id: number, title: string, status: SeriesStatus, monitor: Monitor, source: string, language: string, url: string, chapters: number, downloaded: number, wanted: number, 
 /**
  * Bytes on disk, as last measured.
  */

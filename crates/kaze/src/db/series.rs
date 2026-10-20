@@ -260,7 +260,7 @@ pub async fn summaries(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesSu
         // Aggregates over a LEFT JOIN make sqlx assume every column may be
         // NULL; `!` asserts the ones that cannot be.
         r#"SELECT s.id AS "id!", s.title AS "title!", s.status AS "status!: _", s.monitor AS "monitor!: Monitor",
-                  ss.source AS "source!", ss.url AS "url!",
+                  ss.source AS "source!", ss.language AS "language!", ss.url AS "url!",
                   COUNT(c.id) AS "chapters!: i64",
                   COALESCE(SUM(c.file_path IS NOT NULL), 0) AS "downloaded!: i64",
                   COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS "wanted!: i64",

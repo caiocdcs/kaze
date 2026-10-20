@@ -85,6 +85,7 @@ pub struct SeriesSummary {
     pub status: SeriesStatus,
     pub monitor: Monitor,
     pub source: String,
+    pub language: String,
     pub url: String,
     pub chapters: i64,
     pub downloaded: i64,

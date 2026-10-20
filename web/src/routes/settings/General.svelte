@@ -1,6 +1,13 @@
 <script lang="ts">
-	import { api, apiKey, setApiKey, type Settings, type SettingsView } from '#lib/api/index.ts';
-	import { errorMessage } from '#lib/format.ts';
+	import {
+		api,
+		apiKey,
+		setApiKey,
+		type Settings,
+		type SettingsView,
+		type SourceInfo
+	} from '#lib/api/index.ts';
+	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	type Key = keyof Settings;
@@ -10,8 +17,14 @@
 	let error = $state<string | null>(null);
 	let saving = $state(false);
 	let revealKey = $state(false);
+	let sources = $state<SourceInfo[]>([]);
+	const languages = $derived(offeredLanguages(sources));
 
 	$effect(() => {
+		api
+			.sources()
+			.then((s) => (sources = s))
+			.catch(() => {});
 		api
 			.settings()
 			.then(set)
@@ -132,6 +145,25 @@
 					<code class="font-mono">%C</code> chapter, <code class="font-mono">%T</code> title,
 					<code class="font-mono">%A</code> author, <code class="font-mono">%Y</code> year.
 					<code class="font-mono">?V(…)</code> keeps the part only when the volume is known.
+				</span>
+			</label>
+			<label class="flex flex-col gap-1.5">
+				<span class="flex items-center gap-2 font-medium">
+					Default language
+					{#if locked('default_language')}<span class="lock">set in kaze.toml</span>{/if}
+				</span>
+				<select
+					bind:value={form.default_language}
+					disabled={locked('default_language')}
+					class="field w-64 font-sans"
+				>
+					{#each languages.includes(form.default_language) ? languages : [form.default_language, ...languages] as l (l)}
+						<option value={l}>{languageName(l)}</option>
+					{/each}
+				</select>
+				<span class="text-[13px] text-muted">
+					What Add series searches and follows in. Sources without it use their own. Each language
+					can have its own folder (<code class="font-mono">library_dirs</code> in kaze.toml).
 				</span>
 			</label>
 		</section>

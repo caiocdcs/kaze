@@ -1,9 +1,9 @@
 <script lang="ts">
-	import { api, type Candidate, type Match } from '#lib/api/index.ts';
+	import { api, type Candidate, type Match, type SourceInfo } from '#lib/api/index.ts';
 	import type { Monitor } from '#lib/api/types/Monitor.ts';
 	import { compareNumbers } from '#lib/chapters.ts';
 	import Cover from '#lib/components/Cover.svelte';
-	import { errorMessage, num } from '#lib/format.ts';
+	import { errorMessage, languageName, num } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	type Row = {
@@ -12,20 +12,36 @@
 		searching?: boolean;
 		error?: string;
 		pick?: Match;
+		/** Defaults to the folder's own language, else the source's main one. */
+		language?: string;
 		monitor: Monitor;
 		importing?: boolean;
 		done?: { id: number; matched: number };
 	};
 
 	let rows = $state<Row[] | null>(null);
+	let sources = $state<SourceInfo[]>([]);
 	let error = $state<string | null>(null);
 
 	$effect(() => {
+		api
+			.sources()
+			.then((s) => (sources = s))
+			.catch(() => {});
 		api
 			.importCandidates()
 			.then((c) => (rows = c.map((candidate) => ({ candidate, monitor: 'all' }))))
 			.catch((e) => (error = errorMessage(e)));
 	});
+
+	const languagesOf = (source: string) => sources.find((s) => s.id === source)?.languages ?? [];
+
+	function choose(row: Row, m: Match) {
+		row.pick = m;
+		const offered = languagesOf(m.source);
+		const own = row.candidate.language;
+		row.language = own && offered.includes(own) ? own : offered[0];
+	}
 
 	function range(chapters: string[]): string {
 		if (chapters.length === 0) return 'no chapter numbers found';
@@ -41,7 +57,7 @@
 		try {
 			row.matches = await api.importMatches(row.candidate.folder);
 			// A near-exact title is almost certainly right; preselect it.
-			if (row.matches[0]?.score >= 0.95) row.pick = row.matches[0];
+			if (row.matches[0]?.score >= 0.95) choose(row, row.matches[0]);
 		} catch (e) {
 			row.error = errorMessage(e);
 		} finally {
@@ -57,6 +73,7 @@
 				folder: row.candidate.folder,
 				source: row.pick.source,
 				key: row.pick.hit.key,
+				language: row.language,
 				monitor: row.monitor,
 				monitor_from: null
 			});
@@ -95,7 +112,7 @@
 {:else}
 	<p class="m-0 text-sm text-muted">{num(pending)} folder{pending === 1 ? '' : 's'} to import</p>
 	<ul class="m-0 flex list-none flex-col gap-3 p-0">
-		{#each rows as row (row.candidate.folder)}
+		{#each rows as row ((row.candidate.language ?? '') + '/' + row.candidate.folder)}
 			<li class="card flex flex-col gap-4 p-[18px] {row.done ? 'opacity-60' : ''}">
 				<div class="flex flex-wrap items-center gap-3">
 					<div class="min-w-0 flex-1">
@@ -103,6 +120,7 @@
 						<p class="m-0 text-[13px] text-muted">
 							{num(row.candidate.files)} files · {range(row.candidate.chapters)}
 							{#if row.candidate.unparsed}· {row.candidate.unparsed} without a chapter number{/if}
+							{#if row.candidate.language}· {languageName(row.candidate.language)} folder{/if}
 						</p>
 					</div>
 					{#if row.done}
@@ -142,7 +160,7 @@
 										type="radio"
 										name="match-{row.candidate.folder}"
 										checked={row.pick === m}
-										onchange={() => (row.pick = m)}
+										onchange={() => choose(row, m)}
 									/>
 									<Cover
 										src={m.hit.cover_url}
@@ -174,6 +192,16 @@
 									<option value="none">Don't download</option>
 								</select>
 							</label>
+							{#if row.pick && languagesOf(row.pick.source).length > 1}
+								<label class="flex items-center gap-2 text-sm text-ink-2">
+									Language
+									<select bind:value={row.language} class="field-sm w-auto font-sans">
+										{#each languagesOf(row.pick.source) as l (l)}
+											<option value={l}>{languageName(l)}</option>
+										{/each}
+									</select>
+								</label>
+							{/if}
 							<span class="flex-1"></span>
 							<button
 								type="button"

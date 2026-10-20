@@ -14,7 +14,7 @@
 	import Cover from '#lib/components/Cover.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import MonitorPicker from '#lib/components/MonitorPicker.svelte';
-	import { errorMessage } from '#lib/format.ts';
+	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	type Group = {
@@ -27,6 +27,7 @@
 
 	let query = $state(page.url.searchParams.get('q') ?? '');
 	let sources = $state<SourceInfo[]>([]);
+	let language = $state('en');
 	let enabled = $state<Set<string>>(new Set());
 	let groups = $state<Group[]>([]);
 	let followed = $state<SeriesSummary[]>([]);
@@ -45,12 +46,20 @@
 			sources = s;
 			enabled = new Set(s.map((x) => x.id));
 		});
+		api
+			.settings()
+			.then((v) => (language = v.settings.default_language))
+			.catch(() => {});
 		api.series().then((s) => (followed = s));
 		if (query) search();
 	});
 
+	const languages = $derived(offeredLanguages(sources));
+	// Only sources that offer the chosen language are searched.
+	const offering = $derived(sources.filter((s) => s.languages.includes(language)));
 	const sourceName = (id: string) => sources.find((s) => s.id === id)?.name ?? id;
-	const followedId = (hit: SeriesHit) => followed.find((s) => s.url === hit.url)?.id;
+	const followedId = (hit: SeriesHit) =>
+		followed.find((s) => s.url === hit.url && s.language === language)?.id;
 	const isUrl = (q: string) => /^https?:\/\//i.test(q.trim());
 
 	async function search(event?: SubmitEvent) {
@@ -66,7 +75,7 @@
 			groups = [];
 			searching = true;
 			try {
-				const found = await api.lookup(q);
+				const found = await api.lookup(q, language);
 				if (found.followed_id !== null) {
 					goto(`/series/${found.followed_id}`);
 					return;
@@ -90,10 +99,10 @@
 		}
 
 		// One request per source, so a slow site doesn't hold back the others.
-		const ids = sources.length ? sources.map((s) => s.id).filter((id) => enabled.has(id)) : [];
+		const ids = offering.map((s) => s.id).filter((id) => enabled.has(id));
 		searching = true;
 		if (ids.length === 0) {
-			const all = await api.search(q).catch((e) => {
+			const all = await api.search(q, undefined, language).catch((e) => {
 				lookupError = errorMessage(e);
 				return [] as SourceResults[];
 			});
@@ -110,7 +119,7 @@
 		const set = (g: Group) => (groups = groups.map((x) => (x.source === source ? g : x)));
 		set({ source, state: 'loading', hits: [] });
 		try {
-			const [result] = await api.search(q, source);
+			const [result] = await api.search(q, source, language);
 			set(toGroup(result ?? { source, hits: [] }));
 		} catch (e) {
 			set({ source, state: 'failed', hits: [], error: errorMessage(e) });
@@ -127,7 +136,7 @@
 		pick = { source, hit };
 		preview = null;
 		try {
-			const found = await api.lookup(hit.url);
+			const found = await api.lookup(hit.url, language);
 			if (pick?.hit.url === hit.url) preview = found;
 		} catch {
 			// The preview is a nicety; following still works without it.
@@ -153,6 +162,8 @@
 			const { id } = await api.follow({
 				source: pick.source,
 				key: pick.hit.key,
+				// A pasted link may be read in the source's own language.
+				language: preview?.language ?? language,
 				monitor,
 				monitor_from: f || null
 			});
@@ -200,10 +211,24 @@
 			{isUrl(query) ? 'Look up' : 'Search'}
 		</button>
 	</div>
-	{#if sources.length > 1 && !isUrl(query)}
+	{#if languages.length > 1}
+		<label class="flex items-center gap-2 text-[13px] text-muted">
+			Language
+			<select
+				bind:value={language}
+				onchange={() => groups.length && search()}
+				class="field-sm w-auto font-sans text-ink"
+			>
+				{#each languages as l (l)}
+					<option value={l}>{languageName(l)}</option>
+				{/each}
+			</select>
+		</label>
+	{/if}
+	{#if offering.length > 1 && !isUrl(query)}
 		<fieldset class="m-0 flex flex-wrap items-center gap-2 border-0 p-0">
 			<legend class="float-left mr-1.5 text-[13px] text-muted">Sources</legend>
-			{#each sources as s (s.id)}
+			{#each offering as s (s.id)}
 				<label
 					class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-full px-3 text-sm {enabled.has(
 						s.id
@@ -315,7 +340,9 @@
 					class="w-14 flex-none rounded-lg"
 				/>
 				<div class="min-w-0">
-					<p class="m-0 text-[13px] text-muted">Follow from {sourceName(pick.source)}</p>
+					<p class="m-0 text-[13px] text-muted">
+						Follow from {sourceName(pick.source)} · {languageName(preview?.language ?? language)}
+					</p>
 					<h2 class="m-0 font-display text-[22px] leading-tight font-bold">{pick.hit.title}</h2>
 				</div>
 			</div>

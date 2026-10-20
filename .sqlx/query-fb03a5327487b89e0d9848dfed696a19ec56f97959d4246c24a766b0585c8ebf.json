@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id AS \"id!\", s.title AS \"title!\", s.status AS \"status!: _\", s.monitor AS \"monitor!: Monitor\",\n                  ss.source AS \"source!\", ss.url AS \"url!\",\n                  COUNT(c.id) AS \"chapters!: i64\",\n                  COALESCE(SUM(c.file_path IS NOT NULL), 0) AS \"downloaded!: i64\",\n                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS \"wanted!: i64\",\n                  COALESCE(SUM(c.size_bytes), 0) AS \"size_bytes!: i64\",\n                  MAX(c.published_at) AS \"latest_chapter_at: _\",\n                  s.added_at AS \"added_at!: _\"\n           FROM series s\n           JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           LEFT JOIN chapters c ON c.series_id = s.id\n           GROUP BY s.id\n           ORDER BY s.title COLLATE NOCASE",
+  "query": "SELECT s.id AS \"id!\", s.title AS \"title!\", s.status AS \"status!: _\", s.monitor AS \"monitor!: Monitor\",\n                  ss.source AS \"source!\", ss.language AS \"language!\", ss.url AS \"url!\",\n                  COUNT(c.id) AS \"chapters!: i64\",\n                  COALESCE(SUM(c.file_path IS NOT NULL), 0) AS \"downloaded!: i64\",\n                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS \"wanted!: i64\",\n                  COALESCE(SUM(c.size_bytes), 0) AS \"size_bytes!: i64\",\n                  MAX(c.published_at) AS \"latest_chapter_at: _\",\n                  s.added_at AS \"added_at!: _\"\n           FROM series s\n           JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           LEFT JOIN chapters c ON c.series_id = s.id\n           GROUP BY s.id\n           ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -59,8 +59,19 @@
         }
       },
       {
-        "name": "url!",
+        "name": "language!",
         "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "language"
+          }
+        }
+      },
+      {
+        "name": "url!",
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,37 +82,37 @@
       },
       {
         "name": "chapters!: i64",
-        "ordinal": 6,
-        "type_info": "Integer",
-        "origin": "Expression"
-      },
-      {
-        "name": "downloaded!: i64",
         "ordinal": 7,
         "type_info": "Integer",
         "origin": "Expression"
       },
       {
-        "name": "wanted!: i64",
+        "name": "downloaded!: i64",
         "ordinal": 8,
         "type_info": "Integer",
         "origin": "Expression"
       },
       {
-        "name": "size_bytes!: i64",
+        "name": "wanted!: i64",
         "ordinal": 9,
         "type_info": "Integer",
         "origin": "Expression"
       },
       {
-        "name": "latest_chapter_at: _",
+        "name": "size_bytes!: i64",
         "ordinal": 10,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "latest_chapter_at: _",
+        "ordinal": 11,
         "type_info": "Text",
         "origin": "Expression"
       },
       {
         "name": "added_at!: _",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -121,6 +132,7 @@
       true,
       true,
       true,
+      true,
       false,
       false,
       false,
@@ -129,5 +141,5 @@
       true
     ]
   },
-  "hash": "029b4d0f8f07a3063b0666ba538fd768afb17a2666b0c45f041818269d490476"
+  "hash": "fb03a5327487b89e0d9848dfed696a19ec56f97959d4246c24a766b0585c8ebf"
 }

@@ -150,7 +150,13 @@ pub async fn lookup(
         ));
     };
     let id = source.meta().id;
-    let language = app.language_for(source.as_ref(), query.language.as_deref())?;
+    // A pasted link may be from a source without the asked language: show
+    // it in the default one rather than fail.
+    let offered = query.language.as_deref().filter(|l| {
+        kaze_core::language::normalize(l)
+            .is_some_and(|tag| source.meta().languages.contains(&tag.as_str()))
+    });
+    let language = app.language_for(source.as_ref(), offered)?;
     let series = source.series(&key, language).await?;
     let followed_id = db::series::find_by_source(&app.ctx.db, id, &key, language).await?;
     Ok(Json(Lookup {

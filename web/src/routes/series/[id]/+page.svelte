@@ -9,7 +9,7 @@
 	import MonitorPicker from '#lib/components/MonitorPicker.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import StateChip, { type ChipTone } from '#lib/components/StateChip.svelte';
-	import { ago, errorMessage, num } from '#lib/format.ts';
+	import { ago, errorMessage, languageName, num } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
@@ -207,6 +207,7 @@
 				{#if series.authors.length}<span>{series.authors.join(', ')}</span>{/if}
 				{#if series.year}<span>{series.year}</span>{/if}
 				{#if series.status !== 'unknown'}<span class="capitalize">{series.status}</span>{/if}
+				<span>{languageName(series.language)}</span>
 				<a href={series.url} target="_blank" rel="noreferrer" class="text-ink-2 capitalize"
 					>{series.source} ↗</a
 				>

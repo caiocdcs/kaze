@@ -30,8 +30,9 @@ export { ApiError, apiKey, setApiKey } from './client.ts';
 /** Every endpoint of `/api/v1`, typed with the structs ts-rs exports. */
 export const api = {
 	sources: () => http.get<SourceInfo[]>('/sources'),
-	search: (q: string, source?: string) => http.get<SourceResults[]>('/search', { q, source }),
-	lookup: (u: string) => http.get<Lookup>('/lookup', { url: u }),
+	search: (q: string, source?: string, language?: string) =>
+		http.get<SourceResults[]>('/search', { q, source, language }),
+	lookup: (u: string, language?: string) => http.get<Lookup>('/lookup', { url: u, language }),
 
 	series: () => http.get<SeriesSummary[]>('/series'),
 	seriesDetail: (id: number) => http.get<SeriesDetail>(`/series/${id}`),
