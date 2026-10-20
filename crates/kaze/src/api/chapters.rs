@@ -95,15 +95,15 @@ pub async fn delete_files(
     }
     let deleted: usize = per_series.values().sum();
     for (series_id, count) in per_series {
-        let series = db::series::get(&app.ctx.db, series_id)
-            .await?
-            .map(|s| s.title)
-            .unwrap_or_default();
-        tracing::info!(series, count, "deleted chapter files");
+        let Some(series) = db::series::get(&app.ctx.db, series_id).await? else {
+            continue;
+        };
+        tracing::info!(series = series.title, count, "deleted chapter files");
         app.ctx.events.emit(Event::FilesDeleted {
             series_id: Some(series_id),
-            series,
+            series: series.title,
             count,
+            language: series.language,
         });
     }
     Ok(Json(json!({ "deleted": deleted })))

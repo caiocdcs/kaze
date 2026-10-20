@@ -43,8 +43,14 @@ pub enum Job {
         integration_id: i64,
         message: Message,
     },
-    /// Ask a library server (Komga, Kavita) to scan.
-    ScanLibrary { integration_id: i64 },
+    /// Ask a library server (Komga, Kavita) to scan: the library of
+    /// `language` if it has its own, else the default one.
+    ScanLibrary {
+        integration_id: i64,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        #[ts(optional)]
+        language: Option<String>,
+    },
     /// Record the size of every chapter file, for disk usage.
     MeasureLibrary,
 }
@@ -75,8 +81,15 @@ impl Job {
                 "notify:{integration_id}:{}",
                 chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
             ),
-            // A scan picks up everything on disk, so one pending scan is enough.
-            Self::ScanLibrary { integration_id } => format!("scan:{integration_id}"),
+            // A scan picks up everything on disk, so one pending scan per
+            // library is enough.
+            Self::ScanLibrary {
+                integration_id,
+                language,
+            } => format!(
+                "scan:{integration_id}:{}",
+                language.as_deref().unwrap_or("*")
+            ),
             Self::MeasureLibrary => "measure".into(),
         }
     }

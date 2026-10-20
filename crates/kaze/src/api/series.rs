@@ -177,6 +177,7 @@ pub async fn remove(
                 series_id: None,
                 series: series.title,
                 count: files,
+                language: series.language,
             });
         }
     }

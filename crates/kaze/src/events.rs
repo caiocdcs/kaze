@@ -53,6 +53,8 @@ pub enum Event {
         series: String,
         chapter: String,
         path: String,
+        /// The series' language, so only its library is scanned.
+        language: String,
     },
     /// Files removed from the library. `series_id` is gone when the series
     /// was unfollowed with its folder.
@@ -60,6 +62,7 @@ pub enum Event {
         series_id: Option<i64>,
         series: String,
         count: usize,
+        language: String,
     },
     /// One attempt failed; `JobFailed` for the same job says whether it retries.
     ChapterFailed {
@@ -123,6 +126,7 @@ impl Event {
                 series_id,
                 series,
                 count,
+                ..
             } => Some((
                 "deleted",
                 *series_id,

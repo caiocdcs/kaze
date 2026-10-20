@@ -120,6 +120,8 @@ library_dir = "/manga"
 
 Put the folders beside each other, never one inside another: Komga and Kavita scan subfolders, so `/manga/pt-br` would show up inside the English library too. kaze refuses to start with overlapping folders. In Docker, mount each folder into kaze and into Komga or Kavita.
 
+In kaze under **Settings → Connect**, give the Komga or Kavita server each language's library ID. A download then scans only that language's library; languages without one use the server's library ID, or every library.
+
 ## Configuration
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).

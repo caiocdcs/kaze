@@ -75,8 +75,11 @@ pub async fn run(
         Job::Notify {
             integration_id,
             message,
-        } => deliver(ctx, *integration_id, Some(message)).await,
-        Job::ScanLibrary { integration_id } => deliver(ctx, *integration_id, None).await,
+        } => deliver(ctx, *integration_id, Some(message), None).await,
+        Job::ScanLibrary {
+            integration_id,
+            language,
+        } => deliver(ctx, *integration_id, None, language.as_deref()).await,
         Job::MeasureLibrary => measure_library(ctx).await,
     }
 }
@@ -250,6 +253,7 @@ async fn download_chapter(
             series: series.title,
             chapter: chapter.number.to_string(),
             path,
+            language: series.language,
         });
     }
     Ok(())
@@ -275,9 +279,14 @@ async fn sync_latest(ctx: &Context, queue: &JobQueue, source_id: &str) -> Result
     Ok(())
 }
 
-/// Send a message, or scan when `message` is `None`, and remember the
-/// outcome on the integration for the UI.
-async fn deliver(ctx: &Context, id: i64, message: Option<&Message>) -> Result<(), JobError> {
+/// Send a message, or scan `language`'s library when `message` is `None`,
+/// and remember the outcome on the integration for the UI.
+async fn deliver(
+    ctx: &Context,
+    id: i64,
+    message: Option<&Message>,
+    language: Option<&str>,
+) -> Result<(), JobError> {
     let Some(integration) = db::integrations::get(&ctx.db, id).await? else {
         return Ok(()); // removed since; nothing to do
     };
@@ -287,7 +296,7 @@ async fn deliver(ctx: &Context, id: i64, message: Option<&Message>) -> Result<()
     let config = &integration.config.0;
     let result = match message {
         Some(message) => integrations::send(&ctx.http, config, message).await,
-        None => integrations::scan(&ctx.http, config).await,
+        None => integrations::scan(&ctx.http, config, language).await,
     };
     let status = match &result {
         Ok(()) if message.is_some() => "Sent".to_owned(),

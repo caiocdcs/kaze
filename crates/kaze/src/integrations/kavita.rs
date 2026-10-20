@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
 
-use super::{IntegrationError, checked, endpoint, http_url};
+use std::collections::BTreeMap;
+
+use super::{IntegrationError, checked, endpoint, http_url, library_languages};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[ts(export)]
@@ -15,16 +17,29 @@ pub struct Kavita {
     #[serde(default)]
     #[ts(optional = nullable)]
     pub library_id: Option<i64>,
+    /// Language → library id, for languages with their own folder.
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    #[ts(as = "Option<BTreeMap<String, i64>>", optional)]
+    pub libraries: BTreeMap<String, i64>,
 }
 
 impl Kavita {
     pub(super) fn validate(&self) -> Result<(), String> {
-        http_url(&self.url)
+        http_url(&self.url)?;
+        library_languages(&self.libraries)
     }
 
-    pub(super) async fn scan(&self, http: &Client) -> Result<(), IntegrationError> {
+    /// Scan `language`'s library if it has one, else `library_id`, else all.
+    pub(super) async fn scan(
+        &self,
+        http: &Client,
+        language: Option<&str>,
+    ) -> Result<(), IntegrationError> {
         let token = self.token(http).await?;
-        let request = match self.library_id {
+        let chosen = language
+            .and_then(|l| self.libraries.get(l).copied())
+            .or(self.library_id);
+        let request = match chosen {
             Some(id) => http
                 .post(endpoint(&self.url, "api/Library/scan")?)
                 .query(&[("libraryId", id.to_string())]),
@@ -72,8 +87,10 @@ mod tests {
             url,
             api_key: "k".into(),
             library_id: Some(3),
+            libraries: [("pt-BR".to_owned(), 7)].into(),
         };
-        kavita.scan(&Client::new()).await.unwrap();
+        kavita.scan(&Client::new(), None).await.unwrap();
+        kavita.scan(&Client::new(), Some("pt-BR")).await.unwrap();
         let seen = seen.lock().unwrap();
         assert_eq!(
             seen[0].path_and_query,
@@ -81,5 +98,6 @@ mod tests {
         );
         assert_eq!(seen[1].path_and_query, "/api/Library/scan?libraryId=3");
         assert_eq!(seen[1].headers["authorization"], "Bearer jwt");
+        assert_eq!(seen[3].path_and_query, "/api/Library/scan?libraryId=7");
     }
 }

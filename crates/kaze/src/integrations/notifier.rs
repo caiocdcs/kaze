@@ -17,7 +17,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::{Message, Trigger};
+use super::{Config, Message, Trigger};
 use crate::{
     db,
     events::Event,
@@ -54,8 +54,9 @@ struct Batch {
     broken: Vec<String>,
     /// series → id, for links into the UI
     ids: BTreeMap<String, i64>,
-    /// Files were added or removed, so library servers should scan.
-    library_changed: bool,
+    /// Languages whose files were added or removed, so library servers
+    /// should scan their libraries.
+    changed: BTreeSet<String>,
     first_at: Option<Instant>,
     last_at: Option<Instant>,
 }
@@ -210,15 +211,16 @@ fn collect(batch: &mut Batch, attempts: &mut Attempts, event: Event) {
             series_id,
             series,
             chapter,
+            language,
             ..
         } => {
             batch.ids.insert(series.clone(), series_id);
             batch.downloaded.entry(series).or_default().push(chapter);
-            batch.library_changed = true;
+            batch.changed.insert(language);
             batch.touch();
         }
-        Event::FilesDeleted { .. } => {
-            batch.library_changed = true;
+        Event::FilesDeleted { language, .. } => {
+            batch.changed.insert(language);
             batch.touch();
         }
         Event::ChaptersFound {
@@ -270,6 +272,15 @@ fn collect(batch: &mut Batch, attempts: &mut Attempts, event: Event) {
     }
 }
 
+/// The libraries to scan for the changed languages: one per language with
+/// its own library, plus the default one (`None`) for all the rest.
+fn scan_languages(config: &Config, changed: &BTreeSet<String>) -> BTreeSet<Option<String>> {
+    changed
+        .iter()
+        .map(|l| config.has_library_for(l).then(|| l.clone()))
+        .collect()
+}
+
 async fn flush(db: &SqlitePool, jobs: &JobQueue, batch: &Batch) {
     if batch.is_empty() {
         return;
@@ -285,11 +296,13 @@ async fn flush(db: &SqlitePool, jobs: &JobQueue, batch: &Batch) {
     for integration in integrations.into_iter().filter(|i| i.enabled) {
         let integration_id = integration.id;
         let jobs_for: Vec<Job> = if integration.config.is_library() {
-            if batch.library_changed {
-                vec![Job::ScanLibrary { integration_id }]
-            } else {
-                Vec::new()
-            }
+            scan_languages(&integration.config, &batch.changed)
+                .into_iter()
+                .map(|language| Job::ScanLibrary {
+                    integration_id,
+                    language,
+                })
+                .collect()
         } else {
             messages
                 .iter()
@@ -319,6 +332,7 @@ mod tests {
             series: series.into(),
             chapter: chapter.into(),
             path: String::new(),
+            language: "en".into(),
         }
     }
 
@@ -345,9 +359,10 @@ mod tests {
             series_id: None,
             series: "Berserk".into(),
             count: 3,
+            language: "pt-BR".into(),
         };
         collect(&mut batch, &mut HashMap::new(), deleted);
-        assert!(batch.library_changed);
+        assert_eq!(batch.changed, BTreeSet::from(["pt-BR".to_owned()]));
         assert_eq!(batch.messages(), []);
     }
 
@@ -408,7 +423,27 @@ mod tests {
         );
         collect(&mut batch, &mut HashMap::new(), broken("MangaDex"));
         assert_eq!(batch.messages()[0].title, "2 sources look broken");
-        assert!(!batch.library_changed);
+        assert!(batch.changed.is_empty());
+    }
+
+    #[test]
+    fn scans_each_language_library_once() {
+        let komga = Config::Komga(crate::integrations::komga::Komga {
+            url: "http://komga.test".parse().unwrap(),
+            api_key: "k".into(),
+            library_id: None,
+            libraries: [("pt-BR".to_owned(), "PT".to_owned())].into(),
+        });
+        let changed = ["en", "it", "pt-BR"].map(String::from).into();
+        assert_eq!(
+            scan_languages(&komga, &changed),
+            BTreeSet::from([None, Some("pt-BR".to_owned())])
+        );
+        let only_pt = ["pt-BR".to_owned()].into();
+        assert_eq!(
+            scan_languages(&komga, &only_pt),
+            BTreeSet::from([Some("pt-BR".to_owned())])
+        );
     }
 
     #[test]

@@ -94,6 +94,7 @@ async fn library_servers_get_no_messages() {
         url: Url::parse("http://komga:25600").unwrap(),
         api_key: "k".into(),
         library_id: None,
+        libraries: std::collections::BTreeMap::new(),
     });
     let err = send(&reqwest::Client::new(), &config, &message())
         .await
@@ -130,6 +131,7 @@ fn a_new_secret_replaces_the_stored_one() {
             url: Url::parse("http://komga:25600").unwrap(),
             api_key: key.into(),
             library_id: None,
+            libraries: std::collections::BTreeMap::new(),
         })
     };
     let mut changed = komga("new");

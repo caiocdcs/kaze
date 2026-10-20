@@ -55,6 +55,17 @@ impl Config {
         matches!(self, Self::Komga(_) | Self::Kavita(_))
     }
 
+    /// Whether `language` has its own library here; otherwise its changes
+    /// are covered by the default scan.
+    #[must_use]
+    pub fn has_library_for(&self, language: &str) -> bool {
+        match self {
+            Self::Komga(c) => c.libraries.contains_key(language),
+            Self::Kavita(c) => c.libraries.contains_key(language),
+            _ => false,
+        }
+    }
+
     /// A copy fit for the API: every secret that is set reads as [`MASK`].
     #[must_use]
     pub fn masked(&self) -> Self {
@@ -306,11 +317,27 @@ pub async fn send(
     }
 }
 
-/// Ask a library server to scan for new files.
-pub async fn scan(http: &Client, config: &Config) -> Result<(), IntegrationError> {
+/// Keys of a language → library map must be normalized tags (`pt-BR`).
+fn library_languages<V>(libraries: &std::collections::BTreeMap<String, V>) -> Result<(), String> {
+    match libraries
+        .keys()
+        .find(|l| kaze_core::language::normalize(l).as_ref() != Some(*l))
+    {
+        Some(bad) => Err(format!("{bad:?} is not a language tag like pt-BR")),
+        None => Ok(()),
+    }
+}
+
+/// Ask a library server to scan for new files: `language`'s own library
+/// when it has one, else the default.
+pub async fn scan(
+    http: &Client,
+    config: &Config,
+    language: Option<&str>,
+) -> Result<(), IntegrationError> {
     match config {
-        Config::Komga(c) => c.scan(http).await,
-        Config::Kavita(c) => c.scan(http).await,
+        Config::Komga(c) => c.scan(http, language).await,
+        Config::Kavita(c) => c.scan(http, language).await,
         _ => Err(IntegrationError::Invalid(
             "only library servers can scan".into(),
         )),
