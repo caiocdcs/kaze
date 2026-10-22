@@ -180,6 +180,10 @@ kaze is inspired by [Tranga](https://github.com/C9Glax/tranga) by C9Glax and gre
 
 kaze is licensed under GPL-3.0, like Tranga.
 
+## Disclaimer
+
+kaze is not affiliated with any of the sites it reads from, and it hosts no content. It is meant for personal use: you are responsible for what you download and for following the laws where you live and each site's terms. If you can, support the authors by buying their work.
+
 ## License
 
 [GPL-3.0-or-later](LICENSE)
