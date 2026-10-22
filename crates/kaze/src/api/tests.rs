@@ -110,6 +110,24 @@ async fn backup_is_a_database_file() {
 }
 
 #[tokio::test]
+async fn events_start_right_away() {
+    let api = api(None).await;
+    let response = api
+        .router
+        .clone()
+        .oneshot(Request::get("/api/v1/events").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let mut body = response.into_body();
+    let first = tokio::time::timeout(Duration::from_secs(1), body.frame())
+        .await
+        .expect("no bytes before the keep-alive")
+        .unwrap()
+        .unwrap();
+    assert!(first.into_data().unwrap().starts_with(b":"));
+}
+
+#[tokio::test]
 async fn health_and_sources() {
     let api = api(None).await;
     assert_eq!(api.get("/healthz").await.0, StatusCode::OK);
