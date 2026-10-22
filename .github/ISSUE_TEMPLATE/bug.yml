@@ -1,0 +1,31 @@
+name: Bug
+description: Something in kaze doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`kaze --version`, or the image tag."
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: Install
+      options: [Docker, Nix / NixOS, Binary]
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Run with `KAZE_LOG=kaze=debug` if you can. Check them for tokens or URLs you don't want to share.
+      render: text

@@ -1,0 +1,30 @@
+name: Source broken
+description: A site stopped working (search, chapters or pages fail).
+labels: [source]
+body:
+  - type: dropdown
+    id: source
+    attributes:
+      label: Source
+      options: [WeebCentral, MangaDex, Asura Scans, Mangaworld]
+    validations:
+      required: true
+  - type: input
+    id: url
+    attributes:
+      label: Series or chapter URL
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: "`kaze --version`, or the image tag."
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: The error from Activity, or the log with `KAZE_LOG=kaze=debug`. Say whether you use FlareSolverr.
+      render: text

@@ -1,0 +1,21 @@
+name: New source
+description: Ask for a site kaze doesn't support yet.
+labels: [new source]
+body:
+  - type: input
+    id: url
+    attributes:
+      label: Site
+    validations:
+      required: true
+  - type: input
+    id: language
+    attributes:
+      label: Language
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Does it have an API? Is it behind Cloudflare? Anything else that helps.
