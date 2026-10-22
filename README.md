@@ -1,8 +1,18 @@
 # kaze 風
 
+[![CI](https://github.com/caiocdcs/kaze/actions/workflows/ci.yml/badge.svg)](https://github.com/caiocdcs/kaze/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/caiocdcs/kaze)](https://github.com/caiocdcs/kaze/releases)
+[![License](https://img.shields.io/github/license/caiocdcs/kaze)](LICENSE)
+
 A light, self-hosted manga downloader. Follow series on WeebCentral, MangaDex, Asura Scans or Mangaworld. kaze downloads new chapters as `.cbz` files with `ComicInfo.xml`, tells Komga or Kavita to scan, and notifies you.
 
 It's one Rust binary with the web UI built in and SQLite for storage. It needs no other services.
+
+![Library](docs/screenshots/library.png)
+
+| Series | Activity | Wanted |
+|---|---|---|
+| ![Series](docs/screenshots/series.png) | ![Activity](docs/screenshots/activity.png) | ![Wanted](docs/screenshots/wanted.png) |
 
 ## Features
 
