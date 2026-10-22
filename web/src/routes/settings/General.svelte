@@ -249,7 +249,7 @@
 			</div>
 		</section>
 
-		<div class="sticky bottom-24 flex items-center gap-3 md:bottom-6">
+		<div class="sticky bottom-24 flex items-center gap-3 bg-ground py-3 md:bottom-0">
 			<button type="submit" class="btn-primary" disabled={!dirty || saving}>
 				{saving ? 'Saving…' : 'Save changes'}
 			</button>
