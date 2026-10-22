@@ -191,9 +191,26 @@ async fn disk_usage_is_recorded_and_remeasured() {
 async fn future_monitoring_only_takes_new_chapters() {
     let mut h = start(FakeSource::new().with_chapters(&["1", "2"])).await;
     let series_id = h.follow(Monitor::Future).await;
+    let Event::JobQueued { job_id, .. } = h
+        .wait_for(|e| {
+            matches!(
+                e,
+                Event::JobQueued {
+                    job: Job::RefreshSeries { .. },
+                    ..
+                }
+            )
+        })
+        .await
+    else {
+        unreachable!()
+    };
     h.wait_for(|e| matches!(e, Event::ChaptersFound { count: 2, .. }))
         .await;
-    h.wait_for(|e| matches!(e, Event::JobFinished { .. })).await;
+    // The startup sync may finish in between; a refresh queued while this
+    // one still runs would be dropped as a duplicate.
+    h.wait_for(|e| matches!(e, Event::JobFinished { job_id: id } if *id == job_id))
+        .await;
 
     h.source.add_chapter("3");
     h.app
@@ -203,7 +220,8 @@ async fn future_monitoring_only_takes_new_chapters() {
             source: "fake".into(),
         })
         .await
-        .unwrap();
+        .unwrap()
+        .expect("the first refresh has finished");
     assert_eq!(h.downloaded(1).await, ["3"]);
     assert_eq!(
         h.source.fetches(),
