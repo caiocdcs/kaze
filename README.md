@@ -160,7 +160,7 @@ nix build       # the package, UI included
 nix flake check # everything CI runs
 ```
 
-To release, push a version tag, for example `git tag v0.1.0 && git push github v0.1.0`. The release workflow builds the image for amd64 and arm64, pushes it to `ghcr.io/caiocdcs/kaze`, and creates a GitHub release.
+To release, push a version tag, for example `git tag v0.1.0 && git push origin v0.1.0`. The release workflow builds the image for amd64 and arm64, pushes it to `ghcr.io/caiocdcs/kaze`, and creates a GitHub release.
 
 | Path | What |
 |---|---|
