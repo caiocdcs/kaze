@@ -182,6 +182,10 @@ To release, push a version tag, for example `git tag v0.1.0 && git push origin v
 
 To add a source, write one module in `crates/kaze-sources/src/`. Add a cargo feature and a line in `Registry::new`. Test it against saved fixtures, listed with their URLs in `fixtures/urls.tsv` so `just fixtures <id>` can fetch fresh copies to diff when the site changes. See `mangadex/` for an API, or `weebcentral/` for HTML.
 
+## AI usage
+
+kaze is built with the help of AI coding assistants. I decide the design, review the changes and run kaze myself. All code goes through the same checks: clippy pedantic, the test suite and CI. [`AGENTS.md`](AGENTS.md) holds the project rules the assistants follow, and contributions made with AI tools are welcome under the same rules.
+
 ## Acknowledgements
 
 kaze is inspired by [Tranga](https://github.com/C9Glax/tranga) by C9Glax and grew out of an attempt to port it to Rust. Several ideas come from it:
