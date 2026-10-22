@@ -142,7 +142,8 @@ Logs go to stderr. Set `KAZE_LOG` to change the level, for example `KAZE_LOG=kaz
 - **Startup:** kaze logs its setup (sources, FlareSolverr, integrations).
 - **While running:** each download, failed job, integration send or scan, and change made through the API gets a line.
 
-kaze is meant for a trusted network. To require an API key, set `api_key` in Settings or in `kaze.toml`. Put a reverse proxy in front if you expose it.
+> [!WARNING]
+> Out of the box the API has no authentication, so kaze is meant for a trusted network. To require an API key, set `api_key` in Settings or in `kaze.toml`. To reach kaze from outside, put a reverse proxy with TLS in front of it. See [SECURITY.md](SECURITY.md).
 
 ## Development
 
