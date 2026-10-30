@@ -169,7 +169,7 @@ impl Source for MangaDex {
                 break;
             }
         }
-        Ok(model::one_per_number(chapters))
+        Ok(model::fullest_first(chapters))
     }
 
     async fn pages(&self, chapter: &ChapterKey) -> Result<Vec<Url>> {
@@ -404,10 +404,10 @@ mod tests {
     }
 
     #[test]
-    fn duplicate_uploads_keep_the_fullest() {
-        let info = |key: &str| ChapterInfo {
+    fn duplicate_uploads_are_kept_fullest_first() {
+        let info = |key: &str, number: &str| ChapterInfo {
             key: key.into(),
-            number: "5".parse().unwrap(),
+            number: number.parse().unwrap(),
             volume: None,
             title: None,
             url: "https://mangadex.org/chapter/x".parse().unwrap(),
@@ -415,9 +415,14 @@ mod tests {
             scanlator: None,
             published_at: None,
         };
-        let kept = model::one_per_number(vec![(info("a"), 20), (info("b"), 24), (info("c"), 24)]);
-        assert_eq!(kept.len(), 1);
-        assert_eq!(kept[0].key.as_str(), "b");
+        let kept = model::fullest_first(vec![
+            (info("a", "5"), 20),
+            (info("d", "4"), 10),
+            (info("b", "5"), 24),
+            (info("c", "5"), 24),
+        ]);
+        let keys: Vec<_> = kept.iter().map(|c| c.key.as_str()).collect();
+        assert_eq!(keys, ["d", "b", "c", "a"]);
     }
 
     /// Hits the real API: `just test-live`.

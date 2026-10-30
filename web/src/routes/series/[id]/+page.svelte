@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
-	import { api, type ChapterRecord, type SeriesDetail } from '#lib/api/index.ts';
+	import { api, type ChapterCopy, type ChapterRecord, type SeriesDetail } from '#lib/api/index.ts';
 	import type { Monitor } from '#lib/api/types/Monitor.ts';
 	import { chapterName, compareNumbers, newestFirst } from '#lib/chapters.ts';
 	import Cover from '#lib/components/Cover.svelte';
@@ -137,6 +137,42 @@
 			() => Promise.all(ids.map((c) => api.downloadChapter(c.id))),
 			`Queued ${ids.length} chapter(s)`
 		);
+	}
+
+	/** Copies of the expanded chapters, by the shown chapter's id. */
+	let copies = $state<Map<number, ChapterCopy[]>>(new Map());
+
+	async function loadCopies(cid: number) {
+		try {
+			copies = new Map(copies).set(cid, await api.chapterCopies(cid));
+		} catch (e) {
+			toasts.error(e);
+		}
+	}
+
+	function toggleCopies(cid: number) {
+		if (copies.has(cid)) {
+			const next = new Map(copies);
+			next.delete(cid);
+			copies = next;
+		} else {
+			loadCopies(cid);
+		}
+	}
+
+	async function downloadCopy(shown: number, copy: ChapterCopy) {
+		await act(
+			() => api.downloadChapter(copy.id),
+			`Queued the ${copy.scanlator ?? copy.source} copy`
+		);
+		await loadCopies(shown);
+	}
+
+	function copyState(copy: ChapterCopy): { tone: ChipTone; label: string } {
+		if (copy.on_disk) return { tone: 'disk', label: 'On disk' };
+		if (copy.last_attempt_state === 'failed') return { tone: 'bad', label: 'Failed' };
+		if (copy.picked) return { tone: 'wanted', label: 'Picked' };
+		return { tone: 'off', label: 'Spare' };
 	}
 
 	let unfollowDialog = $state<HTMLDialogElement>();
@@ -391,6 +427,16 @@
 									<button
 										type="button"
 										class="icon-btn"
+										aria-label="Copies of chapter {c.number}"
+										aria-expanded={copies.has(c.id)}
+										title="Copies from each source and group"
+										onclick={() => toggleCopies(c.id)}
+									>
+										<Icon name="copy" />
+									</button>
+									<button
+										type="button"
+										class="icon-btn"
 										aria-label="Download chapter {c.number}{c.file_path ? ' again' : ''}"
 										title={c.file_path ? 'Download again' : 'Download now'}
 										disabled={jobs.has(c.id)}
@@ -422,6 +468,43 @@
 									{/if}
 								</td>
 							</tr>
+							{#if copies.has(c.id)}
+								<tr class="bg-ground">
+									<td></td>
+									<td colspan="5" class="px-3 pt-1 pb-3">
+										<ul class="m-0 flex list-none flex-col gap-1.5 p-0">
+											{#each copies.get(c.id) ?? [] as copy (copy.id)}
+												{@const cs = copyState(copy)}
+												<li class="flex flex-wrap items-center gap-3 text-[13px]">
+													<a
+														href={copy.url}
+														target="_blank"
+														rel="noreferrer"
+														class="min-w-[120px] text-ink-2 capitalize">{copy.source} ↗</a
+													>
+													<span class="min-w-[140px] {copy.scanlator ? 'text-ink' : 'text-faint'}"
+														>{copy.scanlator ?? 'Unknown group'}</span
+													>
+													<StateChip tone={cs.tone} label={cs.label} />
+													{#if copy.last_error && !copy.on_disk}
+														<span class="truncate text-bad" title={copy.last_error}
+															>{copy.last_error}</span
+														>
+													{/if}
+													{#if !copy.on_disk && !c.file_path}
+														<button
+															type="button"
+															class="btn-ghost ml-auto h-8"
+															disabled={busy || jobs.has(copy.id)}
+															onclick={() => downloadCopy(c.id, copy)}>Download this</button
+														>
+													{/if}
+												</li>
+											{/each}
+										</ul>
+									</td>
+								</tr>
+							{/if}
 						{/each}
 					</tbody>
 				</table>

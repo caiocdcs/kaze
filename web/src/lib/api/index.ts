@@ -1,4 +1,5 @@
 import { http, url } from './client.ts';
+import type { ChapterCopy } from './types/ChapterCopy.ts';
 import type { ChapterRecord } from './types/ChapterRecord.ts';
 import type { Candidate } from './types/Candidate.ts';
 import type { Config } from './types/Config.ts';
@@ -55,6 +56,7 @@ export const api = {
 	deleteFiles: (ids: number[], unmonitor = true) =>
 		http.post<{ deleted: number }>('/chapters/delete-files', { ids, unmonitor }),
 	downloadChapter: (id: number) => http.post<{ job_id: number | null }>(`/chapters/${id}/download`),
+	chapterCopies: (id: number) => http.get<ChapterCopy[]>(`/chapters/${id}/copies`),
 	wanted: () => http.get<WantedChapter[]>('/wanted'),
 	downloadWanted: () => http.post<{ queued: number }>('/wanted/download'),
 
@@ -94,6 +96,7 @@ export type { SmtpSecurity } from './types/SmtpSecurity.ts';
 
 export type {
 	Candidate,
+	ChapterCopy,
 	ChapterRecord,
 	Match,
 	Config,

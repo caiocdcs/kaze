@@ -560,6 +560,64 @@ async fn series_sources_can_be_added_reordered_and_removed() {
 }
 
 #[tokio::test]
+async fn chapter_copies_across_sources() {
+    let api = api(None).await;
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/series",
+            Some(json!({ "source": "fake", "key": "S1" })),
+        )
+        .await;
+    let id = created["id"].as_i64().unwrap();
+    api.call(
+        Method::POST,
+        &format!("/api/v1/series/{id}/sources"),
+        Some(json!({ "source": "other", "key": "S1" })),
+    )
+    .await;
+
+    // Wait for both chapter lists and chapter 1's download from "fake".
+    let mut copies = Value::Null;
+    for _ in 0..100 {
+        let detail = api.get(&format!("/api/v1/series/{id}")).await.1;
+        if let Some(first) = detail["chapters"]
+            .as_array()
+            .and_then(|c| c.iter().find(|c| c["number"] == "1"))
+        {
+            copies = api
+                .get(&format!("/api/v1/chapters/{}/copies", first["id"]))
+                .await
+                .1;
+            if copies.as_array().is_some_and(|c| c.len() == 2) && copies[0]["on_disk"] == true {
+                break;
+            }
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(copies[0]["source"], "fake");
+    assert_eq!(copies[0]["picked"], true);
+    assert_eq!(copies[0]["on_disk"], true);
+    assert_eq!(copies[1]["source"], "other");
+    assert_eq!(copies[1]["picked"], false);
+
+    // The number is on disk: another copy isn't downloaded over it.
+    let (status, _) = api
+        .call(
+            Method::POST,
+            &format!("/api/v1/chapters/{}/download", copies[1]["id"]),
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert_eq!(
+        api.get("/api/v1/chapters/999999/copies").await.0,
+        StatusCode::NOT_FOUND
+    );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn a_source_followed_as_its_own_series_is_not_merged() {
     let api = api(None).await;
     let mut ids = Vec::new();

@@ -14,7 +14,7 @@ use crate::{
     db,
     events::Event,
     jobs::Job,
-    library::{self, WantedChapter},
+    library::{self, ChapterCopy, WantedChapter},
 };
 
 #[derive(Deserialize, TS)]
@@ -110,6 +110,13 @@ pub async fn download(
     let chapter = db::chapters::get(&app.ctx.db, id)
         .await?
         .ok_or(ApiError::NotFound("chapter"))?;
+    // Files are never replaced by another copy; delete the file first.
+    if chapter.file_path.is_none() && db::chapters::number_on_disk(&app.ctx.db, id).await? {
+        return Err(ApiError::Conflict(format!(
+            "another copy of chapter {} is on disk; delete it first",
+            chapter.number
+        )));
+    }
     let job_id = app
         .jobs
         .submit(Job::DownloadChapter {
@@ -118,6 +125,18 @@ pub async fn download(
         })
         .await?;
     Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
+}
+
+/// Every copy of a chapter number, across sources and groups.
+pub async fn copies(
+    State(app): State<AppState>,
+    Path(id): Path<i64>,
+) -> ApiResult<Json<Vec<ChapterCopy>>> {
+    let copies = db::chapters::copies(&app.ctx.db, id).await?;
+    if copies.is_empty() {
+        return Err(ApiError::NotFound("chapter"));
+    }
+    Ok(Json(copies))
 }
 
 #[derive(Deserialize)]

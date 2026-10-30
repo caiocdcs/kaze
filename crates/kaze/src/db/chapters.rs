@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{ChapterRecord, WantedChapter};
+use crate::library::{ChapterCopy, ChapterRecord, WantedChapter};
 
 /// Store chapters found on the source; returns the ids of the ones that
 /// were new. Known chapters (same source key) are left untouched, so a
@@ -295,6 +295,27 @@ pub async fn wanted_picks(
     .fetch_all(db)
     .await?;
     Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+}
+
+/// Every copy of this chapter's number, best ranked first.
+pub async fn copies(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Vec<ChapterCopy>> {
+    sqlx::query_as!(
+        ChapterCopy,
+        r#"SELECT c.id AS "id!", c.source AS "source!", c.scanlator, c.url AS "url!",
+                  c.pick = 1 AS "picked!: bool",
+                  c.file_path IS NOT NULL AS "on_disk!: bool",
+                  j.state AS "last_attempt_state?", j.last_error AS "last_error?"
+           FROM chapter_choice c
+           JOIN chapters me ON me.id = ?
+           LEFT JOIN jobs j ON j.id = (
+               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id
+           )
+           WHERE c.series_id = me.series_id AND c.number = me.number
+           ORDER BY c.pick"#,
+        id
+    )
+    .fetch_all(db)
+    .await
 }
 
 /// Whether another copy of this chapter's number is already on disk.

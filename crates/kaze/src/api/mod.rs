@@ -80,6 +80,7 @@ pub fn router(app: AppState) -> Router {
         .route("/series/{id}/cover", get(series::cover))
         .route("/chapters", patch(chapters::set_monitored))
         .route("/chapters/{id}/download", post(chapters::download))
+        .route("/chapters/{id}/copies", get(chapters::copies))
         .route("/chapters/delete-files", post(chapters::delete_files))
         .route("/wanted", get(chapters::wanted))
         .route("/wanted/download", post(chapters::download_wanted))

@@ -1,7 +1,7 @@
 //! The parts of MangaDex's JSON API that kaze reads, and their mapping to
 //! kaze's types. See <https://api.mangadex.org/docs/>.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
 use kaze_core::{ChapterInfo, ChapterNumber, Series, SeriesHit, SeriesStatus};
@@ -240,19 +240,12 @@ impl Chapter {
     }
 }
 
-/// Several groups often upload the same chapter; keep one per number
-/// (the one with the most pages) so files don't collide.
-pub fn one_per_number(chapters: Vec<(ChapterInfo, u32)>) -> Vec<ChapterInfo> {
-    let mut best: HashMap<ChapterNumber, (ChapterInfo, u32)> = HashMap::new();
-    for (chapter, pages) in chapters {
-        match best.get(&chapter.number) {
-            Some((_, kept)) if *kept >= pages => {}
-            _ => {
-                best.insert(chapter.number.clone(), (chapter, pages));
-            }
-        }
-    }
-    let mut out: Vec<ChapterInfo> = best.into_values().map(|(c, _)| c).collect();
-    out.sort_by(|a, b| a.number.cmp(&b.number));
-    out
+/// Several groups often upload the same chapter; keep every copy, so kaze
+/// can offer a choice, in chapter order with the fullest copy of each
+/// number first: kaze picks the first stored when nothing else decides.
+pub fn fullest_first(mut chapters: Vec<(ChapterInfo, u32)>) -> Vec<ChapterInfo> {
+    // Stable: equal copies stay in feed order.
+    chapters
+        .sort_by(|(a, a_pages), (b, b_pages)| a.number.cmp(&b.number).then(b_pages.cmp(a_pages)));
+    chapters.into_iter().map(|(c, _)| c).collect()
 }

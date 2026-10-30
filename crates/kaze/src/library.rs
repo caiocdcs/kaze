@@ -108,6 +108,22 @@ pub struct SeriesSource {
     pub checked_at: Option<DateTime<Utc>>,
 }
 
+/// One copy of a chapter number: from one source, maybe by one group.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct ChapterCopy {
+    pub id: i64,
+    pub source: String,
+    pub scanlator: Option<String>,
+    pub url: String,
+    /// The copy kaze shows and downloads.
+    pub picked: bool,
+    pub on_disk: bool,
+    /// The latest download job for this copy, if it was ever tried.
+    pub last_attempt_state: Option<String>,
+    pub last_error: Option<String>,
+}
+
 /// A row of the wanted list.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
