@@ -24,6 +24,7 @@ import type { SourceInfo } from './types/SourceInfo.ts';
 import type { SourceResults } from './types/SourceResults.ts';
 import type { Task } from './types/Task.ts';
 import type { TaskInfo } from './types/TaskInfo.ts';
+import type { Upcoming } from './types/Upcoming.ts';
 import type { UpdateSeries } from './types/UpdateSeries.ts';
 import type { WantedChapter } from './types/WantedChapter.ts';
 
@@ -59,6 +60,7 @@ export const api = {
 	chapterCopies: (id: number) => http.get<ChapterCopy[]>(`/chapters/${id}/copies`),
 	wanted: () => http.get<WantedChapter[]>('/wanted'),
 	downloadWanted: () => http.post<{ queued: number }>('/wanted/download'),
+	upcoming: () => http.get<Upcoming[]>('/upcoming'),
 
 	jobs: (limit?: number) => http.get<JobRecord[]>('/jobs', { limit }),
 	cancelJob: (id: number) => http.post<void>(`/jobs/${id}/cancel`),
@@ -116,5 +118,6 @@ export type {
 	SourceInfo,
 	SourceResults,
 	TaskInfo,
+	Upcoming,
 	WantedChapter
 };

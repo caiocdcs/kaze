@@ -11,6 +11,7 @@
 		{ href: '/', label: 'Library', icon: 'library', tab: true },
 		{ href: '/add', label: 'Add series', icon: 'add' },
 		{ href: '/wanted', label: 'Wanted', icon: 'wanted', tab: true },
+		{ href: '/upcoming', label: 'Upcoming', icon: 'calendar' },
 		{ href: '/activity', label: 'Activity', icon: 'activity', tab: true },
 		{ href: '/import', label: 'Import', icon: 'import' },
 		{ href: '/settings', label: 'Settings', icon: 'settings', tab: true }

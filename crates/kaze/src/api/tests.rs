@@ -661,6 +661,45 @@ async fn scanlator_preferences_are_saved_and_checked() {
 }
 
 #[tokio::test]
+async fn upcoming_guesses_the_next_chapter() {
+    let api = api(None).await;
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/series",
+            Some(json!({ "source": "fake", "key": "S1" })),
+        )
+        .await;
+    let id = created["id"].as_i64().unwrap();
+    for _ in 0..50 {
+        let detail = api.get(&format!("/api/v1/series/{id}")).await.1;
+        if detail["chapters"].as_array().is_some_and(|c| c.len() == 2) {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(20)).await;
+    }
+    assert_eq!(
+        api.get("/api/v1/upcoming").await.1,
+        json!([]),
+        "no dates yet"
+    );
+
+    // Chapters 1 and 2 came out two weeks and one week ago.
+    sqlx::query(
+        "UPDATE chapters SET published_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now', (CASE number WHEN '1' THEN -14 ELSE -7 END) || ' days')",
+    )
+    .execute(&api.app.ctx.db)
+    .await
+    .unwrap();
+    let (status, list) = api.get("/api/v1/upcoming").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list[0]["series_id"], id);
+    assert_eq!(list[0]["cadence_days"], 7);
+    assert_eq!(list[0]["state"], "expected");
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn a_source_followed_as_its_own_series_is_not_merged() {
     let api = api(None).await;
     let mut ids = Vec::new();

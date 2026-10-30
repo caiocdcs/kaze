@@ -14,3 +14,4 @@ pub mod library;
 pub mod settings;
 #[cfg(test)]
 mod testing;
+pub mod upcoming;

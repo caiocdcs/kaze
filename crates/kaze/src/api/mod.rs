@@ -83,6 +83,7 @@ pub fn router(app: AppState) -> Router {
         .route("/chapters/{id}/copies", get(chapters::copies))
         .route("/chapters/delete-files", post(chapters::delete_files))
         .route("/wanted", get(chapters::wanted))
+        .route("/upcoming", get(series::upcoming))
         .route("/wanted/download", post(chapters::download_wanted))
         .route("/jobs", get(jobs::list))
         .route("/jobs/{id}/cancel", post(jobs::cancel))

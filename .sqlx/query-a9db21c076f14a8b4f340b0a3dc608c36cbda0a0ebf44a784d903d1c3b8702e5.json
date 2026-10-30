@@ -1,0 +1,50 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT c.series_id AS \"series_id!\", s.title,\n                  c.published_at AS \"published_at!: DateTime<Utc>\"\n           FROM chapter_choice c JOIN series s ON s.id = c.series_id\n           WHERE c.pick = 1 AND c.published_at IS NOT NULL AND s.monitor != 'none'\n           ORDER BY c.series_id",
+  "describe": {
+    "columns": [
+      {
+        "name": "series_id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "series_id"
+          }
+        }
+      },
+      {
+        "name": "title",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "title"
+          }
+        }
+      },
+      {
+        "name": "published_at!: DateTime<Utc>",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "published_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "a9db21c076f14a8b4f340b0a3dc608c36cbda0a0ebf44a784d903d1c3b8702e5"
+}

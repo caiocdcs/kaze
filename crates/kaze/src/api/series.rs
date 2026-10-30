@@ -4,6 +4,7 @@ use axum::{
     http::{StatusCode, header},
     response::IntoResponse,
 };
+use chrono::Utc;
 use kaze_core::{ChapterNumber, SeriesKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -17,6 +18,7 @@ use crate::{
     library::{
         self, ChapterRecord, Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary,
     },
+    upcoming::Upcoming,
 };
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSummary>>> {
@@ -292,6 +294,22 @@ pub async fn refresh(
         job_id = job_id.or(queued);
     }
     Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
+}
+
+/// Each monitored series with a guess at its next chapter, soonest first.
+pub async fn upcoming(State(app): State<AppState>) -> ApiResult<Json<Vec<Upcoming>>> {
+    let rows = db::chapters::release_dates(&app.ctx.db).await?;
+    let now = Utc::now();
+    let mut list: Vec<Upcoming> = rows
+        .chunk_by(|a, b| a.0 == b.0)
+        .filter_map(|series| {
+            let (id, title, _) = &series[0];
+            let dates: Vec<_> = series.iter().map(|(_, _, at)| *at).collect();
+            Upcoming::new(*id, title.clone(), &dates, now)
+        })
+        .collect();
+    list.sort_by_key(|u| (u.state, u.expected_at.unwrap_or(u.last_published_at)));
+    Ok(Json(list))
 }
 
 /// The cover saved in the series folder, so the UI never hotlinks the site.

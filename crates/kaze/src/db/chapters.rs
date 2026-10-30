@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 
+use chrono::{DateTime, Utc};
 use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
@@ -297,6 +298,26 @@ pub async fn wanted_picks(
     .fetch_all(db)
     .await?;
     Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+}
+
+/// Release dates of the picked chapters of monitored series, as (series,
+/// title, date), grouped by series.
+pub async fn release_dates(
+    db: impl SqliteExecutor<'_>,
+) -> sqlx::Result<Vec<(i64, String, DateTime<Utc>)>> {
+    let rows = sqlx::query!(
+        r#"SELECT c.series_id AS "series_id!", s.title,
+                  c.published_at AS "published_at!: DateTime<Utc>"
+           FROM chapter_choice c JOIN series s ON s.id = c.series_id
+           WHERE c.pick = 1 AND c.published_at IS NOT NULL AND s.monitor != 'none'
+           ORDER BY c.series_id"#
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .map(|r| (r.series_id, r.title, r.published_at))
+        .collect())
 }
 
 /// Every copy of this chapter's number, best ranked first.
