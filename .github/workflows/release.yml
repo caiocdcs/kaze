@@ -84,9 +84,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         # We push to main without pull requests, so the generated notes are
-        # only a compare link; list the user-facing commits above it.
+        # only a compare link. Above it go the hand-written highlights, if
+        # .github/release-notes/<tag>.md exists, then the user-facing
+        # commits grouped by type.
         run: |
           previous=$(git describe --tags --abbrev=0 "$GITHUB_REF_NAME^")
-          git log --reverse --format='- %s' "$previous..$GITHUB_REF_NAME" \
-            | grep -E '^- (feat|fix|perf)' > notes.md || true
+          subjects=$(git log --reverse --format='%s' "$previous..$GITHUB_REF_NAME")
+          {
+            highlights=".github/release-notes/$GITHUB_REF_NAME.md"
+            if [ -f "$highlights" ]; then cat "$highlights"; echo; fi
+            for section in "feat:Features" "fix:Fixes" "perf:Performance"; do
+              lines=$(printf '%s\n' "$subjects" | grep -E "^${section%%:*}(\(|!|:)" | sed 's/^/- /')
+              if [ -n "$lines" ]; then printf '### %s\n\n%s\n\n' "${section#*:}" "$lines"; fi
+            done
+          } > notes.md
           gh release create "$GITHUB_REF_NAME" --notes-file notes.md --generate-notes --verify-tag
