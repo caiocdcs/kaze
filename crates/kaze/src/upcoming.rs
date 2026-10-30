@@ -47,6 +47,13 @@ impl Cadence {
         })
     }
 
+    /// The gap in whole days, rounded, at least 1.
+    #[must_use]
+    pub fn days(&self) -> i64 {
+        let half_day = Duration::hours(12);
+        (self.every + half_day).num_days().max(1)
+    }
+
     #[must_use]
     pub fn expected_at(&self) -> DateTime<Utc> {
         self.last + self.every
@@ -72,7 +79,8 @@ pub struct Upcoming {
     pub series_id: i64,
     pub title: String,
     pub last_published_at: DateTime<Utc>,
-    /// Whole days between releases, when there were two to compare.
+    /// Days between releases (rounded, at least 1), when there were two
+    /// to compare.
     pub cadence_days: Option<i64>,
     pub expected_at: Option<DateTime<Utc>>,
     pub state: UpcomingState,
@@ -101,7 +109,7 @@ impl Upcoming {
             series_id,
             title,
             last_published_at: last,
-            cadence_days: cadence.map(|c| c.every.num_days().max(1)),
+            cadence_days: cadence.map(|c| c.days()),
             expected_at,
             state,
         })
@@ -165,6 +173,14 @@ mod tests {
         let later = Upcoming::new(1, "S".into(), &monthly, day(31)).unwrap();
         assert_eq!(later.state, UpcomingState::Later);
         assert_eq!(later.cadence_days, Some(30));
+        let nearly_weekly = [day(0), day(7) - Duration::hours(3)];
+        let rounded = Upcoming::new(1, "S".into(), &nearly_weekly, day(8)).unwrap();
+        assert_eq!(rounded.cadence_days, Some(7), "6 days 21 hours rounds up");
+        let same_day = Cadence {
+            last: day(1),
+            every: Duration::hours(2),
+        };
+        assert_eq!(same_day.days(), 1);
         let once = Upcoming::new(1, "S".into(), &[day(0)], day(1)).unwrap();
         assert_eq!((once.state, once.expected_at), (UpcomingState::Later, None));
         assert_eq!(Upcoming::new(1, "S".into(), &[], day(1)), None);

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT id AS \"id!\" FROM jobs\n           WHERE state IN ('queued', 'running') AND kind = 'download_chapter'\n             AND json_extract(payload, '$.chapter_id') IN (\n                 SELECT id FROM chapters WHERE series_id = ? AND source = ?\n             )",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "jobs",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "1c78453c99e05e58e1fad377b25f2a5710d18002e823f29e487a514ad3ef540e"
+}

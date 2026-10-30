@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { api, type ChapterCopy, type ChapterRecord, type SeriesDetail } from '#lib/api/index.ts';
@@ -153,6 +154,14 @@
 
 	/** Copies of the expanded chapters, by the shown chapter's id. */
 	let copies = $state<Map<number, ChapterCopy[]>>(new Map());
+
+	// Downloads and failures change the copies' states: reload open lists.
+	// `untrack`, since loading writes `copies` and would re-run this.
+	$effect(() => {
+		void live.libraryVersion;
+		void live.jobsVersion;
+		untrack(() => [...copies.keys()].forEach(loadCopies));
+	});
 
 	async function loadCopies(cid: number) {
 		try {

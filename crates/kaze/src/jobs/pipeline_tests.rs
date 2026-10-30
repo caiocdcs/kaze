@@ -343,6 +343,75 @@ async fn a_source_added_later_does_not_backfill_future_series() {
 }
 
 #[tokio::test]
+async fn removing_the_primary_refreshes_the_next_source() {
+    let mut h = two_sources(&["1"], &["1", "2"]).await;
+    let series_id = h.follow(Monitor::All).await;
+    h.app
+        .add_source(series_id, "other", &"S1".into())
+        .await
+        .unwrap();
+    assert_eq!(h.downloaded(2).await, ["1", "2"]);
+
+    h.app.remove_source(series_id, "fake").await.unwrap();
+    h.wait_for(|e| {
+        matches!(
+            e,
+            Event::JobQueued {
+                job: Job::RefreshSeries { source, .. },
+                ..
+            } if source == "other"
+        )
+    })
+    .await;
+    let record = db::series::get(&h.app.ctx.db, series_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(record.source, "other");
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn removing_a_source_stops_its_downloads() {
+    let mut h = two_sources(&["1"], &["1", "2"]).await;
+    h.others[0].pages_open.send_replace(false);
+    let series_id = h.follow(Monitor::All).await;
+    assert_eq!(h.downloaded(1).await, ["1"]);
+    h.app
+        .add_source(series_id, "other", &"S1".into())
+        .await
+        .unwrap();
+    let Event::JobStarted { job_id, .. } = h
+        .wait_for(|e| {
+            matches!(
+                e,
+                Event::JobStarted {
+                    job: Job::DownloadChapter { source, .. },
+                    ..
+                } if source == "other"
+            )
+        })
+        .await
+    else {
+        unreachable!()
+    };
+    // Cancel while it waits for pages, not mid-query (see
+    // `cancel_returns_once_the_job_stopped`).
+    while h.others[0].pages_open.receiver_count() == 0 {
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+
+    h.app.remove_source(series_id, "other").await.unwrap();
+    let job = db::jobs::get(&h.app.ctx.db, job_id).await.unwrap().unwrap();
+    assert_eq!(job.state, JobState::Cancelled);
+    h.others[0].pages_open.send_replace(true);
+    let folder = h.library.path().join("Test Series");
+    assert!(!folder.join("Test Series - Ch.2.cbz").exists());
+    assert_eq!(on_disk(&h, series_id).await, pairs(&[("1", "fake")]));
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn transient_failures_are_retried() {
     let source = FakeSource::new().with_chapters(&["1"]);
     // Cover attempts (on refresh, then on download) and the first page

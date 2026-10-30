@@ -6,6 +6,7 @@ import type { UpcomingState } from "./UpcomingState";
  */
 export type Upcoming = { series_id: number, title: string, last_published_at: string, 
 /**
- * Whole days between releases, when there were two to compare.
+ * Days between releases (rounded, at least 1), when there were two
+ * to compare.
  */
 cadence_days: number | null, expected_at: string | null, state: UpcomingState, };

@@ -326,8 +326,22 @@ impl App {
         if linked.len() == 1 {
             return Err(SeriesSourceError::LastSource);
         }
+        // Wait for its downloads to stop: a file written after its chapter
+        // rows are gone would sit in the folder untracked.
+        for job_id in db::jobs::active_downloads_from(&self.ctx.db, series_id, source_id).await? {
+            self.jobs.cancel(job_id).await?;
+        }
         db::series::remove_source(&self.ctx.db, series_id, source_id).await?;
         tracing::info!(series_id, source = source_id, "source removed");
+        // The next source is the primary now and brings its metadata.
+        if linked[0].source == source_id {
+            self.jobs
+                .submit(Job::RefreshSeries {
+                    series_id,
+                    source: linked[1].source.clone(),
+                })
+                .await?;
+        }
         // Chapters it was going to download now come from the others.
         for (chapter_id, source) in db::chapters::wanted_ids(&self.ctx.db, series_id).await? {
             self.jobs

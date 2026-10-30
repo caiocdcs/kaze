@@ -281,9 +281,14 @@ pub async fn refresh(
     Path(id): Path<i64>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
     load(&app, id).await?;
-    // Every source; the reply carries the primary's job.
+    // Every source; the reply carries the primary's job (`None` when it
+    // was already queued).
     let mut job_id = None;
-    for link in db::series::sources(&app.ctx.db, id).await? {
+    for (i, link) in db::series::sources(&app.ctx.db, id)
+        .await?
+        .into_iter()
+        .enumerate()
+    {
         let queued = app
             .jobs
             .submit(Job::RefreshSeries {
@@ -291,7 +296,9 @@ pub async fn refresh(
                 source: link.source,
             })
             .await?;
-        job_id = job_id.or(queued);
+        if i == 0 {
+            job_id = queued;
+        }
     }
     Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
 }

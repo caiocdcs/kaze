@@ -164,6 +164,25 @@ pub async fn active_for_series(
     .await
 }
 
+/// Active downloads of the series' chapters from `source`.
+pub async fn active_downloads_from(
+    db: impl SqliteExecutor<'_>,
+    series_id: i64,
+    source: &str,
+) -> sqlx::Result<Vec<i64>> {
+    sqlx::query_scalar!(
+        r#"SELECT id AS "id!" FROM jobs
+           WHERE state IN ('queued', 'running') AND kind = 'download_chapter'
+             AND json_extract(payload, '$.chapter_id') IN (
+                 SELECT id FROM chapters WHERE series_id = ? AND source = ?
+             )"#,
+        series_id,
+        source
+    )
+    .fetch_all(db)
+    .await
+}
+
 /// Cancel a queued or running job. Returns whether anything changed.
 pub async fn cancel(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<bool> {
     let now = Utc::now();
