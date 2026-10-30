@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id AS \"id!\", s.title AS \"title!\", s.status AS \"status!: _\", s.monitor AS \"monitor!: Monitor\",\n                  ss.source AS \"source!\", ss.language AS \"language!\", ss.url AS \"url!\",\n                  COUNT(c.id) AS \"chapters!: i64\",\n                  COALESCE(SUM(c.file_path IS NOT NULL), 0) AS \"downloaded!: i64\",\n                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS \"wanted!: i64\",\n                  COALESCE(SUM(c.size_bytes), 0) AS \"size_bytes!: i64\",\n                  MAX(c.published_at) AS \"latest_chapter_at: _\",\n                  s.added_at AS \"added_at!: _\"\n           FROM series s\n           JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           LEFT JOIN chapters c ON c.series_id = s.id\n           GROUP BY s.id\n           ORDER BY s.title COLLATE NOCASE",
+  "query": "SELECT s.id AS \"id!\", s.title AS \"title!\", s.status AS \"status!: _\", s.monitor AS \"monitor!: Monitor\",\n                  ss.source AS \"source!\", ss.language AS \"language!\", ss.url AS \"url!\",\n                  COUNT(c.id) AS \"chapters!: i64\",\n                  COALESCE(SUM(c.file_path IS NOT NULL), 0) AS \"downloaded!: i64\",\n                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL AND NOT c.blocked), 0) AS \"wanted!: i64\",\n                  COALESCE(SUM(c.size_bytes), 0) AS \"size_bytes!: i64\",\n                  MAX(c.published_at) AS \"latest_chapter_at: _\",\n                  s.added_at AS \"added_at!: _\"\n           FROM series s\n           JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           -- One copy per number, so other sources' copies don't count twice.\n           LEFT JOIN chapter_choice c ON c.series_id = s.id AND c.pick = 1\n           GROUP BY s.id\n           ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -107,7 +107,7 @@
       {
         "name": "latest_chapter_at: _",
         "ordinal": 11,
-        "type_info": "Text",
+        "type_info": "Null",
         "origin": "Expression"
       },
       {
@@ -126,20 +126,20 @@
       "Right": 0
     },
     "nullable": [
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
-      true,
       false,
       false,
       false,
       false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
       true,
-      true
+      false
     ]
   },
-  "hash": "fb03a5327487b89e0d9848dfed696a19ec56f97959d4246c24a766b0585c8ebf"
+  "hash": "85c15f90c7657c0787d8f59a060bd3fa889665afa8fd10e29be6166ee7e8c5d8"
 }

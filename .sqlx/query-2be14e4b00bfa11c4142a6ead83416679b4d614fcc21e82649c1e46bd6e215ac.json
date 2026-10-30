@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT c.id AS \"id!\", c.source AS \"source!\", c.scanlator, c.url AS \"url!\",\n                  c.pick = 1 AS \"picked!: bool\",\n                  c.file_path IS NOT NULL AS \"on_disk!: bool\",\n                  j.state AS \"last_attempt_state?\", j.last_error AS \"last_error?\"\n           FROM chapter_choice c\n           JOIN chapters me ON me.id = ?\n           LEFT JOIN jobs j ON j.id = (\n               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id\n           )\n           WHERE c.series_id = me.series_id AND c.number = me.number\n           ORDER BY c.pick",
+  "query": "SELECT c.id AS \"id!\", c.source AS \"source!\", c.scanlator, c.url AS \"url!\",\n                  c.pick = 1 AS \"picked!: bool\",\n                  c.file_path IS NOT NULL AS \"on_disk!: bool\",\n                  c.blocked AS \"blocked!: bool\",\n                  j.state AS \"last_attempt_state?\", j.last_error AS \"last_error?\"\n           FROM chapter_choice c\n           JOIN chapters me ON me.id = ?\n           LEFT JOIN jobs j ON j.id = (\n               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id\n           )\n           WHERE c.series_id = me.series_id AND c.number = me.number\n           ORDER BY c.pick",
   "describe": {
     "columns": [
       {
@@ -60,8 +60,14 @@
         "origin": "Expression"
       },
       {
-        "name": "last_attempt_state?",
+        "name": "blocked!: bool",
         "ordinal": 6,
+        "type_info": "Null",
+        "origin": "Expression"
+      },
+      {
+        "name": "last_attempt_state?",
+        "ordinal": 7,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -72,7 +78,7 @@
       },
       {
         "name": "last_error?",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -92,9 +98,10 @@
       false,
       null,
       null,
+      null,
       false,
       true
     ]
   },
-  "hash": "20d4f94dc8e10842c8fc180fb48a1f635f98b9aa348290abdf4330ea7a28e4bc"
+  "hash": "2be14e4b00bfa11c4142a6ead83416679b4d614fcc21e82649c1e46bd6e215ac"
 }

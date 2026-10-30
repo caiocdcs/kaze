@@ -49,10 +49,11 @@ pub async fn insert_new(
     Ok(inserted)
 }
 
-// `from "chapter_choice"` reads the ranked view (see migration 0009); its
-// columns come back as nullable, hence the `!` overrides.
+// `from "chapter_choice"` reads the ranked view (migrations 0009, 0010);
+// its columns come back as nullable, hence the `!` overrides. The table
+// has no `blocked` column, so its arm passes a constant.
 macro_rules! select_chapters {
-    (from $from:literal, $rest:literal $(, $arg:expr)*) => {
+    (from $from:literal, blocked $blocked:literal, $rest:literal $(, $arg:expr)*) => {
         sqlx::query_as!(
             ChapterRecord,
             r#"SELECT id AS "id!", series_id AS "series_id!", source AS "source!",
@@ -62,13 +63,14 @@ macro_rules! select_chapters {
                       monitored AS "monitored!: bool",
                       file_path, size_bytes,
                       downloaded_at AS "downloaded_at: _",
-                      discovered_at AS "discovered_at!: _"
+                      discovered_at AS "discovered_at!: _",
+                      "# + $blocked + r#" AS "blocked!: bool"
                FROM "# + $from + " " + $rest,
             $($arg),*
         )
     };
     ($rest:literal $(, $arg:expr)*) => {
-        select_chapters!(from "chapters", $rest $(, $arg)*)
+        select_chapters!(from "chapters", blocked "0", $rest $(, $arg)*)
     };
 }
 
@@ -97,7 +99,7 @@ pub async fn picks_for_series(
     series_id: i64,
 ) -> sqlx::Result<Vec<ChapterRecord>> {
     select_chapters!(
-        from "chapter_choice",
+        from "chapter_choice", blocked "blocked",
         "WHERE series_id = ? AND pick = 1 ORDER BY number_whole, number_frac, id",
         series_id
     )
@@ -109,8 +111,8 @@ pub async fn picks_for_series(
 /// Only the picked copy of each number counts.
 pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec<ChapterRecord>> {
     select_chapters!(
-        from "chapter_choice",
-        "WHERE pick = 1 AND monitored = 1 AND file_path IS NULL
+        from "chapter_choice", blocked "blocked",
+        "WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked
          ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
         limit
     )
@@ -125,7 +127,7 @@ pub async fn wanted_ids(
 ) -> sqlx::Result<Vec<(i64, String)>> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
-           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL
+           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked
            ORDER BY number_whole, number_frac, id"#,
         series_id
     )
@@ -157,7 +159,7 @@ pub async fn picks_away_from(
 ) -> sqlx::Result<Vec<(i64, String)>> {
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
-           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1
+           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1 AND NOT blocked
              AND series_id IN (SELECT series_id FROM series_sources WHERE source = ?1)
            ORDER BY series_id, number_whole, number_frac"#,
         source
@@ -183,7 +185,7 @@ pub async fn wanted_with_series(
            LEFT JOIN jobs j ON j.id = (
                SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id
            )
-           WHERE c.pick = 1 AND c.monitored = 1 AND c.file_path IS NULL
+           WHERE c.pick = 1 AND c.monitored = 1 AND c.file_path IS NULL AND NOT c.blocked
            ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac
            LIMIT ?"#,
         limit
@@ -286,7 +288,7 @@ pub async fn wanted_picks(
     let ids = Json(ids);
     let rows = sqlx::query!(
         r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
-           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL
+           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked
              AND (series_id, number) IN (
                  SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))
              )"#,
@@ -304,6 +306,7 @@ pub async fn copies(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Vec<Ch
         r#"SELECT c.id AS "id!", c.source AS "source!", c.scanlator, c.url AS "url!",
                   c.pick = 1 AS "picked!: bool",
                   c.file_path IS NOT NULL AS "on_disk!: bool",
+                  c.blocked AS "blocked!: bool",
                   j.state AS "last_attempt_state?", j.last_error AS "last_error?"
            FROM chapter_choice c
            JOIN chapters me ON me.id = ?
@@ -340,7 +343,7 @@ mod tests {
     use super::*;
     use crate::{
         db::{self, series::NewSeries},
-        library::Monitor,
+        library::{Monitor, Scanlators},
     };
 
     fn series() -> Series {
@@ -499,6 +502,12 @@ mod tests {
         .unwrap();
     }
 
+    fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
+        list.iter()
+            .map(|(n, s)| ((*n).to_owned(), (*s).to_owned()))
+            .collect()
+    }
+
     fn wanted_sources(list: &[ChapterRecord]) -> Vec<(String, String)> {
         list.iter()
             .map(|c| (c.number.to_string(), c.source.clone()))
@@ -611,6 +620,61 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(picked().await, expect("other", "other"));
+    }
+
+    fn by(key: &str, number: &str, group: &str) -> ChapterInfo {
+        ChapterInfo {
+            scanlator: Some(group.to_owned()),
+            ..chapter(key, number)
+        }
+    }
+
+    async fn set_groups(pool: &SqlitePool, id: i64, preferred: &[&str], blocked: &[&str]) {
+        let names = |list: &[&str]| {
+            Scanlators::from(list.iter().map(|s| (*s).to_owned()).collect::<Vec<_>>())
+        };
+        db::series::set_scanlators(pool, id, &names(preferred), &names(blocked))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn preferred_groups_win_and_blocked_ones_are_never_wanted() {
+        let (pool, id) = setup().await;
+        add_source(&pool, id, "other").await;
+        insert_new(
+            &pool,
+            id,
+            "test",
+            &[by("a", "1", "Alpha"), by("b", "2", "Alpha")],
+            |_| true,
+        )
+        .await
+        .unwrap();
+        insert_new(&pool, id, "other", &[by("x", "1", "Beta")], |_| true)
+            .await
+            .unwrap();
+        let picked = || async { wanted_sources(&wanted(&pool, 100).await.unwrap()) };
+
+        // Preference beats source priority, case-insensitively.
+        set_groups(&pool, id, &["beta"], &[]).await;
+        assert_eq!(picked().await, pairs(&[("1", "other"), ("2", "test")]));
+
+        // Blocked: the other copy is picked; a blocked only copy isn't wanted.
+        set_groups(&pool, id, &[], &["ALPHA"]).await;
+        assert_eq!(picked().await, pairs(&[("1", "other")]));
+        let picks = picks_for_series(&pool, id).await.unwrap();
+        assert!(picks[1].blocked && !picks[1].is_wanted());
+        assert_eq!(wanted_ids(&pool, id).await.unwrap().len(), 1);
+
+        // Health comes first: a preferred group on a broken source hands over.
+        set_groups(&pool, id, &["Beta"], &[]).await;
+        for n in 0..db::sources::FAILING_AFTER {
+            db::sources::record_failure(&pool, "other", &format!("error {n}"))
+                .await
+                .unwrap();
+        }
+        assert_eq!(picked().await, pairs(&[("1", "test"), ("2", "test")]));
     }
 
     #[tokio::test]

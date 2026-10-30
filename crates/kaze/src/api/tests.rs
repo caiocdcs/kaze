@@ -618,6 +618,49 @@ async fn chapter_copies_across_sources() {
 }
 
 #[tokio::test]
+async fn scanlator_preferences_are_saved_and_checked() {
+    let api = api(None).await;
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/series",
+            Some(json!({ "source": "fake", "key": "S1" })),
+        )
+        .await;
+    let uri = format!("/api/v1/series/{}", created["id"]);
+
+    let (status, detail) = api
+        .call(
+            Method::PATCH,
+            &uri,
+            Some(json!({ "preferred_scanlators": [" Knox ", "knox"], "blocked_scanlators": ["Asura"] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["preferred_scanlators"], json!(["Knox"]));
+    assert_eq!(detail["blocked_scanlators"], json!(["Asura"]));
+    assert_eq!(
+        detail["scanlators"],
+        json!([]),
+        "the fake source names no groups"
+    );
+
+    // Only one list given: the other is kept, and checked against.
+    let (status, body) = api
+        .call(
+            Method::PATCH,
+            &uri,
+            Some(json!({ "blocked_scanlators": ["KNOX"] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["error"].as_str().unwrap().contains("both"));
+    let (_, detail) = api.get(&uri).await;
+    assert_eq!(detail["blocked_scanlators"], json!(["Asura"]));
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn a_source_followed_as_its_own_series_is_not_merged() {
     let api = api(None).await;
     let mut ids = Vec::new();

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL\n             AND (series_id, number) IN (\n                 SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))\n             )",
+  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1 AND NOT blocked\n             AND series_id IN (SELECT series_id FROM series_sources WHERE source = ?1)\n           ORDER BY series_id, number_whole, number_frac",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "a7fb24d757e4780f82135be8f51194b6fd3c01ea7de0a3f5f0ef60eaf19b3fb5"
+  "hash": "3fba87fea6add9b2b6af7e2c779b8d326a12d42a2fb84299a7f9c477961b6fe3"
 }

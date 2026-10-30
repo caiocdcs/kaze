@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use kaze_core::{ChapterNumber, Series, SeriesKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{Monitor, SeriesRecord, SeriesSource, SeriesSummary};
+use crate::library::{Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary};
 
 /// A series about to be followed.
 #[derive(Debug)]
@@ -74,7 +74,9 @@ macro_rules! select_series {
                       ss.source, ss.source_key AS "source_key: SeriesKey", ss.language, ss.url,
                       s.added_at AS "added_at: _",
                       s.last_checked_at AS "last_checked_at: _",
-                      s.refresh_hours
+                      s.refresh_hours,
+                      s.preferred_scanlators AS "preferred_scanlators: Json<Scanlators>",
+                      s.blocked_scanlators AS "blocked_scanlators: Json<Scanlators>"
                FROM series s
                JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
                "# + $where,
@@ -349,6 +351,36 @@ pub async fn set_refresh_hours(
     Ok(())
 }
 
+pub async fn set_scanlators(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    preferred: &Scanlators,
+    blocked: &Scanlators,
+) -> sqlx::Result<()> {
+    let (preferred, blocked) = (Json(preferred), Json(blocked));
+    sqlx::query!(
+        "UPDATE series SET preferred_scanlators = ?, blocked_scanlators = ? WHERE id = ?",
+        preferred,
+        blocked,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// The groups seen in a series' chapters, for picking preferences.
+pub async fn scanlators(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Vec<String>> {
+    sqlx::query_scalar!(
+        r#"SELECT DISTINCT scanlator AS "scanlator!" FROM chapters
+           WHERE series_id = ? AND scanlator IS NOT NULL
+           ORDER BY scanlator COLLATE NOCASE"#,
+        id
+    )
+    .fetch_all(db)
+    .await
+}
+
 /// Delete a series with its chapters (files on disk are left alone).
 pub async fn delete(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<bool> {
     let result = sqlx::query!("DELETE FROM series WHERE id = ?", id)
@@ -367,13 +399,14 @@ pub async fn summaries(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesSu
                   ss.source AS "source!", ss.language AS "language!", ss.url AS "url!",
                   COUNT(c.id) AS "chapters!: i64",
                   COALESCE(SUM(c.file_path IS NOT NULL), 0) AS "downloaded!: i64",
-                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL), 0) AS "wanted!: i64",
+                  COALESCE(SUM(c.monitored = 1 AND c.file_path IS NULL AND NOT c.blocked), 0) AS "wanted!: i64",
                   COALESCE(SUM(c.size_bytes), 0) AS "size_bytes!: i64",
                   MAX(c.published_at) AS "latest_chapter_at: _",
                   s.added_at AS "added_at!: _"
            FROM series s
            JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
-           LEFT JOIN chapters c ON c.series_id = s.id
+           -- One copy per number, so other sources' copies don't count twice.
+           LEFT JOIN chapter_choice c ON c.series_id = s.id AND c.pick = 1
            GROUP BY s.id
            ORDER BY s.title COLLATE NOCASE"#
     )

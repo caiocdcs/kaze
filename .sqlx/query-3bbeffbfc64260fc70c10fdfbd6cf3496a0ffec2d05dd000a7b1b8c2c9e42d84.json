@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\"\n               FROM chapter_choice WHERE pick = 1 AND monitored = 1 AND file_path IS NULL\n         ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
+  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\",\n                      0 AS \"blocked!: bool\"\n               FROM chapters WHERE id = ?",
   "describe": {
     "columns": [
       {
@@ -178,29 +178,36 @@
             "name": "discovered_at"
           }
         }
+      },
+      {
+        "name": "blocked!: bool",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Right": 1
     },
     "nullable": [
-      null,
       false,
       false,
       false,
       false,
-      true,
-      true,
       false,
-      true,
       true,
       true,
       false,
       true,
       true,
       true,
+      false,
+      true,
+      true,
+      true,
+      false,
       false
     ]
   },
-  "hash": "a29d82f31afeac461f2eec23ea0509b0a414540e50b3dda46f41bb81c0e2dac7"
+  "hash": "3bbeffbfc64260fc70c10fdfbd6cf3496a0ffec2d05dd000a7b1b8c2c9e42d84"
 }

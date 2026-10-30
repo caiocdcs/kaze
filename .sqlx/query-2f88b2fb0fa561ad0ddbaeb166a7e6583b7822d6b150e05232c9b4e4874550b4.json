@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT c.id AS \"id!\", c.series_id, s.title AS series_title, c.source,\n                  c.number AS \"number: _\", c.volume, c.title, c.published_at AS \"published_at: _\",\n                  j.updated_at AS \"last_attempt_at?: _\", j.state AS \"last_attempt_state?\",\n                  j.last_error AS \"last_error?\"\n           FROM chapter_choice c JOIN series s ON s.id = c.series_id\n           -- The newest download job of each chapter (ids only grow).\n           LEFT JOIN jobs j ON j.id = (\n               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id\n           )\n           WHERE c.pick = 1 AND c.monitored = 1 AND c.file_path IS NULL\n           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac\n           LIMIT ?",
+  "query": "SELECT c.id AS \"id!\", c.series_id, s.title AS series_title, c.source,\n                  c.number AS \"number: _\", c.volume, c.title, c.published_at AS \"published_at: _\",\n                  j.updated_at AS \"last_attempt_at?: _\", j.state AS \"last_attempt_state?\",\n                  j.last_error AS \"last_error?\"\n           FROM chapter_choice c JOIN series s ON s.id = c.series_id\n           -- The newest download job of each chapter (ids only grow).\n           LEFT JOIN jobs j ON j.id = (\n               SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id\n           )\n           WHERE c.pick = 1 AND c.monitored = 1 AND c.file_path IS NULL AND NOT c.blocked\n           ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac\n           LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -142,5 +142,5 @@
       true
     ]
   },
-  "hash": "82b10b5c3ea673f45f5ef71eed9be0cc1c9680ef658656659bd913ab48e80a76"
+  "hash": "2f88b2fb0fa561ad0ddbaeb166a7e6583b7822d6b150e05232c9b4e4874550b4"
 }

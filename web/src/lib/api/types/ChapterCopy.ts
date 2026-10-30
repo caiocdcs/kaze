@@ -9,6 +9,10 @@ export type ChapterCopy = { id: number, source: string, scanlator: string | null
  */
 picked: boolean, on_disk: boolean, 
 /**
+ * By a group the series never downloads by itself.
+ */
+blocked: boolean, 
+/**
  * The latest download job for this copy, if it was ever tried.
  */
 last_attempt_state: string | null, last_error: string | null, };

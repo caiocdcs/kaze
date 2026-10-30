@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series SET preferred_scanlators = ?, blocked_scanlators = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "8a2a8422cf5370748e13f51350fc21547e1c1e88de88d80fe6f5733057b828f1"
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\"\n               FROM chapters WHERE series_id = ? ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\",\n                      blocked AS \"blocked!: bool\"\n               FROM chapter_choice WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked\n         ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
   "describe": {
     "columns": [
       {
@@ -178,29 +178,36 @@
             "name": "discovered_at"
           }
         }
+      },
+      {
+        "name": "blocked!: bool",
+        "ordinal": 16,
+        "type_info": "Null",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Right": 1
     },
     "nullable": [
+      null,
       false,
       false,
       false,
       false,
-      false,
-      true,
-      true,
-      false,
-      true,
       true,
       true,
       false,
       true,
       true,
       true,
-      false
+      false,
+      true,
+      true,
+      true,
+      false,
+      null
     ]
   },
-  "hash": "079a3773842d7ed2724c46f389f72a768a6917f0829b44985a78ec7f9a3d039d"
+  "hash": "a31dfaffedac9ce11b2ac2b652467dacc8ef922ce1e67d8719626bcb2e6963b5"
 }

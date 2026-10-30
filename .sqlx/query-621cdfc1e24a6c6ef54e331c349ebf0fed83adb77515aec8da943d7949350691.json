@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL\n           ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked\n           ORDER BY number_whole, number_frac, id",
   "describe": {
     "columns": [
       {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "1e016f2f31783e77f0a7c1b28e91c1bb742e88296399113ba8d48727ebbdc6f7"
+  "hash": "621cdfc1e24a6c6ef54e331c349ebf0fed83adb77515aec8da943d7949350691"
 }

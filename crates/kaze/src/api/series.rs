@@ -14,7 +14,9 @@ use crate::{
     db,
     events::Event,
     jobs::Job,
-    library::{self, ChapterRecord, Monitor, SeriesRecord, SeriesSource, SeriesSummary},
+    library::{
+        self, ChapterRecord, Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary,
+    },
 };
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSummary>>> {
@@ -57,6 +59,8 @@ pub struct SeriesDetail {
     series: SeriesRecord,
     /// Primary first.
     sources: Vec<LinkedSource>,
+    /// Groups seen in the chapters, to choose preferences from.
+    scanlators: Vec<String>,
     chapters: Vec<ChapterRecord>,
 }
 
@@ -87,10 +91,12 @@ pub async fn get(
             .is_failing();
         sources.push(LinkedSource { link, failing });
     }
+    let scanlators = db::series::scanlators(&app.ctx.db, id).await?;
     let chapters = db::chapters::picks_for_series(&app.ctx.db, id).await?;
     Ok(Json(SeriesDetail {
         series,
         sources,
+        scanlators,
         chapters,
     }))
 }
@@ -149,17 +155,41 @@ pub struct UpdateSeries {
     #[serde(default)]
     #[ts(as = "Option<u32>", optional = nullable)]
     refresh_hours: Patch<u32>,
+    #[ts(optional)]
+    preferred_scanlators: Option<Scanlators>,
+    #[ts(optional)]
+    blocked_scanlators: Option<Scanlators>,
 }
 
-/// Change monitoring or the refresh interval. When monitoring changes,
-/// chapters without a file are re-evaluated (as if just added) and newly
-/// wanted ones are queued.
+/// Change monitoring, the refresh interval or the group preferences. When
+/// monitoring changes, chapters without a file are re-evaluated (as if
+/// just added); either way newly wanted ones are queued.
 pub async fn update(
     State(app): State<AppState>,
     Path(id): Path<i64>,
     Json(req): Json<UpdateSeries>,
 ) -> ApiResult<Json<SeriesDetail>> {
     let series = load(&app, id).await?;
+    if req.preferred_scanlators.is_some() || req.blocked_scanlators.is_some() {
+        let preferred = req
+            .preferred_scanlators
+            .unwrap_or_else(|| series.preferred_scanlators.0.clone());
+        let blocked = req
+            .blocked_scanlators
+            .unwrap_or_else(|| series.blocked_scanlators.0.clone());
+        if let Some(name) = preferred.overlap(&blocked) {
+            return Err(ApiError::BadRequest(format!(
+                "{name:?} can't be both preferred and blocked"
+            )));
+        }
+        db::series::set_scanlators(&app.ctx.db, id, &preferred, &blocked).await?;
+        // Another copy may be the pick now.
+        for (chapter_id, source) in db::chapters::wanted_ids(&app.ctx.db, id).await? {
+            app.jobs
+                .submit(Job::DownloadChapter { chapter_id, source })
+                .await?;
+        }
+    }
     if !req.refresh_hours.is_keep() {
         let current = series.refresh_hours.and_then(|h| u32::try_from(h).ok());
         let hours = req.refresh_hours.apply(current).map(i64::from);

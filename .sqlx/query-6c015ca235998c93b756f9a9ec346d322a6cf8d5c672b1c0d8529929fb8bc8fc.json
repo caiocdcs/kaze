@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               WHERE s.id = ?",
+  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours,\n                      s.preferred_scanlators AS \"preferred_scanlators: Json<Scanlators>\",\n                      s.blocked_scanlators AS \"blocked_scanlators: Json<Scanlators>\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -200,10 +200,32 @@
             "name": "refresh_hours"
           }
         }
+      },
+      {
+        "name": "preferred_scanlators: Json<Scanlators>",
+        "ordinal": 18,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "preferred_scanlators"
+          }
+        }
+      },
+      {
+        "name": "blocked_scanlators: Json<Scanlators>",
+        "ordinal": 19,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "blocked_scanlators"
+          }
+        }
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
@@ -223,8 +245,10 @@
       false,
       false,
       true,
-      true
+      true,
+      false,
+      false
     ]
   },
-  "hash": "32b420ce9f19e6c59cc70b8191803ea92c624acbf907f72a3cf35a82aa70c167"
+  "hash": "6c015ca235998c93b756f9a9ec346d322a6cf8d5c672b1c0d8529929fb8bc8fc"
 }

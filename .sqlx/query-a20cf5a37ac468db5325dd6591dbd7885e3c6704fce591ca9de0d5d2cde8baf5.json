@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\"\n               FROM chapter_choice WHERE series_id = ? AND pick = 1 ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\",\n                      blocked AS \"blocked!: bool\"\n               FROM chapter_choice WHERE series_id = ? AND pick = 1 ORDER BY number_whole, number_frac, id",
   "describe": {
     "columns": [
       {
@@ -178,6 +178,12 @@
             "name": "discovered_at"
           }
         }
+      },
+      {
+        "name": "blocked!: bool",
+        "ordinal": 16,
+        "type_info": "Null",
+        "origin": "Expression"
       }
     ],
     "parameters": {
@@ -199,8 +205,9 @@
       true,
       true,
       true,
-      false
+      false,
+      null
     ]
   },
-  "hash": "a4edf67a56c3b52bf1906b965c60611d0c753ece2bc40af207adf682687cd374"
+  "hash": "a20cf5a37ac468db5325dd6591dbd7885e3c6704fce591ca9de0d5d2cde8baf5"
 }

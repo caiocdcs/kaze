@@ -3,6 +3,7 @@ import type { ChapterNumber } from "./ChapterNumber";
 import type { ChapterRecord } from "./ChapterRecord";
 import type { LinkedSource } from "./LinkedSource";
 import type { Monitor } from "./Monitor";
+import type { Scanlators } from "./Scanlators";
 import type { SeriesKey } from "./SeriesKey";
 import type { SeriesStatus } from "./SeriesStatus";
 
@@ -10,7 +11,11 @@ export type SeriesDetail = {
 /**
  * Primary first.
  */
-sources: Array<LinkedSource>, chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
+sources: Array<LinkedSource>, 
+/**
+ * Groups seen in the chapters, to choose preferences from.
+ */
+scanlators: Array<string>, chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
 /**
  * BCP 47 tag, e.g. `pt-BR`.
  */
@@ -18,4 +23,12 @@ language: string, url: string, added_at: string, last_checked_at: string | null,
 /**
  * Hours between full refreshes; `None` = global setting, `Some(0)` = never.
  */
-refresh_hours: number | null, };
+refresh_hours: number | null, 
+/**
+ * Picked over other groups' copies of a chapter.
+ */
+preferred_scanlators: Scanlators, 
+/**
+ * Never downloaded.
+ */
+blocked_scanlators: Scanlators, };

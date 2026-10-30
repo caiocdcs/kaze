@@ -12,6 +12,7 @@
 	import { ago, errorMessage, languageName, num } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
+	import GroupPicker from './GroupPicker.svelte';
 	import Sources from './Sources.svelte';
 
 	const PAGE = 50;
@@ -29,6 +30,8 @@
 	let from = $state('');
 	let refresh = $state<'default' | 'never' | 'custom'>('default');
 	let refreshHours = $state(24);
+	let preferred = $state<string[]>([]);
+	let blocked = $state<string[]>([]);
 
 	async function load() {
 		try {
@@ -45,6 +48,8 @@
 		from = s.monitor_from ?? '';
 		refresh = s.refresh_hours === null ? 'default' : s.refresh_hours === 0 ? 'never' : 'custom';
 		if (s.refresh_hours) refreshHours = s.refresh_hours;
+		preferred = s.preferred_scanlators;
+		blocked = s.blocked_scanlators;
 	}
 
 	$effect(() => {
@@ -57,13 +62,17 @@
 	const stats = $derived({
 		total: chapters.length,
 		disk: chapters.filter((c) => c.file_path).length,
-		wanted: chapters.filter((c) => c.monitored && !c.file_path).length
+		wanted: chapters.filter(isWanted).length
 	});
 	const filtered = $derived(
 		chapters.filter((c) =>
-			show === 'wanted' ? c.monitored && !c.file_path : show === 'disk' ? !!c.file_path : true
+			show === 'wanted' ? isWanted(c) : show === 'disk' ? !!c.file_path : true
 		)
 	);
+
+	function isWanted(c: ChapterRecord) {
+		return c.monitored && !c.file_path && !c.blocked;
+	}
 	const visible = $derived(filtered.slice(0, limit));
 
 	/** Jobs for this series' chapters, by chapter id. */
@@ -83,6 +92,7 @@
 		}
 		if (job) return { tone: 'seal', label: job.attempts > 0 ? 'Retrying' : 'Queued' };
 		if (c.file_path) return { tone: 'disk', label: 'On disk' };
+		if (c.blocked) return { tone: 'off', label: 'Blocked group' };
 		if (c.monitored) return { tone: 'wanted', label: 'Wanted' };
 		return { tone: 'off', label: 'Not monitored' };
 	}
@@ -110,7 +120,9 @@
 			api.updateSeries(id, {
 				monitor,
 				monitor_from: trimmed || null,
-				refresh_hours: refresh === 'default' ? null : refresh === 'never' ? 0 : refreshHours
+				refresh_hours: refresh === 'default' ? null : refresh === 'never' ? 0 : refreshHours,
+				preferred_scanlators: preferred,
+				blocked_scanlators: blocked
 			})
 		);
 	}
@@ -132,7 +144,7 @@
 	}
 
 	function downloadWanted() {
-		const ids = chapters.filter((c) => c.monitored && !c.file_path && !jobs.has(c.id));
+		const ids = chapters.filter((c) => isWanted(c) && !jobs.has(c.id));
 		act(
 			() => Promise.all(ids.map((c) => api.downloadChapter(c.id))),
 			`Queued ${ids.length} chapter(s)`
@@ -171,6 +183,7 @@
 	function copyState(copy: ChapterCopy): { tone: ChipTone; label: string } {
 		if (copy.on_disk) return { tone: 'disk', label: 'On disk' };
 		if (copy.last_attempt_state === 'failed') return { tone: 'bad', label: 'Failed' };
+		if (copy.blocked) return { tone: 'off', label: 'Blocked group' };
 		if (copy.picked) return { tone: 'wanted', label: 'Picked' };
 		return { tone: 'off', label: 'Spare' };
 	}
@@ -312,6 +325,20 @@
 					<input type="number" min="1" bind:value={refreshHours} class="field-sm w-[90px]" />
 				</label>
 			{/if}
+			<GroupPicker
+				id="preferred-groups"
+				label="Prefer groups"
+				hint="Picked over other copies"
+				known={series.scanlators}
+				bind:value={preferred}
+			/>
+			<GroupPicker
+				id="blocked-groups"
+				label="Never download groups"
+				hint="Their copies are skipped"
+				known={series.scanlators}
+				bind:value={blocked}
+			/>
 			<button type="button" class="btn-ghost" disabled={busy} onclick={saveMonitoring}>
 				Save monitoring
 			</button>

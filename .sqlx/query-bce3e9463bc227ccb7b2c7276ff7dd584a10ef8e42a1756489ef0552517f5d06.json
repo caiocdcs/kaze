@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT DISTINCT scanlator AS \"scanlator!\" FROM chapters\n           WHERE series_id = ? AND scanlator IS NOT NULL\n           ORDER BY scanlator COLLATE NOCASE",
+  "describe": {
+    "columns": [
+      {
+        "name": "scanlator!",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "scanlator"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "bce3e9463bc227ccb7b2c7276ff7dd584a10ef8e42a1756489ef0552517f5d06"
+}

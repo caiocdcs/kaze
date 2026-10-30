@@ -17,7 +17,7 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
 ## Features
 
 - **Follow series, *arr style.** For each series, pick all chapters, new ones only, or none. You can also start from a given chapter number. The **Wanted** page lists monitored chapters that aren't on disk yet.
-- **Fallback sources.** A series can use several sources in order. Later ones fill chapters the first is missing and take over when it breaks. Each chapter is downloaded once. The series page lists every copy of a chapter, by source and group, so you can pick one by hand.
+- **Fallback sources.** A series can use several sources in order. Later ones fill chapters the first is missing and take over when it breaks. Each chapter is downloaded once. The series page lists every copy of a chapter, by source and group, so you can pick one by hand. Per series, you can prefer scanlation groups or never download some; files already on disk are kept.
 - **Live activity.** The queue shows progress per page, with cancel and retry. A history records downloads, failures and new chapters.
 - **Gentle on sites.**
   - Each site has its own rate limit and a cap on parallel jobs.

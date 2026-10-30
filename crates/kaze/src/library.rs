@@ -49,6 +49,37 @@ impl Monitor {
     }
 }
 
+/// Scanlation group names: trimmed, without blanks, and without repeats
+/// that differ only in case (the database compares them the same way).
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(from = "Vec<String>")]
+#[ts(as = "Vec<String>")]
+pub struct Scanlators(Vec<String>);
+
+impl From<Vec<String>> for Scanlators {
+    fn from(names: Vec<String>) -> Self {
+        let mut kept: Vec<String> = Vec::new();
+        for name in names {
+            let name = name.trim();
+            if !name.is_empty() && !kept.iter().any(|k| k.to_lowercase() == name.to_lowercase()) {
+                kept.push(name.to_owned());
+            }
+        }
+        Self(kept)
+    }
+}
+
+impl Scanlators {
+    /// A name found in both lists, if any.
+    #[must_use]
+    pub fn overlap<'a>(&'a self, other: &Self) -> Option<&'a str> {
+        self.0
+            .iter()
+            .find(|a| other.0.iter().any(|b| a.to_lowercase() == b.to_lowercase()))
+            .map(String::as_str)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]
 pub struct SeriesRecord {
@@ -74,6 +105,12 @@ pub struct SeriesRecord {
     pub last_checked_at: Option<DateTime<Utc>>,
     /// Hours between full refreshes; `None` = global setting, `Some(0)` = never.
     pub refresh_hours: Option<i64>,
+    /// Picked over other groups' copies of a chapter.
+    #[ts(as = "Scanlators")]
+    pub preferred_scanlators: Json<Scanlators>,
+    /// Never downloaded.
+    #[ts(as = "Scanlators")]
+    pub blocked_scanlators: Json<Scanlators>,
 }
 
 /// A row of the library grid.
@@ -119,6 +156,8 @@ pub struct ChapterCopy {
     /// The copy kaze shows and downloads.
     pub picked: bool,
     pub on_disk: bool,
+    /// By a group the series never downloads by itself.
+    pub blocked: bool,
     /// The latest download job for this copy, if it was ever tried.
     pub last_attempt_state: Option<String>,
     pub last_error: Option<String>,
@@ -161,12 +200,14 @@ pub struct ChapterRecord {
     pub size_bytes: Option<i64>,
     pub downloaded_at: Option<DateTime<Utc>>,
     pub discovered_at: DateTime<Utc>,
+    /// By a group the series never downloads; only the ranked view sets it.
+    pub blocked: bool,
 }
 
 impl ChapterRecord {
     #[must_use]
     pub fn is_wanted(&self) -> bool {
-        self.monitored && self.file_path.is_none()
+        self.monitored && self.file_path.is_none() && !self.blocked
     }
 }
 
@@ -278,6 +319,16 @@ mod tests {
         assert!(!Monitor::Future.wants(&n("50"), None, true));
         assert!(Monitor::Future.wants(&n("51"), None, false));
         assert!(!Monitor::None.wants(&n("51"), None, false));
+    }
+
+    #[test]
+    fn scanlator_names_are_tidied() {
+        let names: Scanlators =
+            serde_json::from_str(r#"[" Knox ", "", "knox", "Asura", "  "]"#).unwrap();
+        assert_eq!(names, Scanlators(vec!["Knox".into(), "Asura".into()]));
+        let other = Scanlators::from(vec!["ASURA".to_owned()]);
+        assert_eq!(names.overlap(&other), Some("Asura"));
+        assert_eq!(names.overlap(&Scanlators::default()), None);
     }
 
     #[test]
