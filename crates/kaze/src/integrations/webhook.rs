@@ -6,12 +6,13 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 use super::{
     Config, IntegrationError, Message, Trigger, checked, http_url, keep, keep_url, mask, mask_url,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Webhook {
     pub url: Url,
@@ -22,7 +23,7 @@ pub struct Webhook {
     pub body: String,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[serde(rename_all = "UPPERCASE")]
 #[ts(export)]
 pub enum WebhookMethod {
@@ -94,7 +95,7 @@ impl Webhook {
 }
 
 /// A ready-made webhook setup for a popular service.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Preset {
     pub id: &'static str,

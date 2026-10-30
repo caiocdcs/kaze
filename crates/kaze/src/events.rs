@@ -10,12 +10,13 @@ use sqlx::SqlitePool;
 use tokio::sync::broadcast::{self, error::RecvError};
 use tokio_util::sync::CancellationToken;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use crate::{db, jobs::Job};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
-#[derive(TS)]
+#[derive(TS, ToSchema)]
 #[ts(export)]
 pub enum Event {
     JobQueued {

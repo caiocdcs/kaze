@@ -11,6 +11,13 @@ use super::AppState;
 
 /// Live events as Server-Sent Events. Each message is the JSON of
 /// `events::Event`, whose `type` field says what happened.
+#[utoipa::path(
+    operation_id = "events_stream",
+    get,
+    path = "/events",
+    tag = "events",
+    responses((status = 200, description = "Server-sent events, one JSON `Event` each", content_type = "text/event-stream", body = crate::events::Event))
+)]
 pub async fn stream(
     State(app): State<AppState>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {

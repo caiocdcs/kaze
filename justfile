@@ -31,11 +31,13 @@ check: db types web-check
     cargo clippy --workspace --all-targets -- --deny warnings
     cargo sqlx prepare --workspace --check -- --all-targets
     @test -z "$(git status --porcelain -- web/src/lib/api/types)" || (echo "API types changed: commit web/src/lib/api/types" && exit 1)
+    @test -z "$(git status --porcelain -- docs/openapi.json)" || (echo "API spec changed: commit docs/openapi.json" && exit 1)
 
-# Regenerate the web UI's TypeScript API types from the Rust structs (ts-rs)
+# Regenerate the web UI's TypeScript API types (ts-rs) and docs/openapi.json (utoipa)
 types: db
     rm -rf web/src/lib/api/types
     cargo test --workspace --quiet export_bindings > /dev/null
+    cargo test --workspace --quiet export_openapi > /dev/null
 
 # Check dependencies against the RustSec advisory database
 audit:

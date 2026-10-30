@@ -4,6 +4,7 @@
 use chrono::{DateTime, Duration, Utc};
 use serde::Serialize;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 /// Release days looked at: the last ten give nine gaps.
 const RECENT: usize = 10;
@@ -61,7 +62,7 @@ impl Cadence {
 }
 
 /// Ordered as the page lists them.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, TS, ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum UpcomingState {
@@ -73,7 +74,7 @@ pub enum UpcomingState {
 }
 
 /// A followed series with its guessed next chapter.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Upcoming {
     pub series_id: i64,

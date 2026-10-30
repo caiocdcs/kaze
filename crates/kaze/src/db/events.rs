@@ -4,8 +4,9 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::SqliteExecutor;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct HistoryEntry {
     pub id: i64,

@@ -1,5 +1,6 @@
 use std::time::Duration;
 use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
 
 use axum::{
     Json,
@@ -9,10 +10,10 @@ use kaze_core::{Series, SeriesHit, SeriesKey, UrlTarget};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use super::{ApiError, ApiResult, AppState};
+use super::{ApiError, ApiResult, AppState, ErrorBody};
 use crate::db::{self, sources::SourceHealth};
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SourceInfo {
     id: &'static str,
@@ -26,6 +27,14 @@ pub struct SourceInfo {
     paused: bool,
 }
 
+#[utoipa::path(
+    operation_id = "sources_list",
+    summary = "Every source with its languages and health",
+    get,
+    path = "/sources",
+    tag = "sources",
+    responses((status = 200, description = "OK", body = Vec<SourceInfo>))
+)]
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>>> {
     let settings = app.ctx.settings.current();
     let mut sources = Vec::new();
@@ -45,7 +54,8 @@ pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SourceInfo>
     Ok(Json(sources))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct SearchQuery {
     q: String,
     source: Option<String>,
@@ -55,7 +65,7 @@ pub struct SearchQuery {
 }
 
 /// Results of one source; a failing source reports its error instead.
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SourceResults {
     source: &'static str,
@@ -67,6 +77,15 @@ pub struct SourceResults {
     error: Option<String>,
 }
 
+#[utoipa::path(
+    operation_id = "sources_search",
+    summary = "Search the sources for a series",
+    get,
+    path = "/search",
+    tag = "sources",
+    params(SearchQuery),
+    responses((status = 200, description = "OK", body = Vec<SourceResults>), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn search(
     State(app): State<AppState>,
     Query(query): Query<SearchQuery>,
@@ -118,13 +137,14 @@ pub async fn search(
     ))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct LookupQuery {
     url: Url,
     language: Option<String>,
 }
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Lookup {
     source: &'static str,
@@ -137,6 +157,14 @@ pub struct Lookup {
 }
 
 /// Resolve a pasted URL to a series preview.
+#[utoipa::path(
+    operation_id = "sources_lookup",
+    get,
+    path = "/lookup",
+    tag = "sources",
+    params(LookupQuery),
+    responses((status = 200, description = "OK", body = Lookup), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody), (status = 502, description = "The site failed", body = ErrorBody))
+)]
 pub async fn lookup(
     State(app): State<AppState>,
     Query(query): Query<LookupQuery>,

@@ -5,6 +5,7 @@ use kaze_core::ChapterNumber;
 use serde::Serialize;
 use sqlx::{SqliteExecutor, types::Json};
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use crate::jobs::Job;
 
@@ -27,7 +28,7 @@ use crate::jobs::Job;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
-#[derive(TS)]
+#[derive(TS, ToSchema)]
 #[ts(export)]
 pub enum JobState {
     Queued,
@@ -37,11 +38,12 @@ pub enum JobState {
     Cancelled,
 }
 
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct JobRecord {
     pub id: i64,
     #[ts(as = "Job")]
+    #[schema(value_type = Job)]
     pub job: Json<Job>,
     pub state: JobState,
     pub attempts: i64,

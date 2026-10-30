@@ -9,8 +9,9 @@ use kaze_core::{ChapterNumber, SeriesKey};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
 
-use super::{ApiError, ApiResult, AppState, patch::Patch};
+use super::{ApiError, ApiResult, AppState, ErrorBody, patch::Patch};
 use crate::{
     db,
     events::Event,
@@ -21,11 +22,19 @@ use crate::{
     upcoming::Upcoming,
 };
 
+#[utoipa::path(
+    operation_id = "series_list",
+    summary = "Every followed series with chapter counts",
+    get,
+    path = "/series",
+    tag = "series",
+    responses((status = 200, description = "OK", body = Vec<SeriesSummary>))
+)]
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSummary>>> {
     Ok(Json(db::series::summaries(&app.ctx.db).await?))
 }
 
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct FollowRequest {
     source: String,
@@ -38,6 +47,15 @@ pub struct FollowRequest {
     monitor_from: Option<ChapterNumber>,
 }
 
+#[utoipa::path(
+    operation_id = "series_follow",
+    summary = "Follow a series",
+    post,
+    path = "/series",
+    tag = "series",
+    request_body = FollowRequest,
+    responses((status = 201, description = "Followed; its first refresh is queued", body = Object, example = json!({"id": 1})), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody), (status = 502, description = "The site failed", body = ErrorBody))
+)]
 pub async fn follow(
     State(app): State<AppState>,
     Json(req): Json<FollowRequest>,
@@ -54,7 +72,7 @@ pub async fn follow(
     Ok((StatusCode::CREATED, Json(json!({ "id": id }))))
 }
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SeriesDetail {
     #[serde(flatten)]
@@ -66,7 +84,7 @@ pub struct SeriesDetail {
     chapters: Vec<ChapterRecord>,
 }
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct LinkedSource {
     #[serde(flatten)]
@@ -81,6 +99,15 @@ async fn load(app: &AppState, id: i64) -> ApiResult<SeriesRecord> {
         .ok_or(ApiError::NotFound("series"))
 }
 
+#[utoipa::path(
+    operation_id = "series_get",
+    summary = "A series with its sources and chapters",
+    get,
+    path = "/series/{id}",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    responses((status = 200, description = "OK", body = SeriesDetail), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn get(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -103,7 +130,7 @@ pub async fn get(
     }))
 }
 
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct AddSource {
     source: String,
@@ -111,6 +138,15 @@ pub struct AddSource {
 }
 
 /// Also download the series from another source.
+#[utoipa::path(
+    operation_id = "series_add_source",
+    post,
+    path = "/series/{id}/sources",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    request_body = AddSource,
+    responses((status = 200, description = "OK", body = SeriesDetail), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody), (status = 502, description = "The site failed", body = ErrorBody))
+)]
 pub async fn add_source(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -120,13 +156,23 @@ pub async fn add_source(
     get(State(app), Path(id)).await
 }
 
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct ReorderSources {
     /// Source ids, primary first.
     order: Vec<String>,
 }
 
+#[utoipa::path(
+    operation_id = "series_reorder_sources",
+    summary = "Set the order sources are tried in",
+    patch,
+    path = "/series/{id}/sources",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    request_body = ReorderSources,
+    responses((status = 200, description = "OK", body = SeriesDetail), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn reorder_sources(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -136,6 +182,15 @@ pub async fn reorder_sources(
     get(State(app), Path(id)).await
 }
 
+#[utoipa::path(
+    operation_id = "series_remove_source",
+    summary = "Stop downloading a series from a source",
+    delete,
+    path = "/series/{id}/sources/{source}",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id"), ("source" = String, Path, description = "Source id")),
+    responses((status = 200, description = "OK", body = SeriesDetail), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn remove_source(
     State(app): State<AppState>,
     Path((id, source)): Path<(i64, String)>,
@@ -145,7 +200,7 @@ pub async fn remove_source(
 }
 
 /// Partial update: fields left out stay as they are.
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct UpdateSeries {
     #[ts(optional)]
@@ -153,9 +208,11 @@ pub struct UpdateSeries {
     // Patch: missing = keep, null = clear.
     #[serde(default)]
     #[ts(as = "Option<ChapterNumber>", optional = nullable)]
+    #[schema(value_type = Option<ChapterNumber>, nullable)]
     monitor_from: Patch<ChapterNumber>,
     #[serde(default)]
     #[ts(as = "Option<u32>", optional = nullable)]
+    #[schema(value_type = Option<u32>, nullable)]
     refresh_hours: Patch<u32>,
     #[ts(optional)]
     preferred_scanlators: Option<Scanlators>,
@@ -166,6 +223,15 @@ pub struct UpdateSeries {
 /// Change monitoring, the refresh interval or the group preferences. When
 /// monitoring changes, chapters without a file are re-evaluated (as if
 /// just added); either way newly wanted ones are queued.
+#[utoipa::path(
+    operation_id = "series_update",
+    patch,
+    path = "/series/{id}",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    request_body = UpdateSeries,
+    responses((status = 200, description = "OK", body = SeriesDetail), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn update(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -225,13 +291,22 @@ async fn remonitor(
     Ok(())
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct RemoveOptions {
     #[serde(default)]
     delete_files: bool,
 }
 
 /// Stop following, and with `delete_files` remove the series folder too.
+#[utoipa::path(
+    operation_id = "series_remove",
+    delete,
+    path = "/series/{id}",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id"), RemoveOptions),
+    responses((status = 204, description = "Unfollowed"), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn remove(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -272,6 +347,15 @@ pub async fn remove(
     Ok(StatusCode::NO_CONTENT)
 }
 
+#[utoipa::path(
+    operation_id = "series_refresh",
+    summary = "Check every source of a series for chapters",
+    post,
+    path = "/series/{id}/refresh",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    responses((status = 202, description = "Refreshes queued; the primary source's job, if it wasn't queued already", body = Object, example = json!({"job_id": 1})), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn refresh(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -300,6 +384,13 @@ pub async fn refresh(
 }
 
 /// Each monitored series with a guess at its next chapter, soonest first.
+#[utoipa::path(
+    operation_id = "series_upcoming",
+    get,
+    path = "/upcoming",
+    tag = "series",
+    responses((status = 200, description = "OK", body = Vec<Upcoming>))
+)]
 pub async fn upcoming(State(app): State<AppState>) -> ApiResult<Json<Vec<Upcoming>>> {
     let rows = db::chapters::release_dates(&app.ctx.db).await?;
     let now = Utc::now();
@@ -316,6 +407,14 @@ pub async fn upcoming(State(app): State<AppState>) -> ApiResult<Json<Vec<Upcomin
 }
 
 /// The cover saved in the series folder, so the UI never hotlinks the site.
+#[utoipa::path(
+    operation_id = "series_cover",
+    get,
+    path = "/series/{id}/cover",
+    tag = "series",
+    params(("id" = i64, Path, description = "Series id")),
+    responses((status = 200, description = "The saved cover image", content_type = "image/*", body = Vec<u8>), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn cover(
     State(app): State<AppState>,
     Path(id): Path<i64>,

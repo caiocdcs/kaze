@@ -5,12 +5,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 use super::{
     IntegrationError, Message, Trigger, checked, endpoint, filled, http_url, keep_opt, mask_opt,
 };
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Ntfy {
     /// The server, such as `https://ntfy.sh`.

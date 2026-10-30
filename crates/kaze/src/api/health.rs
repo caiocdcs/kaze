@@ -7,11 +7,12 @@ use axum::{Json, extract::State};
 use futures_util::future::join_all;
 use serde::Serialize;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use super::{ApiResult, AppState};
 use crate::db;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS, ToSchema)]
 #[serde(rename_all = "lowercase")]
 #[ts(export)]
 pub enum HealthState {
@@ -21,7 +22,7 @@ pub enum HealthState {
     Off,
 }
 
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct HealthCheck {
     pub name: String,
@@ -35,6 +36,14 @@ const TIMEOUT: Duration = Duration::from_secs(10);
 /// Below this, downloads may start failing soon.
 const LOW_DISK: u64 = 5 * 1024 * 1024 * 1024;
 
+#[utoipa::path(
+    operation_id = "health_check",
+    summary = "Check the sources and integrations",
+    get,
+    path = "/health",
+    tag = "system",
+    responses((status = 200, description = "OK", body = Vec<HealthCheck>))
+)]
 pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthCheck>>> {
     let sources = app.ctx.sources.iter().map(|source| {
         let meta = source.meta();

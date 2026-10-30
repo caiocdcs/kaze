@@ -32,7 +32,9 @@ pub async fn require_api_key(
     } else {
         (
             axum::http::StatusCode::UNAUTHORIZED,
-            axum::Json(serde_json::json!({ "error": "missing or wrong API key" })),
+            axum::Json(super::ErrorBody {
+                error: "missing or wrong API key".into(),
+            }),
         )
             .into_response()
     }

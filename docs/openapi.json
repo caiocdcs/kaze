@@ -1,0 +1,4064 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "kaze",
+    "description": "A self-hosted manga downloader. Send the API key, when one is set, as `X-Api-Key` or as `?apikey=`.",
+    "license": {
+      "name": "GPL-3.0-or-later",
+      "identifier": "GPL-3.0-or-later"
+    },
+    "version": "0.4.1"
+  },
+  "servers": [
+    {
+      "url": "/",
+      "description": "This kaze instance"
+    }
+  ],
+  "paths": {
+    "/api/v1/backup": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Download a snapshot of the database",
+        "operationId": "backup_download",
+        "responses": {
+          "200": {
+            "description": "A snapshot of the SQLite database",
+            "content": {
+              "application/vnd.sqlite3": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters": {
+      "patch": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Monitor or unmonitor chapters; newly monitored ones are queued.",
+        "operationId": "chapters_set_monitored",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetMonitored"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Chapters changed, every copy included",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "updated": 2
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters/delete-files": {
+      "post": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Delete chapter files from disk",
+        "operationId": "chapters_delete_files",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFiles"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Files deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "deleted": 2
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters/{id}/copies": {
+      "get": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Every copy of a chapter number, across sources and groups.",
+        "operationId": "chapters_copies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Chapter id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ChapterCopy"
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chapters/{id}/download": {
+      "post": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Download one chapter now, monitored or not.",
+        "operationId": "chapters_download",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Chapter id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Queued; null if already queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "job_id": 1
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Live events as Server-Sent Events. Each message is the JSON of\n`events::Event`, whose `type` field says what happened.",
+        "operationId": "events_stream",
+        "responses": {
+          "200": {
+            "description": "Server-sent events, one JSON `Event` each",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/Event"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Check the sources and integrations",
+        "operationId": "health_check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthCheck"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Recent downloads, failures and new chapters",
+        "operationId": "jobs_history",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HistoryEntry"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Library folders kaze doesn't track yet.",
+        "operationId": "import_candidates",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Candidate"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Follow a series whose files are already in the library",
+        "operationId": "import_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Imported",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Imported"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The site failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/import/match": {
+      "get": {
+        "tags": [
+          "import"
+        ],
+        "summary": "Search every source for a folder's name, closest titles first.",
+        "operationId": "import_matches",
+        "parameters": [
+          {
+            "name": "folder",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Match"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Every integration, secrets masked",
+        "operationId": "integrations_list",
+        "responses": {
+          "200": {
+            "description": "Secrets masked",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Integration"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Add an integration",
+        "operationId": "integrations_create",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/presets": {
+      "get": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Webhook presets",
+        "operationId": "integrations_presets",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Preset"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/test": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Test settings before saving them.",
+        "operationId": "integrations_test_unsaved",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "The saved integration being edited, whose secrets fill in masked fields.",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Config"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "The test went through"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The service failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/{id}": {
+      "put": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Replace an integration",
+        "operationId": "integrations_replace",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Integration id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IntegrationInput"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Delete an integration",
+        "operationId": "integrations_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Integration id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/{id}/test": {
+      "post": {
+        "tags": [
+          "integrations"
+        ],
+        "summary": "Test a saved integration and remember the outcome.",
+        "operationId": "integrations_test_saved",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Integration id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Tested; the outcome is on the integration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Integration"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Queued and running jobs first, then recently finished ones.",
+        "operationId": "jobs_list",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobRecord"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/cancel": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Cancel a job",
+        "operationId": "jobs_cancel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Job id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Cancelled"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{id}/retry": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Run a failed or cancelled job again",
+        "operationId": "jobs_retry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Job id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Queued again"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/lookup": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Resolve a pasted URL to a series preview.",
+        "operationId": "sources_lookup",
+        "parameters": [
+          {
+            "name": "url",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uri"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Lookup"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The site failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/search": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Search the sources for a series",
+        "operationId": "sources_search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "language",
+            "in": "query",
+            "description": "Only sources offering it are searched; without it, each source\nsearches its main language.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceResults"
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Every followed series with chapter counts",
+        "operationId": "series_list",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SeriesSummary"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Follow a series",
+        "operationId": "series_follow",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FollowRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Followed; its first refresh is queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "id": 1
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The site failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "A series with its sources and chapters",
+        "operationId": "series_get",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Stop following, and with `delete_files` remove the series folder too.",
+        "operationId": "series_remove",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "delete_files",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Unfollowed"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Change monitoring, the refresh interval or the group preferences. When\nmonitoring changes, chapters without a file are re-evaluated (as if\njust added); either way newly wanted ones are queued.",
+        "operationId": "series_update",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSeries"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/cover": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "The cover saved in the series folder, so the UI never hotlinks the site.",
+        "operationId": "series_cover",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The saved cover image",
+            "content": {
+              "image/*": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/refresh": {
+      "post": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Check every source of a series for chapters",
+        "operationId": "series_refresh",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Refreshes queued; the primary source's job, if it wasn't queued already",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "job_id": 1
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/sources": {
+      "post": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Also download the series from another source.",
+        "operationId": "series_add_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddSource"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The site failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Set the order sources are tried in",
+        "operationId": "series_reorder_sources",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderSources"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/sources/{source}": {
+      "delete": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Stop downloading a series from a source",
+        "operationId": "series_remove_source",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "source",
+            "in": "path",
+            "description": "Source id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/settings": {
+      "get": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Effective settings plus which keys kaze.toml locks.",
+        "operationId": "settings_get",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "settings"
+        ],
+        "summary": "Change some settings; `null` resets one to its default.",
+        "operationId": "settings_update",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SettingsView"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sources": {
+      "get": {
+        "tags": [
+          "sources"
+        ],
+        "summary": "Every source with its languages and health",
+        "operationId": "sources_list",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SourceInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks": {
+      "get": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Scheduled tasks with their last and next run.",
+        "operationId": "jobs_tasks",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskInfo"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/tasks/{task}/run": {
+      "post": {
+        "tags": [
+          "jobs"
+        ],
+        "summary": "Run a scheduled task now. The path segment deserializes into `Task`,\nso axum rejects an unknown name before this runs.",
+        "operationId": "jobs_run_task",
+        "parameters": [
+          {
+            "name": "task",
+            "in": "path",
+            "description": "Scheduled task",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Task"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Started"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/upcoming": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Each monitored series with a guess at its next chapter, soonest first.",
+        "operationId": "series_upcoming",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Upcoming"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wanted": {
+      "get": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Monitored chapters not on disk yet",
+        "operationId": "chapters_wanted",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WantedChapter"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/wanted/download": {
+      "post": {
+        "tags": [
+          "chapters"
+        ],
+        "summary": "Queue every wanted chapter.",
+        "operationId": "chapters_download_wanted",
+        "responses": {
+          "202": {
+            "description": "Downloads queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                },
+                "example": {
+                  "queued": 3
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AddSource": {
+        "type": "object",
+        "required": [
+          "source",
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Apprise": {
+        "type": "object",
+        "description": "`urls` (such as `ntfy://topic`) are sent with each message; without\nthem, `key` names a configuration saved on the server.",
+        "required": [
+          "url"
+        ],
+        "properties": {
+          "key": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "tags": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "urls": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Candidate": {
+        "type": "object",
+        "description": "A folder in the library that no followed series uses.",
+        "required": [
+          "folder",
+          "files",
+          "chapters",
+          "unparsed"
+        ],
+        "properties": {
+          "chapters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterNumber"
+            },
+            "description": "Distinct chapter numbers found, ascending."
+          },
+          "files": {
+            "type": "integer",
+            "description": "`.cbz` files in the folder.",
+            "minimum": 0
+          },
+          "folder": {
+            "type": "string"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The language whose library folder holds it; `None` for the default\n`library_dir`."
+          },
+          "unparsed": {
+            "type": "integer",
+            "description": "Files whose chapter number couldn't be worked out.",
+            "minimum": 0
+          }
+        }
+      },
+      "ChapterCopy": {
+        "type": "object",
+        "description": "One copy of a chapter number: from one source, maybe by one group.",
+        "required": [
+          "id",
+          "source",
+          "url",
+          "picked",
+          "on_disk",
+          "blocked"
+        ],
+        "properties": {
+          "blocked": {
+            "type": "boolean",
+            "description": "By a group the series never downloads by itself."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_attempt_state": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The latest download job for this copy, if it was ever tried."
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "on_disk": {
+            "type": "boolean"
+          },
+          "picked": {
+            "type": "boolean",
+            "description": "The copy kaze shows and downloads."
+          },
+          "scanlator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "ChapterKey": {
+        "type": "string",
+        "description": "Id of a chapter on its source."
+      },
+      "ChapterNumber": {
+        "type": "string"
+      },
+      "ChapterRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "series_id",
+          "source",
+          "source_key",
+          "number",
+          "url",
+          "monitored",
+          "discovered_at",
+          "blocked"
+        ],
+        "properties": {
+          "blocked": {
+            "type": "boolean",
+            "description": "By a group the series never downloads; only the ranked view sets it."
+          },
+          "discovered_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "downloaded_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "file_path": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "monitored": {
+            "type": "boolean"
+          },
+          "number": {
+            "$ref": "#/components/schemas/ChapterNumber"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "scanlator": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "series_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "size_bytes": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_key": {
+            "$ref": "#/components/schemas/ChapterKey"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string"
+          },
+          "volume": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "Config": {
+        "oneOf": [
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Komga"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "komga"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Kavita"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "kavita"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Ntfy"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "ntfy"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Gotify"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "gotify"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Email"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "email"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Webhook"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "webhook"
+                    ]
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Apprise"
+              },
+              {
+                "type": "object",
+                "required": [
+                  "kind"
+                ],
+                "properties": {
+                  "kind": {
+                    "type": "string",
+                    "enum": [
+                      "apprise"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ],
+        "description": "Where an integration sends things, and how."
+      },
+      "DeleteFiles": {
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "unmonitor": {
+            "type": "boolean",
+            "description": "Stop monitoring, so the chapters are not downloaded again. When\nfalse, monitored chapters are queued again (to replace a bad file)."
+          }
+        }
+      },
+      "Email": {
+        "type": "object",
+        "required": [
+          "host",
+          "port",
+          "from",
+          "to"
+        ],
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "`kaze@example.com` or `kaze <kaze@example.com>`."
+          },
+          "host": {
+            "type": "string"
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "port": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "security": {
+            "$ref": "#/components/schemas/SmtpSecurity"
+          },
+          "to": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "ErrorBody": {
+        "type": "object",
+        "description": "What every error response holds.",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      },
+      "Event": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "job",
+              "type"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/Job"
+              },
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_queued"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "job",
+              "type"
+            ],
+            "properties": {
+              "job": {
+                "$ref": "#/components/schemas/Job"
+              },
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_started"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "done",
+              "total",
+              "type"
+            ],
+            "properties": {
+              "done": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_progress"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "type"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_finished"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "error",
+              "will_retry",
+              "type"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_failed"
+                ]
+              },
+              "will_retry": {
+                "type": "boolean"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "job_id",
+              "type"
+            ],
+            "properties": {
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "job_cancelled"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "series_id",
+              "series",
+              "count",
+              "type"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "series": {
+                "type": "string"
+              },
+              "series_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chapters_found"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "required": [
+              "series_id",
+              "chapter_id",
+              "series",
+              "chapter",
+              "path",
+              "language",
+              "type"
+            ],
+            "properties": {
+              "chapter": {
+                "type": "string"
+              },
+              "chapter_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "language": {
+                "type": "string",
+                "description": "The series' language, so only its library is scanned."
+              },
+              "path": {
+                "type": "string"
+              },
+              "series": {
+                "type": "string"
+              },
+              "series_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chapter_downloaded"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Files removed from the library. `series_id` is gone when the series\nwas unfollowed with its folder.",
+            "required": [
+              "series",
+              "count",
+              "language",
+              "type"
+            ],
+            "properties": {
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "language": {
+                "type": "string"
+              },
+              "series": {
+                "type": "string"
+              },
+              "series_id": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "files_deleted"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "One attempt failed; `JobFailed` for the same job says whether it retries.",
+            "required": [
+              "job_id",
+              "series_id",
+              "chapter_id",
+              "series",
+              "chapter",
+              "error",
+              "type"
+            ],
+            "properties": {
+              "chapter": {
+                "type": "string"
+              },
+              "chapter_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "error": {
+                "type": "string"
+              },
+              "job_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "series": {
+                "type": "string"
+              },
+              "series_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "chapter_failed"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "A source just reached `FAILING_AFTER` failures in a row. Sent once\nper outage: further failures stay quiet until a success resets it.",
+            "required": [
+              "source",
+              "name",
+              "failures",
+              "error",
+              "type"
+            ],
+            "properties": {
+              "error": {
+                "type": "string"
+              },
+              "failures": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "name": {
+                "type": "string"
+              },
+              "source": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "source_broken"
+                ]
+              }
+            }
+          }
+        ]
+      },
+      "FollowRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "key"
+        ],
+        "properties": {
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Defaults to the `default_language` setting."
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/Monitor"
+          },
+          "monitor_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChapterNumber"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Gotify": {
+        "type": "object",
+        "required": [
+          "url",
+          "token"
+        ],
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "An application token (Apps → Create application)."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "HealthCheck": {
+        "type": "object",
+        "required": [
+          "name",
+          "kind",
+          "state",
+          "detail"
+        ],
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "$ref": "#/components/schemas/HealthState"
+          }
+        }
+      },
+      "HealthState": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "slow",
+          "down",
+          "off"
+        ]
+      },
+      "HistoryEntry": {
+        "type": "object",
+        "required": [
+          "id",
+          "at",
+          "kind",
+          "message"
+        ],
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chapter_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "series_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "ImportRequest": {
+        "type": "object",
+        "required": [
+          "folder",
+          "source",
+          "key"
+        ],
+        "properties": {
+          "folder": {
+            "type": "string"
+          },
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Defaults to the `default_language` setting."
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/Monitor"
+          },
+          "monitor_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChapterNumber"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Imported": {
+        "type": "object",
+        "required": [
+          "id",
+          "matched"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "matched": {
+            "type": "integer",
+            "description": "Chapters matched to files on disk.",
+            "minimum": 0
+          }
+        }
+      },
+      "Integration": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "enabled",
+          "config",
+          "events",
+          "created_at"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/Config"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trigger"
+            },
+            "description": "Which events a notifier hears about; library servers ignore it."
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_ok": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          },
+          "last_sent_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_status": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "IntegrationInput": {
+        "type": "object",
+        "description": "What the UI sends to create or replace an integration.",
+        "required": [
+          "name",
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/Config"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trigger"
+            }
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "Job": {
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "Fetch the chapter list and queue downloads for wanted chapters.",
+            "required": [
+              "series_id",
+              "source",
+              "type"
+            ],
+            "properties": {
+              "series_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "source": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "refresh_series"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Download one chapter into the library.",
+            "required": [
+              "chapter_id",
+              "source",
+              "type"
+            ],
+            "properties": {
+              "chapter_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "source": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "download_chapter"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Check a source's latest updates for followed series.",
+            "required": [
+              "source",
+              "type"
+            ],
+            "properties": {
+              "source": {
+                "type": "string"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "sync_latest"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Send a message to a notification integration.",
+            "required": [
+              "integration_id",
+              "message",
+              "type"
+            ],
+            "properties": {
+              "integration_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "message": {
+                "$ref": "#/components/schemas/Message"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "notify"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Ask a library server (Komga, Kavita) to scan: the library of\n`language` if it has its own, else the default one.",
+            "required": [
+              "integration_id",
+              "type"
+            ],
+            "properties": {
+              "integration_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "language": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "scan_library"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Record the size of every chapter file, for disk usage.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "measure_library"
+                ]
+              }
+            }
+          }
+        ],
+        "description": "A unit of background work. Stored as JSON in `jobs.payload`."
+      },
+      "JobRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "job",
+          "state",
+          "attempts",
+          "max_attempts",
+          "run_after",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "attempts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "chapter": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChapterNumber"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "job": {
+            "$ref": "#/components/schemas/Job"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "max_attempts": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "run_after": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "series_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "What the job works on, for display; `None` for source-wide jobs."
+          },
+          "series_title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "$ref": "#/components/schemas/JobState"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "JobState": {
+        "type": "string",
+        "description": "Where a job is in its life. Every change is one query here:\n\n| From | To | By |\n|---|---|---|\n| (new) | queued | [`insert`] (skipped when its dedupe key is active) |\n| queued | running | [`claim`], once the job has its slots; +1 attempt |\n| running | done | the dispatcher, on success ([`finish`]) |\n| running | queued | the dispatcher, on a retryable failure or shutdown ([`requeue`]) |\n| running | failed | the dispatcher, when out of attempts or not retryable ([`finish`]) |\n| running | queued | [`recover`] at startup: the process died mid-job |\n| queued, running | cancelled | [`cancel`] from the API |\n| failed, cancelled | queued | [`retry`] from the API; attempts reset |\n\nA paused source's job stays queued and is parked in the dispatcher.\nThe dispatcher only moves running jobs, so a cancel that races the\nend of a job wins.",
+        "enum": [
+          "queued",
+          "running",
+          "done",
+          "failed",
+          "cancelled"
+        ]
+      },
+      "Kavita": {
+        "type": "object",
+        "required": [
+          "url",
+          "api_key"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "libraries": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Language → library id, for languages with their own folder.",
+            "additionalProperties": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "library_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "Komga": {
+        "type": "object",
+        "required": [
+          "url",
+          "api_key"
+        ],
+        "properties": {
+          "api_key": {
+            "type": "string"
+          },
+          "libraries": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "description": "Language → library id, for languages with their own folder.",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "library_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "LinkedSource": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SeriesSource"
+          },
+          {
+            "type": "object",
+            "required": [
+              "failing"
+            ],
+            "properties": {
+              "failing": {
+                "type": "boolean",
+                "description": "Broken sources' chapters come from the next source."
+              }
+            }
+          }
+        ]
+      },
+      "Lookup": {
+        "type": "object",
+        "required": [
+          "source",
+          "key",
+          "language",
+          "series"
+        ],
+        "properties": {
+          "followed_id": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Set when this series is already followed in `language`."
+          },
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "language": {
+            "type": "string",
+            "description": "What `series` was read in: the asked language, else the default."
+          },
+          "series": {
+            "$ref": "#/components/schemas/Series"
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Match": {
+        "type": "object",
+        "description": "A source series that may be what a folder holds.",
+        "required": [
+          "source",
+          "hit",
+          "score"
+        ],
+        "properties": {
+          "hit": {
+            "$ref": "#/components/schemas/SeriesHit"
+          },
+          "score": {
+            "type": "number",
+            "format": "double",
+            "description": "0 to 1; how close the titles are."
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Message": {
+        "type": "object",
+        "description": "One notification, already summarised (a batch of events becomes one\nmessage). Stored in the `Notify` job's payload.",
+        "required": [
+          "trigger",
+          "title",
+          "body",
+          "count",
+          "series"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "count": {
+            "type": "integer",
+            "description": "How many chapters (or series, for `Found`) this covers.",
+            "minimum": 0
+          },
+          "series": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Series involved, for templates that want them."
+          },
+          "series_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            },
+            "description": "Their ids, for links into the UI. Missing from jobs queued before 0.2."
+          },
+          "title": {
+            "type": "string"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/Trigger"
+          }
+        }
+      },
+      "Monitor": {
+        "type": "string",
+        "description": "Which chapters of a series kaze should download (Sonarr's \"monitor\").",
+        "enum": [
+          "all",
+          "future",
+          "none"
+        ]
+      },
+      "Ntfy": {
+        "type": "object",
+        "required": [
+          "url",
+          "topic"
+        ],
+        "properties": {
+          "click_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "Where kaze's UI is reached, so tapping a notification opens it."
+          },
+          "password": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "An access token; or `username` and `password`."
+          },
+          "topic": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "The server, such as `https://ntfy.sh`."
+          },
+          "username": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "Preset": {
+        "type": "object",
+        "description": "A ready-made webhook setup for a popular service.",
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "config",
+          "events"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/Config"
+          },
+          "events": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Trigger"
+            }
+          },
+          "hint": {
+            "type": "string",
+            "description": "What the user still has to fill in."
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ReorderSources": {
+        "type": "object",
+        "required": [
+          "order"
+        ],
+        "properties": {
+          "order": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Source ids, primary first."
+          }
+        }
+      },
+      "Scanlators": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "Scanlation group names: trimmed, without blanks, and without repeats\nthat differ only in case (the database compares them the same way)."
+      },
+      "Series": {
+        "type": "object",
+        "description": "Full metadata of a series as the source describes it.",
+        "required": [
+          "key",
+          "title",
+          "alt_titles",
+          "url",
+          "authors",
+          "tags",
+          "status"
+        ],
+        "properties": {
+          "alt_titles": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "language": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "BCP 47 tag of the language the chapters are in, when known."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SeriesStatus"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "SeriesDetail": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/SeriesRecord"
+          },
+          {
+            "type": "object",
+            "required": [
+              "sources",
+              "scanlators",
+              "chapters"
+            ],
+            "properties": {
+              "chapters": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/ChapterRecord"
+                }
+              },
+              "scanlators": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                },
+                "description": "Groups seen in the chapters, to choose preferences from."
+              },
+              "sources": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/LinkedSource"
+                },
+                "description": "Primary first."
+              }
+            }
+          }
+        ]
+      },
+      "SeriesHit": {
+        "type": "object",
+        "description": "A search result: just enough to show a card and pick it.",
+        "required": [
+          "key",
+          "title",
+          "url"
+        ],
+        "properties": {
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "SeriesKey": {
+        "type": "string",
+        "description": "Id of a series on its source, e.g. WeebCentral's series ULID."
+      },
+      "SeriesRecord": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "authors",
+          "tags",
+          "status",
+          "folder",
+          "monitor",
+          "source",
+          "source_key",
+          "language",
+          "url",
+          "added_at",
+          "preferred_scanlators",
+          "blocked_scanlators"
+        ],
+        "properties": {
+          "added_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "authors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "blocked_scanlators": {
+            "$ref": "#/components/schemas/Scanlators",
+            "description": "Never downloaded."
+          },
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "folder": {
+            "type": "string"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "language": {
+            "type": "string",
+            "description": "BCP 47 tag, e.g. `pt-BR`."
+          },
+          "last_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/Monitor"
+          },
+          "monitor_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChapterNumber"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferred_scanlators": {
+            "$ref": "#/components/schemas/Scanlators",
+            "description": "Picked over other groups' copies of a chapter."
+          },
+          "refresh_hours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Hours between full refreshes; `None` = global setting, `Some(0)` = never."
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SeriesStatus"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "SeriesSource": {
+        "type": "object",
+        "description": "A site a series is followed on; priority 0 is the primary, which\nalso provides the metadata.",
+        "required": [
+          "source",
+          "source_key",
+          "url",
+          "priority"
+        ],
+        "properties": {
+          "checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "priority": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_key": {
+            "$ref": "#/components/schemas/SeriesKey"
+          },
+          "url": {
+            "type": "string"
+          }
+        }
+      },
+      "SeriesStatus": {
+        "type": "string",
+        "enum": [
+          "ongoing",
+          "completed",
+          "hiatus",
+          "cancelled",
+          "unknown"
+        ]
+      },
+      "SeriesSummary": {
+        "type": "object",
+        "description": "A row of the library grid.",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "monitor",
+          "source",
+          "language",
+          "url",
+          "chapters",
+          "downloaded",
+          "wanted",
+          "size_bytes",
+          "added_at"
+        ],
+        "properties": {
+          "added_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chapters": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "downloaded": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "language": {
+            "type": "string"
+          },
+          "latest_chapter_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "monitor": {
+            "$ref": "#/components/schemas/Monitor"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Bytes on disk, as last measured."
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/SeriesStatus"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "wanted": {
+            "type": "integer",
+            "format": "int64"
+          }
+        }
+      },
+      "SetMonitored": {
+        "type": "object",
+        "required": [
+          "ids",
+          "monitored"
+        ],
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          "monitored": {
+            "type": "boolean"
+          }
+        }
+      },
+      "Settings": {
+        "type": "object",
+        "properties": {
+          "api_key": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "When set, API requests must send it as `X-Api-Key` (or `?apikey=`).",
+            "default": null
+          },
+          "concurrency": {
+            "type": "integer",
+            "description": "Source jobs (downloads, refreshes) running at once.",
+            "default": 4,
+            "minimum": 0
+          },
+          "default_language": {
+            "type": "string",
+            "description": "What new series are followed in, when the source offers it.",
+            "default": "en"
+          },
+          "flaresolverr_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri",
+            "description": "A FlareSolverr instance for sites behind Cloudflare challenges.",
+            "default": null
+          },
+          "naming_template": {
+            "type": "string",
+            "description": "Chapter file name template.",
+            "default": "%M - ?V(Vol.%V )Ch.%C?T( - %T)"
+          },
+          "page_concurrency": {
+            "type": "integer",
+            "description": "Pages of one chapter fetched at once.",
+            "default": 4,
+            "minimum": 0
+          },
+          "paused_sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Sources whose jobs wait instead of running, while a site is broken.",
+            "default": []
+          },
+          "per_source": {
+            "type": "integer",
+            "description": "Jobs running at once against one source.",
+            "default": 2,
+            "minimum": 0
+          },
+          "refresh_hours": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How often a series' full chapter list is re-read (series can override).",
+            "default": 24,
+            "minimum": 0
+          },
+          "sync_latest_minutes": {
+            "type": "integer",
+            "format": "int64",
+            "description": "How often each source's latest updates are checked.",
+            "default": 15,
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      },
+      "SettingsView": {
+        "type": "object",
+        "description": "Settings as the API shows them.",
+        "required": [
+          "settings",
+          "locked"
+        ],
+        "properties": {
+          "locked": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Keys set in kaze.toml / the environment."
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings"
+          }
+        }
+      },
+      "SmtpSecurity": {
+        "type": "string",
+        "enum": [
+          "starttls",
+          "tls",
+          "none"
+        ]
+      },
+      "SourceHealth": {
+        "type": "object",
+        "required": [
+          "failures_in_row"
+        ],
+        "properties": {
+          "failures_in_row": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_success_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SourceInfo": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "base_url",
+          "languages",
+          "health",
+          "failing",
+          "paused"
+        ],
+        "properties": {
+          "base_url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "failing": {
+            "type": "boolean",
+            "description": "Several jobs in a row failed: the site probably changed or is down."
+          },
+          "health": {
+            "$ref": "#/components/schemas/SourceHealth"
+          },
+          "id": {
+            "type": "string"
+          },
+          "languages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "name": {
+            "type": "string"
+          },
+          "paused": {
+            "type": "boolean",
+            "description": "Its jobs wait until it is resumed (`paused_sources` setting)."
+          }
+        }
+      },
+      "SourceResults": {
+        "type": "object",
+        "description": "Results of one source; a failing source reports its error instead.",
+        "required": [
+          "source"
+        ],
+        "properties": {
+          "error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "hits": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SeriesHit"
+            }
+          },
+          "source": {
+            "type": "string"
+          }
+        }
+      },
+      "Task": {
+        "type": "string",
+        "enum": [
+          "sync_latest",
+          "refresh_series",
+          "measure_library"
+        ]
+      },
+      "TaskInfo": {
+        "type": "object",
+        "description": "A scheduled task as the API shows it.",
+        "required": [
+          "task",
+          "name",
+          "every_secs"
+        ],
+        "properties": {
+          "every_secs": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "last_run": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "next_run": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "task": {
+            "$ref": "#/components/schemas/Task"
+          }
+        }
+      },
+      "Trigger": {
+        "type": "string",
+        "description": "What a notification integration can be told about.",
+        "enum": [
+          "downloaded",
+          "failed",
+          "found",
+          "source_broken"
+        ]
+      },
+      "Upcoming": {
+        "type": "object",
+        "description": "A followed series with its guessed next chapter.",
+        "required": [
+          "series_id",
+          "title",
+          "last_published_at",
+          "state"
+        ],
+        "properties": {
+          "cadence_days": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64",
+            "description": "Days between releases (rounded, at least 1), when there were two\nto compare."
+          },
+          "expected_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_published_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "series_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "state": {
+            "$ref": "#/components/schemas/UpcomingState"
+          },
+          "title": {
+            "type": "string"
+          }
+        }
+      },
+      "UpcomingState": {
+        "type": "string",
+        "description": "Ordered as the page lists them.",
+        "enum": [
+          "expected",
+          "later",
+          "stalled"
+        ]
+      },
+      "UpdateSeries": {
+        "type": "object",
+        "description": "Partial update: fields left out stay as they are.",
+        "properties": {
+          "blocked_scanlators": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Scanlators"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monitor": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Monitor"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "monitor_from": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ChapterNumber"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "preferred_scanlators": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Scanlators"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "refresh_hours": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
+          }
+        }
+      },
+      "WantedChapter": {
+        "type": "object",
+        "description": "A row of the wanted list.",
+        "required": [
+          "id",
+          "series_id",
+          "series_title",
+          "source",
+          "number"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "last_attempt_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "The latest download job for this chapter, if it was ever tried."
+          },
+          "last_attempt_state": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_error": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "number": {
+            "$ref": "#/components/schemas/ChapterNumber"
+          },
+          "published_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "series_id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "series_title": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "volume": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "Webhook": {
+        "type": "object",
+        "required": [
+          "url",
+          "body"
+        ],
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "headers": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "propertyNames": {
+              "type": "string"
+            }
+          },
+          "method": {
+            "$ref": "#/components/schemas/WebhookMethod"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          }
+        }
+      },
+      "WebhookMethod": {
+        "type": "string",
+        "enum": [
+          "POST",
+          "PUT"
+        ]
+      }
+    },
+    "securitySchemes": {
+      "api_key_header": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Api-Key"
+      },
+      "api_key_query": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "apikey"
+      }
+    }
+  },
+  "security": [
+    {
+      "api_key_header": []
+    },
+    {
+      "api_key_query": []
+    }
+  ]
+}

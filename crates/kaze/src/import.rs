@@ -14,9 +14,10 @@ use kaze_core::{ChapterNumber, SeriesHit};
 use regex::Regex;
 use serde::Serialize;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 /// A folder in the library that no followed series uses.
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Candidate {
     pub folder: String,
@@ -32,7 +33,7 @@ pub struct Candidate {
 }
 
 /// A source series that may be what a folder holds.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Match {
     pub source: String,

@@ -2,19 +2,22 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::{SqliteExecutor, types::Json};
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use crate::integrations::{Config, Trigger};
 
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Integration {
     pub id: i64,
     pub name: String,
     pub enabled: bool,
     #[ts(as = "Config")]
+    #[schema(value_type = Config)]
     pub config: Json<Config>,
     /// Which events a notifier hears about; library servers ignore it.
     #[ts(as = "Vec<Trigger>")]
+    #[schema(value_type = Vec<Trigger>)]
     pub events: Json<Vec<Trigger>>,
     pub last_ok: Option<bool>,
     pub last_status: Option<String>,

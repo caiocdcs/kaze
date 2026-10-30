@@ -4,12 +4,13 @@ use chrono::{DateTime, Utc};
 use serde::Serialize;
 use sqlx::SqliteExecutor;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 /// Failures in a row before a source counts as broken: one failed
 /// attempt is often a blip that the retry fixes.
 pub const FAILING_AFTER: i64 = 3;
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SourceHealth {
     pub last_success_at: Option<DateTime<Utc>>,

@@ -17,6 +17,7 @@
 
 use std::sync::Arc;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -27,11 +28,12 @@ use crate::{db, download::naming::Template};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
-#[derive(TS)]
+#[derive(TS, ToSchema)]
 #[ts(export)]
 pub struct Settings {
     /// Chapter file name template.
     #[ts(type = "string")]
+    #[schema(value_type = String)]
     pub naming_template: Template,
     /// When set, API requests must send it as `X-Api-Key` (or `?apikey=`).
     pub api_key: Option<String>,
@@ -158,7 +160,7 @@ pub struct SettingsStore {
 }
 
 /// Settings as the API shows them.
-#[derive(Debug, Serialize, TS)]
+#[derive(Debug, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SettingsView {
     pub settings: Settings,

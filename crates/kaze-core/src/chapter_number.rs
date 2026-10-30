@@ -17,6 +17,17 @@ pub struct ChapterNumber {
     frac: String,
 }
 
+// A string in the spec too, as it is on the wire.
+#[cfg(feature = "openapi")]
+impl utoipa::PartialSchema for ChapterNumber {
+    fn schema() -> utoipa::openapi::RefOr<utoipa::openapi::schema::Schema> {
+        <String as utoipa::PartialSchema>::schema()
+    }
+}
+
+#[cfg(feature = "openapi")]
+impl utoipa::ToSchema for ChapterNumber {}
+
 impl ChapterNumber {
     #[must_use]
     pub const fn whole(&self) -> u32 {

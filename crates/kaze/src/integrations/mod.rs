@@ -18,11 +18,12 @@ use reqwest::{Client, RequestBuilder, Response};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 pub use self::webhook::{Preset, WebhookMethod, presets, render};
 
 /// Where an integration sends things, and how.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 #[ts(export)]
 pub enum Config {
@@ -111,7 +112,7 @@ impl Config {
 }
 
 /// What a notification integration can be told about.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, TS, ToSchema)]
 #[serde(rename_all = "snake_case")]
 #[ts(export)]
 pub enum Trigger {
@@ -127,7 +128,7 @@ pub enum Trigger {
 
 /// One notification, already summarised (a batch of events becomes one
 /// message). Stored in the `Notify` job's payload.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Message {
     pub trigger: Trigger,

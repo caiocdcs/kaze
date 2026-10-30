@@ -134,6 +134,10 @@ Put the folders beside each other, never one inside another: Komga and Kavita sc
 
 In kaze under **Settings → Connect**, give the Komga or Kavita server each language's library ID. A download then scans only that language's library; languages without one use the server's library ID, or every library.
 
+## API
+
+Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec is served at `/api/v1/openapi.json`, without the API key, and kept in [`docs/openapi.json`](docs/openapi.json). Send the key, when one is set, as an `X-Api-Key` header or an `apikey` query parameter.
+
 ## Configuration
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).

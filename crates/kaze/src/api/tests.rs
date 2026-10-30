@@ -836,3 +836,30 @@ async fn unfollowing_deletes_the_folder_only_when_asked() {
     assert!(api.app.ctx.libraries.root("en").exists());
     api.app.shutdown().await;
 }
+
+/// Writes `docs/openapi.json` (`just types`); `just check` fails when it
+/// changed without being committed.
+#[test]
+fn export_openapi() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/openapi.json");
+    let json = super::openapi().to_pretty_json().unwrap();
+    // The Nix build's source has no docs/.
+    std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+    std::fs::write(path, json + "\n").unwrap();
+}
+
+#[tokio::test]
+async fn the_spec_is_served_without_the_api_key() {
+    let api = api(Some("a-long-secret")).await;
+    assert_eq!(api.get("/api/v1/series").await.0, StatusCode::UNAUTHORIZED);
+    let (status, spec) = api.get("/api/v1/openapi.json").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(spec["openapi"].as_str().unwrap().starts_with("3."));
+    let series = &spec["paths"]["/api/v1/series/{id}"];
+    assert!(series["get"].is_object() && series["patch"].is_object());
+    assert!(spec["paths"]["/api/v1/events"]["get"].is_object());
+    let schemes = &spec["components"]["securitySchemes"];
+    assert_eq!(schemes["api_key_header"]["name"], "X-Api-Key");
+    assert_eq!(schemes["api_key_query"]["in"], "query");
+    api.app.shutdown().await;
+}

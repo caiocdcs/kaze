@@ -5,10 +5,11 @@ use serde::{Deserialize, Serialize};
 use serde_json::json;
 use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 use super::{IntegrationError, Message, Trigger, checked, endpoint, http_url, keep, mask};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Gotify {
     pub url: Url,

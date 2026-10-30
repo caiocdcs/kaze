@@ -4,7 +4,8 @@ use axum::{
     response::{IntoResponse, Response},
 };
 use kaze_core::SourceError;
-use serde_json::json;
+use serde::Serialize;
+use utoipa::ToSchema;
 
 use crate::{
     app::{FollowError, SeriesSourceError},
@@ -13,6 +14,12 @@ use crate::{
 };
 
 pub type ApiResult<T> = Result<T, ApiError>;
+
+/// What every error response holds.
+#[derive(Debug, Serialize, ToSchema)]
+pub struct ErrorBody {
+    pub error: String,
+}
 
 /// Errors as the API reports them: a status code and `{"error": "..."}`.
 #[derive(Debug, thiserror::Error)]
@@ -45,7 +52,10 @@ impl IntoResponse for ApiError {
         if matches!(self, Self::Upstream(_) | Self::Integration(_)) {
             tracing::warn!("{self}");
         }
-        (status, Json(json!({ "error": self.to_string() }))).into_response()
+        let body = ErrorBody {
+            error: self.to_string(),
+        };
+        (status, Json(body)).into_response()
     }
 }
 

@@ -4,12 +4,13 @@ use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 use std::collections::BTreeMap;
 
 use super::{IntegrationError, checked, endpoint, http_url, library_languages};
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Kavita {
     pub url: Url,
@@ -20,6 +21,7 @@ pub struct Kavita {
     /// Language → library id, for languages with their own folder.
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     #[ts(as = "Option<BTreeMap<String, i64>>", optional)]
+    #[schema(value_type = Option<BTreeMap<String, i64>>)]
     pub libraries: BTreeMap<String, i64>,
 }
 

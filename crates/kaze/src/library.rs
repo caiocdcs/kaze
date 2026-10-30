@@ -11,12 +11,13 @@ use kaze_core::{ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 /// Which chapters of a series kaze should download (Sonarr's "monitor").
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
 #[serde(rename_all = "lowercase")]
 #[sqlx(rename_all = "lowercase")]
-#[derive(TS)]
+#[derive(TS, ToSchema)]
 #[ts(export)]
 pub enum Monitor {
     /// Every chapter, past and future.
@@ -51,7 +52,7 @@ impl Monitor {
 
 /// Scanlation group names: trimmed, without blanks, and without repeats
 /// that differ only in case (the database compares them the same way).
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[serde(from = "Vec<String>")]
 #[ts(as = "Vec<String>")]
 pub struct Scanlators(Vec<String>);
@@ -80,15 +81,17 @@ impl Scanlators {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SeriesRecord {
     pub id: i64,
     pub title: String,
     pub description: Option<String>,
     #[ts(as = "Vec<String>")]
+    #[schema(value_type = Vec<String>)]
     pub authors: Json<Vec<String>>,
     #[ts(as = "Vec<String>")]
+    #[schema(value_type = Vec<String>)]
     pub tags: Json<Vec<String>>,
     pub status: SeriesStatus,
     pub year: Option<i64>,
@@ -107,14 +110,16 @@ pub struct SeriesRecord {
     pub refresh_hours: Option<i64>,
     /// Picked over other groups' copies of a chapter.
     #[ts(as = "Scanlators")]
+    #[schema(value_type = Scanlators)]
     pub preferred_scanlators: Json<Scanlators>,
     /// Never downloaded.
     #[ts(as = "Scanlators")]
+    #[schema(value_type = Scanlators)]
     pub blocked_scanlators: Json<Scanlators>,
 }
 
 /// A row of the library grid.
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SeriesSummary {
     pub id: i64,
@@ -135,7 +140,7 @@ pub struct SeriesSummary {
 
 /// A site a series is followed on; priority 0 is the primary, which
 /// also provides the metadata.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct SeriesSource {
     pub source: String,
@@ -181,7 +186,7 @@ pub struct Pick {
 }
 
 /// One copy of a chapter number: from one source, maybe by one group.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct ChapterCopy {
     pub id: i64,
@@ -199,7 +204,7 @@ pub struct ChapterCopy {
 }
 
 /// A row of the wanted list.
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct WantedChapter {
     pub id: i64,
@@ -216,7 +221,7 @@ pub struct WantedChapter {
     pub last_error: Option<String>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, TS)]
+#[derive(Debug, Clone, PartialEq, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct ChapterRecord {
     pub id: i64,

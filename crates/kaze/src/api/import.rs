@@ -8,8 +8,9 @@ use axum::{
 use kaze_core::{ChapterNumber, SeriesKey};
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
 
-use super::{ApiError, ApiResult, AppState};
+use super::{ApiError, ApiResult, AppState, ErrorBody};
 use crate::{
     db,
     import::{self, Candidate, Match},
@@ -17,6 +18,13 @@ use crate::{
 };
 
 /// Library folders kaze doesn't track yet.
+#[utoipa::path(
+    operation_id = "import_candidates",
+    get,
+    path = "/import",
+    tag = "import",
+    responses((status = 200, description = "OK", body = Vec<Candidate>))
+)]
 pub async fn candidates(State(app): State<AppState>) -> ApiResult<Json<Vec<Candidate>>> {
     let followed: HashSet<String> = db::series::list(&app.ctx.db)
         .await?
@@ -40,12 +48,21 @@ pub async fn candidates(State(app): State<AppState>) -> ApiResult<Json<Vec<Candi
     Ok(Json(found))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct MatchQuery {
     folder: String,
 }
 
 /// Search every source for a folder's name, closest titles first.
+#[utoipa::path(
+    operation_id = "import_matches",
+    get,
+    path = "/import/match",
+    tag = "import",
+    params(MatchQuery),
+    responses((status = 200, description = "OK", body = Vec<Match>))
+)]
 pub async fn matches(
     State(app): State<AppState>,
     Query(q): Query<MatchQuery>,
@@ -65,7 +82,7 @@ pub async fn matches(
     Ok(Json(ranked))
 }
 
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct ImportRequest {
     folder: String,
@@ -79,7 +96,7 @@ pub struct ImportRequest {
     monitor_from: Option<ChapterNumber>,
 }
 
-#[derive(Serialize, TS)]
+#[derive(Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct Imported {
     id: i64,
@@ -87,6 +104,15 @@ pub struct Imported {
     matched: usize,
 }
 
+#[utoipa::path(
+    operation_id = "import_import",
+    summary = "Follow a series whose files are already in the library",
+    post,
+    path = "/import",
+    tag = "import",
+    request_body = ImportRequest,
+    responses((status = 201, description = "Imported", body = Imported), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody), (status = 502, description = "The site failed", body = ErrorBody))
+)]
 pub async fn import(
     State(app): State<AppState>,
     Json(req): Json<ImportRequest>,

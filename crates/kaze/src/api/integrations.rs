@@ -5,8 +5,9 @@ use axum::{
 };
 use serde::Deserialize;
 use ts_rs::TS;
+use utoipa::{IntoParams, ToSchema};
 
-use super::{ApiError, ApiResult, AppState};
+use super::{ApiError, ApiResult, AppState, ErrorBody};
 use crate::{
     db::{
         self,
@@ -16,7 +17,7 @@ use crate::{
 };
 
 /// What the UI sends to create or replace an integration.
-#[derive(Deserialize, TS)]
+#[derive(Deserialize, TS, ToSchema)]
 #[ts(export)]
 pub struct IntegrationInput {
     name: String,
@@ -47,11 +48,27 @@ impl IntegrationInput {
     }
 }
 
+#[utoipa::path(
+    operation_id = "integrations_list",
+    summary = "Every integration, secrets masked",
+    get,
+    path = "/integrations",
+    tag = "integrations",
+    responses((status = 200, description = "Secrets masked", body = Vec<Integration>))
+)]
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<Integration>>> {
     let list = db::integrations::list(&app.ctx.db).await?;
     Ok(Json(list.into_iter().map(Integration::masked).collect()))
 }
 
+#[utoipa::path(
+    operation_id = "integrations_presets",
+    summary = "Webhook presets",
+    get,
+    path = "/integrations/presets",
+    tag = "integrations",
+    responses((status = 200, description = "OK", body = Vec<Preset>))
+)]
 pub async fn presets() -> Json<Vec<Preset>> {
     Json(integrations::presets())
 }
@@ -62,6 +79,15 @@ async fn load(app: &AppState, id: i64) -> ApiResult<Integration> {
         .ok_or(ApiError::NotFound("integration"))
 }
 
+#[utoipa::path(
+    operation_id = "integrations_create",
+    summary = "Add an integration",
+    post,
+    path = "/integrations",
+    tag = "integrations",
+    request_body = IntegrationInput,
+    responses((status = 201, description = "Created", body = Integration), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn create(
     State(app): State<AppState>,
     Json(input): Json<IntegrationInput>,
@@ -70,6 +96,16 @@ pub async fn create(
     Ok((StatusCode::CREATED, Json(load(&app, id).await?.masked())))
 }
 
+#[utoipa::path(
+    operation_id = "integrations_replace",
+    summary = "Replace an integration",
+    put,
+    path = "/integrations/{id}",
+    tag = "integrations",
+    params(("id" = i64, Path, description = "Integration id")),
+    request_body = IntegrationInput,
+    responses((status = 200, description = "OK", body = Integration), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn replace(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -83,6 +119,15 @@ pub async fn replace(
     Ok(Json(load(&app, id).await?.masked()))
 }
 
+#[utoipa::path(
+    operation_id = "integrations_remove",
+    summary = "Delete an integration",
+    delete,
+    path = "/integrations/{id}",
+    tag = "integrations",
+    params(("id" = i64, Path, description = "Integration id")),
+    responses((status = 204, description = "Deleted"), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn remove(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResult<StatusCode> {
     if db::integrations::delete(&app.ctx.db, id).await? {
         Ok(StatusCode::NO_CONTENT)
@@ -92,6 +137,14 @@ pub async fn remove(State(app): State<AppState>, Path(id): Path<i64>) -> ApiResu
 }
 
 /// Test a saved integration and remember the outcome.
+#[utoipa::path(
+    operation_id = "integrations_test_saved",
+    post,
+    path = "/integrations/{id}/test",
+    tag = "integrations",
+    params(("id" = i64, Path, description = "Integration id")),
+    responses((status = 200, description = "Tested; the outcome is on the integration", body = Integration), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
 pub async fn test_saved(
     State(app): State<AppState>,
     Path(id): Path<i64>,
@@ -108,13 +161,23 @@ pub async fn test_saved(
     Ok(Json(load(&app, id).await?.masked()))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
 pub struct TestQuery {
     /// The saved integration being edited, whose secrets fill in masked fields.
     id: Option<i64>,
 }
 
 /// Test settings before saving them.
+#[utoipa::path(
+    operation_id = "integrations_test_unsaved",
+    post,
+    path = "/integrations/test",
+    tag = "integrations",
+    params(TestQuery),
+    request_body = Config,
+    responses((status = 204, description = "The test went through"), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody), (status = 502, description = "The service failed", body = ErrorBody))
+)]
 pub async fn test_unsaved(
     State(app): State<AppState>,
     Query(query): Query<TestQuery>,

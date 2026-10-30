@@ -6,6 +6,14 @@ use chrono::Utc;
 use super::{ApiError, ApiResult, AppState};
 use crate::db;
 
+#[utoipa::path(
+    operation_id = "backup_download",
+    summary = "Download a snapshot of the database",
+    get,
+    path = "/backup",
+    tag = "system",
+    responses((status = 200, description = "A snapshot of the SQLite database", content_type = "application/vnd.sqlite3", body = Vec<u8>))
+)]
 pub async fn download(State(app): State<AppState>) -> ApiResult<impl IntoResponse> {
     let now = Utc::now();
     // `VACUUM INTO` refuses an existing file, so the name must be fresh.

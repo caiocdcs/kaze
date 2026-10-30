@@ -9,7 +9,7 @@ license.workspace = true
 [dependencies]
 async-trait.workspace = true
 axum.workspace = true
-kaze-core = { workspace = true, features = ["sqlx", "ts"] }
+kaze-core = { workspace = true, features = ["openapi", "sqlx", "ts"] }
 bytes.workspace = true
 kaze-sources.workspace = true
 anyhow.workspace = true
@@ -36,6 +36,8 @@ tracing-subscriber.workspace = true
 thiserror.workspace = true
 ts-rs.workspace = true
 url.workspace = true
+utoipa.workspace = true
+utoipa-axum.workspace = true
 zip.workspace = true
 
 [dev-dependencies]

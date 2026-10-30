@@ -11,6 +11,8 @@ license.workspace = true
 sqlx = ["dep:sqlx"]
 # Derive TypeScript types (ts-rs) for the web UI.
 ts = ["dep:ts-rs"]
+# Derive OpenAPI schemas (utoipa) for the API spec.
+openapi = ["dep:utoipa"]
 
 [dependencies]
 async-trait.workspace = true
@@ -21,6 +23,7 @@ sqlx = { version = "0.9", default-features = false, features = ["derive"], optio
 thiserror.workspace = true
 ts-rs = { workspace = true, optional = true }
 url.workspace = true
+utoipa = { workspace = true, optional = true }
 
 [dev-dependencies]
 serde_json.workspace = true

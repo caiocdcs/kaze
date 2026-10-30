@@ -11,6 +11,7 @@ use std::{
     time::Duration,
 };
 use ts_rs::TS;
+use utoipa::ToSchema;
 
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -32,7 +33,7 @@ const MEASURE_FIRST_AFTER: Duration = Duration::from_secs(5 * 60);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-#[derive(TS)]
+#[derive(TS, ToSchema)]
 #[ts(export)]
 pub enum Task {
     /// Check every source's latest updates for followed series.
@@ -63,7 +64,7 @@ struct Status {
 }
 
 /// A scheduled task as the API shows it.
-#[derive(Debug, Clone, Serialize, TS)]
+#[derive(Debug, Clone, Serialize, TS, ToSchema)]
 #[ts(export)]
 pub struct TaskInfo {
     pub task: Task,
