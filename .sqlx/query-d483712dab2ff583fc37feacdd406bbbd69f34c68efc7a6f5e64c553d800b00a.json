@@ -1,0 +1,33 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT number AS \"number!: ChapterNumber\", MAX(monitored) AS \"monitored!: bool\"\n           FROM chapters WHERE series_id = ? GROUP BY number",
+  "describe": {
+    "columns": [
+      {
+        "name": "number!: ChapterNumber",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chapters",
+            "name": "number"
+          }
+        }
+      },
+      {
+        "name": "monitored!: bool",
+        "ordinal": 1,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "d483712dab2ff583fc37feacdd406bbbd69f34c68efc7a6f5e64c553d800b00a"
+}

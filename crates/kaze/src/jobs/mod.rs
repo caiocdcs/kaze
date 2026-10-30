@@ -73,7 +73,7 @@ impl Job {
     #[must_use]
     pub fn dedupe_key(&self) -> String {
         match self {
-            Self::RefreshSeries { series_id, .. } => format!("refresh:{series_id}"),
+            Self::RefreshSeries { series_id, source } => format!("refresh:{series_id}:{source}"),
             Self::DownloadChapter { chapter_id, .. } => format!("download:{chapter_id}"),
             Self::SyncLatest { source } => format!("latest:{source}"),
             // Every message is its own; nothing to merge.

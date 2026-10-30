@@ -18,6 +18,8 @@ use crate::{
 struct Harness {
     app: App,
     source: Arc<FakeSource>,
+    /// Sources after the first, from `start_many`.
+    others: Vec<Arc<FakeSource>>,
     events: broadcast::Receiver<Event>,
     library: tempfile::TempDir,
     /// The pt-BR root, beside `library`.
@@ -25,7 +27,13 @@ struct Harness {
 }
 
 async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
-    let source = Arc::new(source);
+    start_many(vec![source], db).await
+}
+
+async fn start_many(sources: Vec<FakeSource>, db: sqlx::SqlitePool) -> Harness {
+    let mut sources: Vec<Arc<FakeSource>> = sources.into_iter().map(Arc::new).collect();
+    let others = sources.split_off(1);
+    let source = sources.remove(0);
     let library = tempfile::tempdir().unwrap();
     let library_pt = tempfile::tempdir().unwrap();
     let events = Events::new(1024);
@@ -37,7 +45,12 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
             .await
             .unwrap(),
         db,
-        sources: kaze_sources::Registry::from_sources(vec![source.clone()]),
+        sources: kaze_sources::Registry::from_sources(
+            std::iter::once(&source)
+                .chain(&others)
+                .map(|s| Arc::clone(s) as Arc<dyn kaze_core::Source>)
+                .collect(),
+        ),
         events,
         libraries: crate::library::Libraries::new(
             library.path().to_owned(),
@@ -57,6 +70,7 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
         // Short notification batches so integration tests don't wait 30 s.
         app: App::start_with(ctx, retry, notify_timing()).await.unwrap(),
         source,
+        others,
         events: receiver,
         library,
         library_pt,
@@ -228,6 +242,103 @@ async fn future_monitoring_only_takes_new_chapters() {
         2 + 1,
         "two pages of chapter 3 plus the cover"
     );
+    h.app.shutdown().await;
+}
+
+/// Primary "fake" with `ours`, and "other" (not linked yet) with `theirs`.
+async fn two_sources(ours: &[&str], theirs: &[&str]) -> Harness {
+    let other = FakeSource::new()
+        .with_id("other", "Other")
+        .with_chapters(theirs);
+    start_many(
+        vec![FakeSource::new().with_chapters(ours), other],
+        db::memory().await,
+    )
+    .await
+}
+
+/// (number, source) of every chapter on disk, in reading order.
+async fn on_disk(h: &Harness, series_id: i64) -> Vec<(String, String)> {
+    db::chapters::for_series(&h.app.ctx.db, series_id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|c| c.file_path.is_some())
+        .map(|c| (c.number.to_string(), c.source))
+        .collect()
+}
+
+fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
+    list.iter()
+        .map(|(n, s)| ((*n).to_owned(), (*s).to_owned()))
+        .collect()
+}
+
+#[tokio::test]
+async fn a_second_source_fills_the_gaps() {
+    let mut h = two_sources(&["1", "2"], &["1", "2", "3"]).await;
+    let series_id = h.follow(Monitor::All).await;
+    assert_eq!(h.downloaded(2).await, ["1", "2"]);
+
+    h.app
+        .add_source(series_id, "other", &"S1".into())
+        .await
+        .unwrap();
+    assert_eq!(h.downloaded(1).await, ["3"]);
+    assert_eq!(
+        on_disk(&h, series_id).await,
+        pairs(&[("1", "fake"), ("2", "fake"), ("3", "other")])
+    );
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_broken_source_hands_over_to_the_next() {
+    let mut h = two_sources(&["1"], &["1"]).await;
+    h.source
+        .fail_images
+        .store(usize::MAX, std::sync::atomic::Ordering::SeqCst);
+    let series_id = h.follow(Monitor::All).await;
+    h.app
+        .add_source(series_id, "other", &"S1".into())
+        .await
+        .unwrap();
+
+    assert_eq!(h.downloaded(1).await, ["1"]);
+    assert_eq!(on_disk(&h, series_id).await, pairs(&[("1", "other")]));
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_source_added_later_does_not_backfill_future_series() {
+    let mut h = two_sources(&["1", "2"], &["1", "2", "3"]).await;
+    let series_id = h.follow(Monitor::Future).await;
+    h.wait_for(|e| matches!(e, Event::ChaptersFound { count: 2, .. }))
+        .await;
+
+    h.app
+        .add_source(series_id, "other", &"S1".into())
+        .await
+        .unwrap();
+    // Chapter 3 predates "other"'s first check, like 1 and 2 did the series'.
+    h.wait_for(|e| matches!(e, Event::ChaptersFound { count: 1, .. }))
+        .await;
+    assert_eq!(
+        db::chapters::wanted(&h.app.ctx.db, 10).await.unwrap().len(),
+        0
+    );
+
+    h.others[0].add_chapter("4");
+    let refresh = Job::RefreshSeries {
+        series_id,
+        source: "other".into(),
+    };
+    // The first refresh of "other" may still be finishing.
+    while h.app.jobs.submit(refresh.clone()).await.unwrap().is_none() {
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(h.downloaded(1).await, ["4"]);
+    assert_eq!(on_disk(&h, series_id).await, pairs(&[("4", "other")]));
     h.app.shutdown().await;
 }
 

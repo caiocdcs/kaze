@@ -260,7 +260,7 @@ mod tests {
             .await
             .unwrap();
             db::series::set_refresh_hours(&db, id, hours).await.unwrap();
-            db::series::mark_checked(&db, id).await.unwrap();
+            db::series::mark_checked(&db, id, folder).await.unwrap();
             ids.push(id);
         }
         let due = |hours_later: i64| {

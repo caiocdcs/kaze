@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT s.id AS \"id!\", ss.source\n           FROM series s JOIN series_sources ss ON ss.series_id = s.id\n           WHERE s.monitor != 'none'\n           ORDER BY s.id, ss.priority",
+  "describe": {
+    "columns": [
+      {
+        "name": "id!",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "source",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "source"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "57864923c181242298fb0bf5057976802fa8920c72eb21791d028f22208cc3d8"
+}

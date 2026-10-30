@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series_sources SET priority = ? WHERE series_id = ? AND source = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "b9fb3111582e9be01f257314bf56a33171b45f52366e4019853025fcbdbc814e"
+}

@@ -193,7 +193,7 @@ impl Dispatcher {
                     self.start(expired.into_inner(), &queue);
                 }
                 Some(joined) = self.tasks.join_next(), if !self.tasks.is_empty() => match joined {
-                    Ok((id, outcome)) => self.finished(id, outcome).await,
+                    Ok((id, outcome)) => self.finished(id, outcome, &queue).await,
                     Err(err) => tracing::error!("job task panicked: {err}"),
                 },
                 // Settings changed in the UI: apply new concurrency limits.
@@ -213,7 +213,7 @@ impl Dispatcher {
         tracing::info!(running = self.tasks.len(), "stopping job dispatcher");
         while let Some(joined) = self.tasks.join_next().await {
             if let Ok((id, outcome)) = joined {
-                self.finished(id, outcome).await;
+                self.finished(id, outcome, &queue).await;
             }
         }
         // Every permit is back now, so pending drains finish at once.
@@ -247,7 +247,7 @@ impl Dispatcher {
         }
     }
 
-    async fn finished(&mut self, id: i64, outcome: Outcome) {
+    async fn finished(&mut self, id: i64, outcome: Outcome, queue: &JobQueue) {
         self.running.remove(&id);
         for tx in self.stopping.remove(&id).unwrap_or_default() {
             let _ = tx.send(());
@@ -291,12 +291,64 @@ impl Dispatcher {
                         Utc::now() + chrono::Duration::from_std(delay).unwrap_or_default();
                     db::jobs::requeue(db, id, run_after, Some(&error)).await
                 } else {
-                    db::jobs::finish(db, id, JobState::Failed, Some(&error)).await
+                    let finished = db::jobs::finish(db, id, JobState::Failed, Some(&error)).await;
+                    if finished.is_ok() && !self.shutdown.is_cancelled() {
+                        self.take_over(id, queue).await;
+                    }
+                    finished
                 }
             }
         };
         if let Err(err) = result {
             tracing::error!(job = id, "could not update job: {err}");
+        }
+    }
+
+    /// A download failed for good: queue another copy of the chapter, if
+    /// there is one. Now that the job is `failed`, `chapter_choice` ranks
+    /// this copy last. The job goes straight to `start`: sending it
+    /// through `queue` would wait on this very loop when the channel is full.
+    async fn take_over(&mut self, id: i64, queue: &JobQueue) {
+        let ctx = Arc::clone(&self.ctx);
+        let db = &ctx.db;
+        let chapter_id = match db::jobs::get(db, id).await {
+            Ok(Some(record)) => match record.job.0 {
+                Job::DownloadChapter { chapter_id, .. } => chapter_id,
+                _ => return,
+            },
+            Ok(None) => return,
+            Err(err) => {
+                tracing::error!(job = id, "could not read failed job: {err}");
+                return;
+            }
+        };
+        let picks = match db::chapters::wanted_picks(db, &[chapter_id]).await {
+            Ok(picks) => picks,
+            Err(err) => {
+                tracing::error!(chapter_id, "could not look for another copy: {err}");
+                return;
+            }
+        };
+        // The failed copy itself is the pick when it is the only one.
+        for (pick, source) in picks.into_iter().filter(|(pick, _)| *pick != chapter_id) {
+            let job = Job::DownloadChapter {
+                chapter_id: pick,
+                source,
+            };
+            match db::jobs::insert(db, &job).await {
+                Ok(Some(new)) => {
+                    tracing::info!(
+                        chapter_id,
+                        job = new,
+                        source = job.source(),
+                        "taking over a failed chapter"
+                    );
+                    ctx.events.emit(Event::JobQueued { job_id: new, job });
+                    self.start(new, queue);
+                }
+                Ok(None) => {}
+                Err(err) => tracing::error!(chapter_id, "could not queue another copy: {err}"),
+            }
         }
     }
 }
@@ -370,7 +422,7 @@ async fn run_one(
         result = handler => result,
     };
     if let Some(source) = claimed.job.source() {
-        record_health(ctx, source, &result).await;
+        record_health(ctx, queue, source, &result).await;
     }
     let kind = claimed.job.kind();
     match result {
@@ -397,16 +449,24 @@ async fn run_one(
     }
 }
 
-async fn record_health(ctx: &Context, source: &str, result: &Result<(), handlers::JobError>) {
+async fn record_health(
+    ctx: &Context,
+    queue: &JobQueue,
+    source: &str,
+    result: &Result<(), handlers::JobError>,
+) {
     let recorded = match result {
-        Ok(()) => db::sources::record_success(&ctx.db, source).await,
+        Ok(()) => db::sources::record_success(&ctx.db, source)
+            .await
+            .map(|()| false),
         Err(err) if err.is_source_failure() => {
             let error = err.to_string();
             db::sources::record_failure(&ctx.db, source, &error)
                 .await
                 .map(|failures| {
                     // Exactly at the threshold, so one outage is one alert.
-                    if failures == db::sources::FAILING_AFTER {
+                    let broken = failures == db::sources::FAILING_AFTER;
+                    if broken {
                         let name = ctx
                             .sources
                             .get(source)
@@ -418,12 +478,48 @@ async fn record_health(ctx: &Context, source: &str, result: &Result<(), handlers
                             error,
                         });
                     }
+                    broken
                 })
         }
-        Err(_) => Ok(()),
+        Err(_) => Ok(false),
     };
-    if let Err(err) = recorded {
-        tracing::warn!(source, "could not record source health: {err}");
+    match recorded {
+        Ok(true) => take_over_source(ctx, queue, source).await,
+        Ok(false) => {}
+        Err(err) => tracing::warn!(source, "could not record source health: {err}"),
+    }
+}
+
+/// `source` just broke, so its copies rank last: queue the copies other
+/// sources have of the chapters it was going to download. This runs in
+/// the job's task, not the dispatcher loop, so `submit` is safe here.
+async fn take_over_source(ctx: &Context, queue: &JobQueue, source: &str) {
+    let picks = match db::chapters::picks_away_from(&ctx.db, source).await {
+        Ok(picks) => picks,
+        Err(err) => {
+            tracing::error!(source, "could not look for other sources: {err}");
+            return;
+        }
+    };
+    let mut queued = 0;
+    for (chapter_id, from) in picks {
+        match queue
+            .submit(Job::DownloadChapter {
+                chapter_id,
+                source: from,
+            })
+            .await
+        {
+            Ok(Some(_)) => queued += 1,
+            Ok(None) => {}
+            Err(err) => {
+                tracing::error!(source, "could not queue another copy: {err}");
+                return;
+            }
+        }
+    }
+    if queued > 0 {
+        tracing::info!(source, queued, "source broken: other sources take over");
     }
 }
 

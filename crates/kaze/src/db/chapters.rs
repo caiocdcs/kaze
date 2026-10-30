@@ -1,4 +1,6 @@
-use kaze_core::{ChapterInfo, ChapterKey};
+use std::collections::HashMap;
+
+use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
 use crate::library::{ChapterRecord, WantedChapter};
@@ -116,16 +118,53 @@ pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec
     .await
 }
 
-/// Ids of the wanted chapters of one series, in reading order.
-pub async fn wanted_ids(db: impl SqliteExecutor<'_>, series_id: i64) -> sqlx::Result<Vec<i64>> {
-    sqlx::query_scalar!(
-        r#"SELECT id AS "id!" FROM chapter_choice
+/// The wanted chapters of one series in reading order, as (id, source).
+pub async fn wanted_ids(
+    db: impl SqliteExecutor<'_>,
+    series_id: i64,
+) -> sqlx::Result<Vec<(i64, String)>> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
            WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL
            ORDER BY number_whole, number_frac, id"#,
         series_id
     )
     .fetch_all(db)
-    .await
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+}
+
+/// The numbers a series already lists, each with whether it is monitored.
+pub async fn known_numbers(
+    db: impl SqliteExecutor<'_>,
+    series_id: i64,
+) -> sqlx::Result<HashMap<ChapterNumber, bool>> {
+    let rows = sqlx::query!(
+        r#"SELECT number AS "number!: ChapterNumber", MAX(monitored) AS "monitored!: bool"
+           FROM chapters WHERE series_id = ? GROUP BY number"#,
+        series_id
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.number, r.monitored)).collect())
+}
+
+/// Wanted picks on other sources, in the series that use `source`: what
+/// to download once `source` is broken and its copies rank last.
+pub async fn picks_away_from(
+    db: impl SqliteExecutor<'_>,
+    source: &str,
+) -> sqlx::Result<Vec<(i64, String)>> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
+           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1
+             AND series_id IN (SELECT series_id FROM series_sources WHERE source = ?1)
+           ORDER BY series_id, number_whole, number_frac"#,
+        source
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
 }
 
 /// The wanted list with series titles, for the "Wanted" page.

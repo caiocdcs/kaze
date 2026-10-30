@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series_sources\n         SET priority = (SELECT COUNT(*) FROM series_sources o\n                         WHERE o.series_id = series_sources.series_id\n                           AND o.priority < series_sources.priority)\n         WHERE series_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "bd6bd5542526d6f8d6df58c8a60745549f88b0e3413aeb00b2216ae3d8158111"
+}

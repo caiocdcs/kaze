@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT source, source_key AS \"source_key: SeriesKey\", url, priority,\n                  checked_at AS \"checked_at: _\"\n           FROM series_sources WHERE series_id = ? ORDER BY priority",
+  "describe": {
+    "columns": [
+      {
+        "name": "source",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "name": "source_key: SeriesKey",
+        "ordinal": 1,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "source_key"
+          }
+        }
+      },
+      {
+        "name": "url",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "url"
+          }
+        }
+      },
+      {
+        "name": "priority",
+        "ordinal": 3,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "priority"
+          }
+        }
+      },
+      {
+        "name": "checked_at: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series_sources",
+            "name": "checked_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "9a1dc4de76e07fbee507c7055df442e08d232c68b2a7a037e41e22d75d22d829"
+}

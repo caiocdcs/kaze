@@ -1,7 +1,8 @@
+use chrono::{DateTime, Utc};
 use kaze_core::{ChapterNumber, Series, SeriesKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{Monitor, SeriesRecord, SeriesSummary};
+use crate::library::{Monitor, SeriesRecord, SeriesSource, SeriesSummary};
 
 /// A series about to be followed.
 #[derive(Debug)]
@@ -176,32 +177,134 @@ pub async fn set_monitor(
     Ok(result.rows_affected() == 1)
 }
 
-pub async fn mark_checked(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<()> {
-    let now = chrono::Utc::now();
+/// Record a check of one of the series' sources. `checked_at` tells a
+/// source's first check apart, `last_checked_at` is any source's last.
+pub async fn mark_checked(db: &SqlitePool, id: i64, source: &str) -> sqlx::Result<()> {
+    let now = Utc::now();
+    let mut tx = db.begin().await?;
     sqlx::query!(
         "UPDATE series SET last_checked_at = ? WHERE id = ?",
         now,
         id
+    )
+    .execute(&mut *tx)
+    .await?;
+    sqlx::query!(
+        "UPDATE series_sources SET checked_at = ? WHERE series_id = ? AND source = ?",
+        now,
+        id,
+        source
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await
+}
+
+/// The sources of a series, primary first.
+pub async fn sources(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<Vec<SeriesSource>> {
+    sqlx::query_as!(
+        SeriesSource,
+        r#"SELECT source, source_key AS "source_key: SeriesKey", url, priority,
+                  checked_at AS "checked_at: _"
+           FROM series_sources WHERE series_id = ? ORDER BY priority"#,
+        id
+    )
+    .fetch_all(db)
+    .await
+}
+
+/// Follow a series on one more source, after the others.
+pub async fn add_source(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    source: &str,
+    key: &SeriesKey,
+    language: &str,
+    url: &str,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "INSERT INTO series_sources (series_id, source, source_key, language, url, priority)
+         VALUES (?1, ?2, ?3, ?4, ?5,
+                 (SELECT COALESCE(MAX(priority), -1) + 1 FROM series_sources WHERE series_id = ?1))",
+        id,
+        source,
+        key,
+        language,
+        url,
     )
     .execute(db)
     .await?;
     Ok(())
 }
 
-/// Monitored series whose full refresh is due, with their source.
+/// Give the sources priorities 0, 1, … in `order`, which must hold each
+/// of the series' sources once.
+pub async fn reorder_sources(db: &SqlitePool, id: i64, order: &[String]) -> sqlx::Result<()> {
+    let mut tx = db.begin().await?;
+    for (priority, source) in (0_i64..).zip(order) {
+        sqlx::query!(
+            "UPDATE series_sources SET priority = ? WHERE series_id = ? AND source = ?",
+            priority,
+            id,
+            source
+        )
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await
+}
+
+/// Stop using a source for a series. Its chapters without a file go;
+/// downloaded ones stay, so their files are still known.
+pub async fn remove_source(db: &SqlitePool, id: i64, source: &str) -> sqlx::Result<bool> {
+    let mut tx = db.begin().await?;
+    let removed = sqlx::query!(
+        "DELETE FROM series_sources WHERE series_id = ? AND source = ?",
+        id,
+        source
+    )
+    .execute(&mut *tx)
+    .await?
+    .rows_affected()
+        == 1;
+    sqlx::query!(
+        "DELETE FROM chapters WHERE series_id = ? AND source = ? AND file_path IS NULL",
+        id,
+        source
+    )
+    .execute(&mut *tx)
+    .await?;
+    // Close the gap, so the next source becomes the primary if needed.
+    sqlx::query!(
+        "UPDATE series_sources
+         SET priority = (SELECT COUNT(*) FROM series_sources o
+                         WHERE o.series_id = series_sources.series_id
+                           AND o.priority < series_sources.priority)
+         WHERE series_id = ?",
+        id
+    )
+    .execute(&mut *tx)
+    .await?;
+    tx.commit().await?;
+    Ok(removed)
+}
+
+/// Sources of monitored series whose full refresh is due, as
+/// (series, source): each source of a series is refreshed on its own.
 ///
 /// Each series uses its own `refresh_hours` or the global `default_hours`;
 /// `0` turns refreshing off. Few rows, so the date math happens in Rust.
 pub async fn due_for_refresh(
     db: impl SqliteExecutor<'_>,
     default_hours: u64,
-    now: chrono::DateTime<chrono::Utc>,
+    now: DateTime<Utc>,
 ) -> sqlx::Result<Vec<(i64, String)>> {
     let rows = sqlx::query!(
         r#"SELECT s.id AS "id!", ss.source, s.refresh_hours,
-                  s.last_checked_at AS "last_checked_at: chrono::DateTime<chrono::Utc>"
-           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
-           WHERE s.monitor != 'none'"#
+                  ss.checked_at AS "checked_at: DateTime<Utc>"
+           FROM series s JOIN series_sources ss ON ss.series_id = s.id
+           WHERE s.monitor != 'none'
+           ORDER BY s.id, ss.priority"#
     )
     .fetch_all(db)
     .await?;
@@ -211,19 +314,20 @@ pub async fn due_for_refresh(
         .filter(|r| {
             let hours = r.refresh_hours.unwrap_or(default_hours);
             hours > 0
-                && r.last_checked_at
+                && r.checked_at
                     .is_none_or(|checked| now - checked >= chrono::Duration::hours(hours))
         })
         .map(|r| (r.id, r.source))
         .collect())
 }
 
-/// Every monitored series with its source ("refresh everything now").
+/// Every source of every monitored series ("refresh everything now").
 pub async fn monitored(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<(i64, String)>> {
     let rows = sqlx::query!(
         r#"SELECT s.id AS "id!", ss.source
-           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
-           WHERE s.monitor != 'none'"#
+           FROM series s JOIN series_sources ss ON ss.series_id = s.id
+           WHERE s.monitor != 'none'
+           ORDER BY s.id, ss.priority"#
     )
     .fetch_all(db)
     .await?;

@@ -1,6 +1,6 @@
 //! What each kind of job actually does.
 
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 
 use kaze_core::{Source, SourceError};
 use tokio_util::task::TaskTracker;
@@ -67,7 +67,9 @@ pub async fn run(
     writes: &TaskTracker,
 ) -> Result<(), JobError> {
     match job {
-        Job::RefreshSeries { series_id, .. } => refresh_series(ctx, queue, *series_id).await,
+        Job::RefreshSeries { series_id, source } => {
+            refresh_series(ctx, queue, *series_id, source).await
+        }
         Job::DownloadChapter { chapter_id, .. } => {
             download_chapter(ctx, job_id, *chapter_id, writes).await
         }
@@ -122,44 +124,74 @@ async fn load_series(ctx: &Context, id: i64) -> Result<SeriesRecord, JobError> {
     Ok(series)
 }
 
-/// Pull metadata and chapters, store new chapters and queue every wanted one.
-async fn refresh_series(ctx: &Context, queue: &JobQueue, series_id: i64) -> Result<(), JobError> {
+/// Pull one source's chapters (and, from the primary, the metadata), store
+/// new ones and queue every wanted one.
+async fn refresh_series(
+    ctx: &Context,
+    queue: &JobQueue,
+    series_id: i64,
+    source_id: &str,
+) -> Result<(), JobError> {
     let record = load_series(ctx, series_id).await?;
-    let source = source(ctx, &record.source)?;
-    let (series, chapters) = tokio::try_join!(
-        source.series(&record.source_key, &record.language),
-        source.chapters(&record.source_key, &record.language)
-    )?;
+    let link = db::series::sources(&ctx.db, series_id)
+        .await?
+        .into_iter()
+        .find(|l| l.source == source_id)
+        .ok_or_else(|| JobError::Gone(format!("series {series_id} no longer uses {source_id}")))?;
+    let source = source(ctx, source_id)?;
+    let chapters = source.chapters(&link.source_key, &record.language);
+    let (title, chapters) = if link.priority == 0 {
+        let (series, chapters) =
+            tokio::try_join!(source.series(&link.source_key, &record.language), chapters)?;
+        db::series::update_metadata(&ctx.db, series_id, &series).await?;
+        // Saved now, not with the first chapter, so the library shows it at once.
+        let cover = series.cover_url.as_ref().map(ToString::to_string);
+        let dir = ctx.libraries.root(&record.language).join(&record.folder);
+        save_cover(source, &dir, cover.as_deref()).await;
+        (series.title, chapters)
+    } else {
+        (record.title, chapters.await?)
+    };
 
-    db::series::update_metadata(&ctx.db, series_id, &series).await?;
-    // Saved now, not with the first chapter, so the library shows it at once.
-    let cover = series.cover_url.as_ref().map(ToString::to_string);
-    let dir = ctx.libraries.root(&record.language).join(&record.folder);
-    save_cover(source, &dir, cover.as_deref()).await;
-    // The first check after following decides between `All` and `Future`.
-    let initial = record.last_checked_at.is_none();
+    // A number the series already lists keeps its monitor choice on every
+    // source. For new numbers, a source's first check decides between
+    // `All` and `Future`, so a source added later doesn't backfill.
+    let known = db::chapters::known_numbers(&ctx.db, series_id).await?;
+    let initial = link.checked_at.is_none();
     let from = record.monitor_from.as_ref();
-    let new = db::chapters::insert_new(&ctx.db, series_id, &record.source, &chapters, |c| {
-        record.monitor.wants(&c.number, from, initial)
+    db::chapters::insert_new(&ctx.db, series_id, source_id, &chapters, |c| {
+        known
+            .get(&c.number)
+            .copied()
+            .unwrap_or_else(|| record.monitor.wants(&c.number, from, initial))
     })
     .await?;
-    db::series::mark_checked(&ctx.db, series_id).await?;
+    db::series::mark_checked(&ctx.db, series_id, source_id).await?;
 
-    if !new.is_empty() {
+    // Copies of known numbers are not news.
+    let found: HashSet<_> = chapters
+        .iter()
+        .map(|c| &c.number)
+        .filter(|n| !known.contains_key(*n))
+        .collect();
+    if !found.is_empty() {
         ctx.events.emit(Event::ChaptersFound {
             series_id,
-            series: series.title.clone(),
-            count: new.len(),
+            series: title,
+            count: found.len(),
         });
     }
-    // Queue all wanted chapters, not only new ones, so earlier failures
-    // get another chance; duplicates are ignored by the queue.
-    for chapter_id in db::chapters::wanted_ids(&ctx.db, series_id).await? {
+    // All wanted chapters, not only new ones, so earlier failures get
+    // another chance; duplicates are ignored by the queue.
+    queue_wanted(ctx, queue, series_id).await
+}
+
+/// Queue the download of every wanted chapter of a series, each from the
+/// source of its picked copy.
+async fn queue_wanted(ctx: &Context, queue: &JobQueue, series_id: i64) -> Result<(), JobError> {
+    for (chapter_id, source) in db::chapters::wanted_ids(&ctx.db, series_id).await? {
         queue
-            .submit(Job::DownloadChapter {
-                chapter_id,
-                source: record.source.clone(),
-            })
+            .submit(Job::DownloadChapter { chapter_id, source })
             .await?;
     }
     Ok(())

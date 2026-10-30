@@ -6,7 +6,11 @@ use axum::{
 use kaze_core::SourceError;
 use serde_json::json;
 
-use crate::{app::FollowError, jobs::QueueError, settings::SettingsError};
+use crate::{
+    app::{FollowError, SeriesSourceError},
+    jobs::QueueError,
+    settings::SettingsError,
+};
 
 pub type ApiResult<T> = Result<T, ApiError>;
 
@@ -84,6 +88,22 @@ impl From<FollowError> for ApiError {
             FollowError::Source(e) => e.into(),
             FollowError::Db(e) => e.into(),
             FollowError::Queue(e) => e.into(),
+        }
+    }
+}
+
+impl From<SeriesSourceError> for ApiError {
+    fn from(err: SeriesSourceError) -> Self {
+        match err {
+            SeriesSourceError::SeriesNotFound => Self::NotFound("series"),
+            SeriesSourceError::NotLinked(_) => Self::NotFound("source of the series"),
+            SeriesSourceError::BadOrder => Self::BadRequest(err.to_string()),
+            SeriesSourceError::AlreadyLinked(_) | SeriesSourceError::LastSource => {
+                Self::Conflict(err.to_string())
+            }
+            SeriesSourceError::Follow(e) => e.into(),
+            SeriesSourceError::Db(e) => e.into(),
+            SeriesSourceError::Queue(e) => e.into(),
         }
     }
 }

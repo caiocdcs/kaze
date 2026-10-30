@@ -67,6 +67,33 @@ pub enum FollowError {
     Queue(#[from] QueueError),
 }
 
+/// Why a series' sources could not be changed.
+#[derive(Debug, thiserror::Error)]
+pub enum SeriesSourceError {
+    #[error("series not found")]
+    SeriesNotFound,
+    #[error("the series does not use {0:?}")]
+    NotLinked(String),
+    #[error(transparent)]
+    Follow(#[from] FollowError),
+    #[error("the series already uses {0:?}")]
+    AlreadyLinked(String),
+    #[error("a series needs at least one source")]
+    LastSource,
+    #[error("the new order must list each of the series' sources once")]
+    BadOrder,
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+    #[error(transparent)]
+    Queue(#[from] QueueError),
+}
+
+impl From<SourceError> for SeriesSourceError {
+    fn from(err: SourceError) -> Self {
+        Self::Follow(err.into())
+    }
+}
+
 impl App {
     /// Start the dispatcher, scheduler and history writer.
     pub async fn start(ctx: Context, retry: RetryPolicy) -> sqlx::Result<Self> {
@@ -205,6 +232,111 @@ impl App {
         Ok(id)
     }
 
+    /// Also download a followed series from `source_id`, after its other
+    /// sources: it fills their gaps and takes over when they break.
+    pub async fn add_source(
+        &self,
+        series_id: i64,
+        source_id: &str,
+        key: &SeriesKey,
+    ) -> Result<(), SeriesSourceError> {
+        let series = db::series::get(&self.ctx.db, series_id)
+            .await?
+            .ok_or(SeriesSourceError::SeriesNotFound)?;
+        let source = self
+            .ctx
+            .sources
+            .get(source_id)
+            .ok_or_else(|| FollowError::UnknownSource(source_id.to_owned()))?;
+        let language = self.language_for(source.as_ref(), Some(&series.language))?;
+        let linked = db::series::sources(&self.ctx.db, series_id).await?;
+        if linked.iter().any(|l| l.source == source_id) {
+            return Err(SeriesSourceError::AlreadyLinked(source_id.to_owned()));
+        }
+        // Merging two followed series is not supported.
+        if let Some(id) = db::series::find_by_source(&self.ctx.db, source_id, key, language).await?
+        {
+            return Err(FollowError::AlreadyFollowing(id).into());
+        }
+        let found = source.series(key, language).await?;
+        db::series::add_source(
+            &self.ctx.db,
+            series_id,
+            source_id,
+            &found.key,
+            language,
+            found.url.as_str(),
+        )
+        .await?;
+        tracing::info!(series = series.title, source = source_id, "source added");
+        self.jobs
+            .submit(Job::RefreshSeries {
+                series_id,
+                source: source_id.to_owned(),
+            })
+            .await?;
+        Ok(())
+    }
+
+    /// Set the order sources are tried in; the first becomes the primary.
+    pub async fn reorder_sources(
+        &self,
+        series_id: i64,
+        order: &[String],
+    ) -> Result<(), SeriesSourceError> {
+        let linked = db::series::sources(&self.ctx.db, series_id).await?;
+        if linked.is_empty() {
+            return Err(SeriesSourceError::SeriesNotFound);
+        }
+        let mut given: Vec<&str> = order.iter().map(String::as_str).collect();
+        let mut current: Vec<&str> = linked.iter().map(|l| l.source.as_str()).collect();
+        given.sort_unstable();
+        current.sort_unstable();
+        if given != current {
+            return Err(SeriesSourceError::BadOrder);
+        }
+        db::series::reorder_sources(&self.ctx.db, series_id, order).await?;
+        // A new primary brings its metadata.
+        if let Some(primary) = order.first()
+            && linked.first().is_none_or(|l| &l.source != primary)
+        {
+            self.jobs
+                .submit(Job::RefreshSeries {
+                    series_id,
+                    source: primary.clone(),
+                })
+                .await?;
+        }
+        Ok(())
+    }
+
+    /// Stop downloading a series from `source_id`; files it gave stay.
+    pub async fn remove_source(
+        &self,
+        series_id: i64,
+        source_id: &str,
+    ) -> Result<(), SeriesSourceError> {
+        let linked = db::series::sources(&self.ctx.db, series_id).await?;
+        if linked.is_empty() {
+            return Err(SeriesSourceError::SeriesNotFound);
+        }
+        if !linked.iter().any(|l| l.source == source_id) {
+            return Err(SeriesSourceError::NotLinked(source_id.to_owned()));
+        }
+        if linked.len() == 1 {
+            return Err(SeriesSourceError::LastSource);
+        }
+        db::series::remove_source(&self.ctx.db, series_id, source_id).await?;
+        tracing::info!(series_id, source = source_id, "source removed");
+        // Chapters it was going to download now come from the others.
+        for (chapter_id, source) in db::chapters::wanted_ids(&self.ctx.db, series_id).await? {
+            self.jobs
+                .submit(Job::DownloadChapter { chapter_id, source })
+                .await?;
+        }
+        Ok(())
+    }
+
     /// Follow a series whose files already sit in `folder` of the library:
     /// store its chapters, mark the ones on disk as downloaded and queue
     /// the rest that `monitor` wants. Returns the series id and how many
@@ -275,13 +407,10 @@ impl App {
                 matched += 1;
             }
         }
-        db::series::mark_checked(&self.ctx.db, id).await?;
-        for chapter_id in db::chapters::wanted_ids(&self.ctx.db, id).await? {
+        db::series::mark_checked(&self.ctx.db, id, source_id).await?;
+        for (chapter_id, source) in db::chapters::wanted_ids(&self.ctx.db, id).await? {
             self.jobs
-                .submit(Job::DownloadChapter {
-                    chapter_id,
-                    source: source_id.to_owned(),
-                })
+                .submit(Job::DownloadChapter { chapter_id, source })
                 .await?;
         }
         Ok((id, matched))

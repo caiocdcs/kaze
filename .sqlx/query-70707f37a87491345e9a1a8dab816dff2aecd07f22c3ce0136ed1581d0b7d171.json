@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM chapters WHERE series_id = ? AND source = ? AND file_path IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "70707f37a87491345e9a1a8dab816dff2aecd07f22c3ce0136ed1581d0b7d171"
+}

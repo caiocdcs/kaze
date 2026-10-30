@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id AS \"id!\", ss.source\n           FROM series s JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n           WHERE s.monitor != 'none'",
+  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL\n           ORDER BY number_whole, number_frac, id",
   "describe": {
     "columns": [
       {
@@ -9,30 +9,30 @@
         "type_info": "Integer",
         "origin": {
           "Table": {
-            "table": "series",
+            "table": "chapters",
             "name": "id"
           }
         }
       },
       {
-        "name": "source",
+        "name": "source!",
         "ordinal": 1,
         "type_info": "Text",
         "origin": {
           "Table": {
-            "table": "series_sources",
+            "table": "chapters",
             "name": "source"
           }
         }
       }
     ],
     "parameters": {
-      "Right": 0
+      "Right": 1
     },
     "nullable": [
-      false,
+      null,
       false
     ]
   },
-  "hash": "58fd3731559b35e48c8e5006b59d2b41f67a14a179dafb3213e0f231e49dc18c"
+  "hash": "1e016f2f31783e77f0a7c1b28e91c1bb742e88296399113ba8d48727ebbdc6f7"
 }

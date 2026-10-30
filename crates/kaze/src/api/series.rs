@@ -14,7 +14,7 @@ use crate::{
     db,
     events::Event,
     jobs::Job,
-    library::{self, ChapterRecord, Monitor, SeriesRecord, SeriesSummary},
+    library::{self, ChapterRecord, Monitor, SeriesRecord, SeriesSource, SeriesSummary},
 };
 
 pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<SeriesSummary>>> {
@@ -55,7 +55,18 @@ pub async fn follow(
 pub struct SeriesDetail {
     #[serde(flatten)]
     series: SeriesRecord,
+    /// Primary first.
+    sources: Vec<LinkedSource>,
     chapters: Vec<ChapterRecord>,
+}
+
+#[derive(Serialize, TS)]
+#[ts(export)]
+pub struct LinkedSource {
+    #[serde(flatten)]
+    link: SeriesSource,
+    /// Broken sources' chapters come from the next source.
+    failing: bool,
 }
 
 async fn load(app: &AppState, id: i64) -> ApiResult<SeriesRecord> {
@@ -69,8 +80,60 @@ pub async fn get(
     Path(id): Path<i64>,
 ) -> ApiResult<Json<SeriesDetail>> {
     let series = load(&app, id).await?;
+    let mut sources = Vec::new();
+    for link in db::series::sources(&app.ctx.db, id).await? {
+        let failing = db::sources::get(&app.ctx.db, &link.source)
+            .await?
+            .is_failing();
+        sources.push(LinkedSource { link, failing });
+    }
     let chapters = db::chapters::picks_for_series(&app.ctx.db, id).await?;
-    Ok(Json(SeriesDetail { series, chapters }))
+    Ok(Json(SeriesDetail {
+        series,
+        sources,
+        chapters,
+    }))
+}
+
+#[derive(Deserialize, TS)]
+#[ts(export)]
+pub struct AddSource {
+    source: String,
+    key: SeriesKey,
+}
+
+/// Also download the series from another source.
+pub async fn add_source(
+    State(app): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<AddSource>,
+) -> ApiResult<Json<SeriesDetail>> {
+    app.add_source(id, &req.source, &req.key).await?;
+    get(State(app), Path(id)).await
+}
+
+#[derive(Deserialize, TS)]
+#[ts(export)]
+pub struct ReorderSources {
+    /// Source ids, primary first.
+    order: Vec<String>,
+}
+
+pub async fn reorder_sources(
+    State(app): State<AppState>,
+    Path(id): Path<i64>,
+    Json(req): Json<ReorderSources>,
+) -> ApiResult<Json<SeriesDetail>> {
+    app.reorder_sources(id, &req.order).await?;
+    get(State(app), Path(id)).await
+}
+
+pub async fn remove_source(
+    State(app): State<AppState>,
+    Path((id, source)): Path<(i64, String)>,
+) -> ApiResult<Json<SeriesDetail>> {
+    app.remove_source(id, &source).await?;
+    get(State(app), Path(id)).await
 }
 
 /// Partial update: fields left out stay as they are.
@@ -185,14 +248,19 @@ pub async fn refresh(
     State(app): State<AppState>,
     Path(id): Path<i64>,
 ) -> ApiResult<(StatusCode, Json<Value>)> {
-    let series = load(&app, id).await?;
-    let job_id = app
-        .jobs
-        .submit(Job::RefreshSeries {
-            series_id: id,
-            source: series.source,
-        })
-        .await?;
+    load(&app, id).await?;
+    // Every source; the reply carries the primary's job.
+    let mut job_id = None;
+    for link in db::series::sources(&app.ctx.db, id).await? {
+        let queued = app
+            .jobs
+            .submit(Job::RefreshSeries {
+                series_id: id,
+                source: link.source,
+            })
+            .await?;
+        job_id = job_id.or(queued);
+    }
     Ok((StatusCode::ACCEPTED, Json(json!({ "job_id": job_id }))))
 }
 

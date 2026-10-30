@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO series_sources (series_id, source, source_key, language, url, priority)\n         VALUES (?1, ?2, ?3, ?4, ?5,\n                 (SELECT COALESCE(MAX(priority), -1) + 1 FROM series_sources WHERE series_id = ?1))",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "57d82e8f79a0b13a2c9cb3ffc5d7d7fd0acc77898dd152d70bd7c5a848554aab"
+}

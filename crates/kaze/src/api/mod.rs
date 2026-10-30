@@ -25,7 +25,7 @@ use axum::{
     http::Method,
     middleware::{self, Next},
     response::Response,
-    routing::{get, patch, post, put},
+    routing::{delete, get, patch, post, put},
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 
@@ -69,6 +69,14 @@ pub fn router(app: AppState) -> Router {
                 .delete(series::remove),
         )
         .route("/series/{id}/refresh", post(series::refresh))
+        .route(
+            "/series/{id}/sources",
+            post(series::add_source).patch(series::reorder_sources),
+        )
+        .route(
+            "/series/{id}/sources/{source}",
+            delete(series::remove_source),
+        )
         .route("/series/{id}/cover", get(series::cover))
         .route("/chapters", patch(chapters::set_monitored))
         .route("/chapters/{id}/download", post(chapters::download))

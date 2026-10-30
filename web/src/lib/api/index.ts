@@ -13,6 +13,7 @@ import type { Trigger } from './types/Trigger.ts';
 import type { FollowRequest } from './types/FollowRequest.ts';
 import type { HistoryEntry } from './types/HistoryEntry.ts';
 import type { JobRecord } from './types/JobRecord.ts';
+import type { LinkedSource } from './types/LinkedSource.ts';
 import type { Lookup } from './types/Lookup.ts';
 import type { SeriesDetail } from './types/SeriesDetail.ts';
 import type { SeriesSummary } from './types/SeriesSummary.ts';
@@ -41,6 +42,12 @@ export const api = {
 	unfollow: (id: number, deleteFiles = false) =>
 		http.del<void>(`/series/${id}${deleteFiles ? '?delete_files=true' : ''}`),
 	refreshSeries: (id: number) => http.post<{ job_id: number | null }>(`/series/${id}/refresh`),
+	addSource: (id: number, source: string, key: string) =>
+		http.post<SeriesDetail>(`/series/${id}/sources`, { source, key }),
+	reorderSources: (id: number, order: string[]) =>
+		http.patch<SeriesDetail>(`/series/${id}/sources`, { order }),
+	removeSource: (id: number, source: string) =>
+		http.del<SeriesDetail>(`/series/${id}/sources/${encodeURIComponent(source)}`),
 	coverUrl: (id: number) => url(`/series/${id}/cover`),
 
 	setMonitored: (ids: number[], monitored: boolean) =>
@@ -97,6 +104,7 @@ export type {
 	Trigger,
 	HistoryEntry,
 	JobRecord,
+	LinkedSource,
 	Lookup,
 	SeriesDetail,
 	SeriesSummary,

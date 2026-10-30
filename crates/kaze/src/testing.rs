@@ -65,6 +65,14 @@ impl FakeSource {
         }
     }
 
+    /// Another site with the same series, for multi-source tests.
+    #[must_use]
+    pub fn with_id(mut self, id: &'static str, name: &'static str) -> Self {
+        self.meta.id = id;
+        self.meta.name = name;
+        self
+    }
+
     #[must_use]
     pub fn with_pages(mut self, pages: &[&'static [u8]]) -> Self {
         self.pages = pages.to_vec();

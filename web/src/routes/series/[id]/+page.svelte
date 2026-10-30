@@ -12,6 +12,7 @@
 	import { ago, errorMessage, languageName, num } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
+	import Sources from './Sources.svelte';
 
 	const PAGE = 50;
 
@@ -31,16 +32,19 @@
 
 	async function load() {
 		try {
-			const s = await api.seriesDetail(id);
-			series = s;
-			error = null;
-			monitor = s.monitor;
-			from = s.monitor_from ?? '';
-			refresh = s.refresh_hours === null ? 'default' : s.refresh_hours === 0 ? 'never' : 'custom';
-			if (s.refresh_hours) refreshHours = s.refresh_hours;
+			apply(await api.seriesDetail(id));
 		} catch (e) {
 			error = errorMessage(e);
 		}
+	}
+
+	function apply(s: SeriesDetail) {
+		series = s;
+		error = null;
+		monitor = s.monitor;
+		from = s.monitor_from ?? '';
+		refresh = s.refresh_hours === null ? 'default' : s.refresh_hours === 0 ? 'never' : 'custom';
+		if (s.refresh_hours) refreshHours = s.refresh_hours;
 	}
 
 	$effect(() => {
@@ -291,6 +295,8 @@
 			</dl>
 			<p class="m-0 font-mono text-xs break-all text-muted">{series.folder}/</p>
 		</aside>
+
+		<Sources {series} onchange={apply} />
 	</div>
 
 	<section aria-labelledby="chapters-heading" class="flex flex-col gap-3.5">

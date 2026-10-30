@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series_sources SET checked_at = ? WHERE series_id = ? AND source = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "555489bf99a8237a74b79d6be923c2a743f79f896b88d2f8b70b12ccda9ec8d5"
+}

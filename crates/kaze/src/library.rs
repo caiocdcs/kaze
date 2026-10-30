@@ -96,6 +96,18 @@ pub struct SeriesSummary {
     pub added_at: DateTime<Utc>,
 }
 
+/// A site a series is followed on; priority 0 is the primary, which
+/// also provides the metadata.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub struct SeriesSource {
+    pub source: String,
+    pub source_key: SeriesKey,
+    pub url: String,
+    pub priority: i64,
+    pub checked_at: Option<DateTime<Utc>>,
+}
+
 /// A row of the wanted list.
 #[derive(Debug, Clone, PartialEq, Serialize, TS)]
 #[ts(export)]

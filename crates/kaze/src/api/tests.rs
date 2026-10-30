@@ -34,6 +34,11 @@ async fn api(api_key: Option<&str>) -> Api {
 async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
     let library = tempfile::tempdir().unwrap();
     let source = Arc::new(FakeSource::new().with_chapters(&["1", "2"]));
+    let other = Arc::new(
+        FakeSource::new()
+            .with_id("other", "Other")
+            .with_chapters(&["1", "2", "3"]),
+    );
     let locked = match api_key {
         Some(key) => json!({ "api_key": key }),
         None => json!({}),
@@ -43,7 +48,7 @@ async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
             .await
             .unwrap(),
         db,
-        sources: kaze_sources::Registry::from_sources(vec![source]),
+        sources: kaze_sources::Registry::from_sources(vec![source, other]),
         events: Events::new(256),
         libraries: crate::library::Libraries::single(library.path().to_owned()),
         http: reqwest::Client::new(),
@@ -487,6 +492,100 @@ async fn existing_folders_can_be_imported() {
     assert_eq!(
         api.call(Method::POST, "/api/v1/import", Some(body)).await.0,
         StatusCode::CONFLICT
+    );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn series_sources_can_be_added_reordered_and_removed() {
+    let api = api(None).await;
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/series",
+            Some(json!({ "source": "fake", "key": "S1" })),
+        )
+        .await;
+    let id = created["id"].as_i64().unwrap();
+    let sources = format!("/api/v1/series/{id}/sources");
+    let order = |detail: &Value| -> Vec<String> {
+        detail["sources"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|s| s["source"].as_str().unwrap().to_owned())
+            .collect()
+    };
+
+    let add = json!({ "source": "other", "key": "S1" });
+    let (status, detail) = api.call(Method::POST, &sources, Some(add.clone())).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order(&detail), ["fake", "other"]);
+    assert_eq!(detail["sources"][1]["priority"], 1);
+    assert_eq!(detail["sources"][1]["failing"], false);
+    let (status, _) = api.call(Method::POST, &sources, Some(add)).await;
+    assert_eq!(status, StatusCode::CONFLICT, "already a source");
+
+    // Not a permutation of the series' sources.
+    let (status, _) = api
+        .call(Method::PATCH, &sources, Some(json!({ "order": ["other"] })))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, detail) = api
+        .call(
+            Method::PATCH,
+            &sources,
+            Some(json!({ "order": ["other", "fake"] })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order(&detail), ["other", "fake"]);
+    assert_eq!(detail["source"], "other", "the new primary");
+
+    let (status, detail) = api
+        .call(Method::DELETE, &format!("{sources}/other"), None)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(order(&detail), ["fake"]);
+    assert_eq!(detail["sources"][0]["priority"], 0);
+    let (status, _) = api
+        .call(Method::DELETE, &format!("{sources}/fake"), None)
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT, "the last source stays");
+    let (status, _) = api
+        .call(Method::DELETE, &format!("{sources}/nope"), None)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_source_followed_as_its_own_series_is_not_merged() {
+    let api = api(None).await;
+    let mut ids = Vec::new();
+    for source in ["fake", "other"] {
+        let (_, created) = api
+            .call(
+                Method::POST,
+                "/api/v1/series",
+                Some(json!({ "source": source, "key": "S1" })),
+            )
+            .await;
+        ids.push(created["id"].as_i64().unwrap());
+    }
+    let (status, body) = api
+        .call(
+            Method::POST,
+            &format!("/api/v1/series/{}/sources", ids[0]),
+            Some(json!({ "source": "other", "key": "S1" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(
+        body["error"]
+            .as_str()
+            .unwrap()
+            .contains(&ids[1].to_string())
     );
     api.app.shutdown().await;
 }

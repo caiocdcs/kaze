@@ -26,9 +26,12 @@ SELECT c.id, c.series_id, c.source, c.source_key, c.number, c.number_whole, c.nu
                COALESCE((SELECT j.state FROM jobs j
                          WHERE j.dedupe_key = 'download:' || c.id
                          ORDER BY j.id DESC LIMIT 1), '') = 'failed',
+               -- Files of a removed source stay picked (above); other copies
+               -- of it come last.
+               ss.priority IS NULL,
                ss.priority,
                c.id
        ) AS pick
 FROM chapters c
-JOIN series_sources ss ON ss.series_id = c.series_id AND ss.source = c.source
+LEFT JOIN series_sources ss ON ss.series_id = c.series_id AND ss.source = c.source
 LEFT JOIN source_health h ON h.source = c.source;
