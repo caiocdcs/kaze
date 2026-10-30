@@ -4,7 +4,7 @@ use chrono::{DateTime, Utc};
 use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{ChapterCopy, ChapterRecord, WantedChapter};
+use crate::library::{ChapterCopy, ChapterRecord, Pick, WantedChapter};
 
 /// Store chapters found on the source; returns the ids of the ones that
 /// were new. Known chapters (same source key) are left untouched, so a
@@ -121,20 +121,20 @@ pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec
     .await
 }
 
-/// The wanted chapters of one series in reading order, as (id, source).
-pub async fn wanted_ids(
+/// The wanted chapters of one series, in reading order.
+pub async fn wanted_for_series(
     db: impl SqliteExecutor<'_>,
     series_id: i64,
-) -> sqlx::Result<Vec<(i64, String)>> {
-    let rows = sqlx::query!(
-        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
+) -> sqlx::Result<Vec<Pick>> {
+    sqlx::query_as!(
+        Pick,
+        r#"SELECT id AS "chapter_id!", source AS "source!" FROM chapter_choice
            WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked
            ORDER BY number_whole, number_frac, id"#,
         series_id
     )
     .fetch_all(db)
-    .await?;
-    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+    .await
 }
 
 /// The numbers a series already lists, each with whether it is monitored.
@@ -154,20 +154,17 @@ pub async fn known_numbers(
 
 /// Wanted picks on other sources, in the series that use `source`: what
 /// to download once `source` is broken and its copies rank last.
-pub async fn picks_away_from(
-    db: impl SqliteExecutor<'_>,
-    source: &str,
-) -> sqlx::Result<Vec<(i64, String)>> {
-    let rows = sqlx::query!(
-        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
+pub async fn picks_away_from(db: impl SqliteExecutor<'_>, source: &str) -> sqlx::Result<Vec<Pick>> {
+    sqlx::query_as!(
+        Pick,
+        r#"SELECT id AS "chapter_id!", source AS "source!" FROM chapter_choice
            WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1 AND NOT blocked
              AND series_id IN (SELECT series_id FROM series_sources WHERE source = ?1)
            ORDER BY series_id, number_whole, number_frac"#,
         source
     )
     .fetch_all(db)
-    .await?;
-    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+    .await
 }
 
 /// The wanted list with series titles, for the "Wanted" page.
@@ -280,15 +277,13 @@ pub async fn set_monitored(
     Ok(result.rows_affected())
 }
 
-/// The wanted picks among the numbers of `ids`, as (id, source): what to
-/// queue after monitoring those chapters.
-pub async fn wanted_picks(
-    db: impl SqliteExecutor<'_>,
-    ids: &[i64],
-) -> sqlx::Result<Vec<(i64, String)>> {
+/// The wanted picks among the numbers of `ids`: what to queue after
+/// monitoring those chapters.
+pub async fn wanted_picks(db: impl SqliteExecutor<'_>, ids: &[i64]) -> sqlx::Result<Vec<Pick>> {
     let ids = Json(ids);
-    let rows = sqlx::query!(
-        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
+    sqlx::query_as!(
+        Pick,
+        r#"SELECT id AS "chapter_id!", source AS "source!" FROM chapter_choice
            WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked
              AND (series_id, number) IN (
                  SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))
@@ -296,8 +291,7 @@ pub async fn wanted_picks(
         ids
     )
     .fetch_all(db)
-    .await?;
-    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+    .await
 }
 
 /// Release dates of the picked chapters of monitored series, as (series,
@@ -554,11 +548,12 @@ mod tests {
             .unwrap();
 
         // The primary's copy wins; "other" fills the gap at 3.
-        let expected = [("1", "test"), ("2", "test"), ("3", "other")]
-            .map(|(n, s)| (n.to_owned(), s.to_owned()));
-        assert_eq!(wanted_sources(&wanted(&pool, 100).await.unwrap()), expected);
+        assert_eq!(
+            wanted_sources(&wanted(&pool, 100).await.unwrap()),
+            pairs(&[("1", "test"), ("2", "test"), ("3", "other")])
+        );
         assert_eq!(picks_for_series(&pool, id).await.unwrap().len(), 3);
-        assert_eq!(wanted_ids(&pool, id).await.unwrap().len(), 3);
+        assert_eq!(wanted_for_series(&pool, id).await.unwrap().len(), 3);
 
         // A copy on disk is the pick, whichever source it came from.
         let other_1 = for_series(&pool, id).await.unwrap()[1].id;
@@ -589,7 +584,10 @@ mod tests {
         set_monitored(&pool, &ours, true).await.unwrap();
         assert_eq!(
             wanted_picks(&pool, &ours).await.unwrap(),
-            [(ours[0], "test".to_owned())]
+            [Pick {
+                chapter_id: ours[0],
+                source: "test".into()
+            }]
         );
     }
 
@@ -626,8 +624,7 @@ mod tests {
         .await
         .unwrap();
         let picked = || async { wanted_sources(&wanted(&pool, 100).await.unwrap()) };
-        let expect =
-            |a: &str, b: &str| [("1", a), ("2", b)].map(|(n, s)| (n.to_owned(), s.to_owned()));
+        let expect = |a, b| pairs(&[("1", a), ("2", b)]);
         assert_eq!(picked().await, expect("other", "test"));
 
         // One failure short of broken changes nothing; reaching it moves all.
@@ -686,7 +683,7 @@ mod tests {
         assert_eq!(picked().await, pairs(&[("1", "other")]));
         let picks = picks_for_series(&pool, id).await.unwrap();
         assert!(picks[1].blocked && !picks[1].is_wanted());
-        assert_eq!(wanted_ids(&pool, id).await.unwrap().len(), 1);
+        assert_eq!(wanted_for_series(&pool, id).await.unwrap().len(), 1);
 
         // Health comes first: a preferred group on a broken source hands over.
         set_groups(&pool, id, &["Beta"], &[]).await;

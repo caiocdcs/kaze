@@ -189,10 +189,8 @@ async fn refresh_series(
 /// Queue the download of every wanted chapter of a series, each from the
 /// source of its picked copy.
 async fn queue_wanted(ctx: &Context, queue: &JobQueue, series_id: i64) -> Result<(), JobError> {
-    for (chapter_id, source) in db::chapters::wanted_ids(&ctx.db, series_id).await? {
-        queue
-            .submit(Job::DownloadChapter { chapter_id, source })
-            .await?;
+    for pick in db::chapters::wanted_for_series(&ctx.db, series_id).await? {
+        queue.submit(pick.into()).await?;
     }
     Ok(())
 }

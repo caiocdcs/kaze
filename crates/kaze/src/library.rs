@@ -145,6 +145,41 @@ pub struct SeriesSource {
     pub checked_at: Option<DateTime<Utc>>,
 }
 
+/// Source ids in the order a series tries them: each of its sources once,
+/// so priorities can't skip or repeat.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SourceOrder(Vec<String>);
+
+impl SourceOrder {
+    /// `None` unless `order` lists each of `linked` exactly once.
+    #[must_use]
+    pub fn new(order: Vec<String>, linked: &[SeriesSource]) -> Option<Self> {
+        let mut given: Vec<&str> = order.iter().map(String::as_str).collect();
+        let mut current: Vec<&str> = linked.iter().map(|l| l.source.as_str()).collect();
+        given.sort_unstable();
+        current.sort_unstable();
+        (!order.is_empty() && given == current).then_some(Self(order))
+    }
+
+    /// The source that comes first and gives the metadata.
+    #[must_use]
+    pub fn primary(&self) -> &str {
+        &self.0[0]
+    }
+
+    #[must_use]
+    pub fn as_slice(&self) -> &[String] {
+        &self.0
+    }
+}
+
+/// The copy of a chapter to download, and the source it comes from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Pick {
+    pub chapter_id: i64,
+    pub source: String,
+}
+
 /// One copy of a chapter number: from one source, maybe by one group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
 #[ts(export)]
@@ -319,6 +354,29 @@ mod tests {
         assert!(!Monitor::Future.wants(&n("50"), None, true));
         assert!(Monitor::Future.wants(&n("51"), None, false));
         assert!(!Monitor::None.wants(&n("51"), None, false));
+    }
+
+    #[test]
+    fn source_order_lists_each_source_once() {
+        let linked: Vec<SeriesSource> = ["a", "b"]
+            .into_iter()
+            .zip(0..)
+            .map(|(source, priority)| SeriesSource {
+                source: source.into(),
+                source_key: "S1".into(),
+                url: String::new(),
+                priority,
+                checked_at: None,
+            })
+            .collect();
+        let order =
+            |ids: &[&str]| SourceOrder::new(ids.iter().map(|s| (*s).to_owned()).collect(), &linked);
+        let swapped = order(&["b", "a"]).unwrap();
+        assert_eq!(swapped.primary(), "b");
+        assert_eq!(order(&["a"]), None, "missing");
+        assert_eq!(order(&["a", "b", "c"]), None, "extra");
+        assert_eq!(order(&["a", "a"]), None, "repeated");
+        assert_eq!(order(&[]), None);
     }
 
     #[test]

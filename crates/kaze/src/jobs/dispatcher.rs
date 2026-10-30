@@ -292,8 +292,12 @@ impl Dispatcher {
                     db::jobs::requeue(db, id, run_after, Some(&error)).await
                 } else {
                     let finished = db::jobs::finish(db, id, JobState::Failed, Some(&error)).await;
-                    if finished.is_ok() && !self.shutdown.is_cancelled() {
-                        self.take_over(id, queue).await;
+                    if finished.is_ok()
+                        && kind == "download_chapter"
+                        && !self.shutdown.is_cancelled()
+                        && let Err(err) = self.take_over(id, queue).await
+                    {
+                        tracing::error!(job = id, "could not queue another copy: {err}");
                     }
                     finished
                 }
@@ -308,48 +312,29 @@ impl Dispatcher {
     /// there is one. Now that the job is `failed`, `chapter_choice` ranks
     /// this copy last. The job goes straight to `start`: sending it
     /// through `queue` would wait on this very loop when the channel is full.
-    async fn take_over(&mut self, id: i64, queue: &JobQueue) {
+    async fn take_over(&mut self, id: i64, queue: &JobQueue) -> sqlx::Result<()> {
         let ctx = Arc::clone(&self.ctx);
-        let db = &ctx.db;
-        let chapter_id = match db::jobs::get(db, id).await {
-            Ok(Some(record)) => match record.job.0 {
-                Job::DownloadChapter { chapter_id, .. } => chapter_id,
-                _ => return,
-            },
-            Ok(None) => return,
-            Err(err) => {
-                tracing::error!(job = id, "could not read failed job: {err}");
-                return;
-            }
+        let Some(Job::DownloadChapter { chapter_id, .. }) =
+            db::jobs::get(&ctx.db, id).await?.map(|record| record.job.0)
+        else {
+            return Ok(());
         };
-        let picks = match db::chapters::wanted_picks(db, &[chapter_id]).await {
-            Ok(picks) => picks,
-            Err(err) => {
-                tracing::error!(chapter_id, "could not look for another copy: {err}");
-                return;
-            }
-        };
+        let picks = db::chapters::wanted_picks(&ctx.db, &[chapter_id]).await?;
         // The failed copy itself is the pick when it is the only one.
-        for (pick, source) in picks.into_iter().filter(|(pick, _)| *pick != chapter_id) {
-            let job = Job::DownloadChapter {
-                chapter_id: pick,
-                source,
-            };
-            match db::jobs::insert(db, &job).await {
-                Ok(Some(new)) => {
-                    tracing::info!(
-                        chapter_id,
-                        job = new,
-                        source = job.source(),
-                        "taking over a failed chapter"
-                    );
-                    ctx.events.emit(Event::JobQueued { job_id: new, job });
-                    self.start(new, queue);
-                }
-                Ok(None) => {}
-                Err(err) => tracing::error!(chapter_id, "could not queue another copy: {err}"),
+        for pick in picks.into_iter().filter(|p| p.chapter_id != chapter_id) {
+            let job = Job::from(pick);
+            if let Some(new) = db::jobs::insert(&ctx.db, &job).await? {
+                tracing::info!(
+                    chapter_id,
+                    job = new,
+                    source = job.source(),
+                    "taking over a failed chapter"
+                );
+                ctx.events.emit(Event::JobQueued { job_id: new, job });
+                self.start(new, queue);
             }
         }
+        Ok(())
     }
 }
 
@@ -502,14 +487,8 @@ async fn take_over_source(ctx: &Context, queue: &JobQueue, source: &str) {
         }
     };
     let mut queued = 0;
-    for (chapter_id, from) in picks {
-        match queue
-            .submit(Job::DownloadChapter {
-                chapter_id,
-                source: from,
-            })
-            .await
-        {
+    for pick in picks {
+        match queue.submit(pick.into()).await {
             Ok(Some(_)) => queued += 1,
             Ok(None) => {}
             Err(err) => {

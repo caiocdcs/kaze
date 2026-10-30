@@ -24,6 +24,7 @@ use crate::{
     db,
     events::{Event, Events},
     integrations::Message,
+    library::Pick,
 };
 
 /// A unit of background work. Stored as JSON in `jobs.payload`.
@@ -102,6 +103,15 @@ impl Job {
             | Self::DownloadChapter { source, .. }
             | Self::SyncLatest { source } => Some(source),
             Self::Notify { .. } | Self::ScanLibrary { .. } | Self::MeasureLibrary => None,
+        }
+    }
+}
+
+impl From<Pick> for Job {
+    fn from(pick: Pick) -> Self {
+        Self::DownloadChapter {
+            chapter_id: pick.chapter_id,
+            source: pick.source,
         }
     }
 }

@@ -132,7 +132,7 @@ pub async fn reorder_sources(
     Path(id): Path<i64>,
     Json(req): Json<ReorderSources>,
 ) -> ApiResult<Json<SeriesDetail>> {
-    app.reorder_sources(id, &req.order).await?;
+    app.reorder_sources(id, req.order).await?;
     get(State(app), Path(id)).await
 }
 
@@ -186,10 +186,8 @@ pub async fn update(
         }
         db::series::set_scanlators(&app.ctx.db, id, &preferred, &blocked).await?;
         // Another copy may be the pick now.
-        for (chapter_id, source) in db::chapters::wanted_ids(&app.ctx.db, id).await? {
-            app.jobs
-                .submit(Job::DownloadChapter { chapter_id, source })
-                .await?;
+        for pick in db::chapters::wanted_for_series(&app.ctx.db, id).await? {
+            app.jobs.submit(pick.into()).await?;
         }
     }
     if !req.refresh_hours.is_keep() {
@@ -221,10 +219,8 @@ async fn remonitor(
     let wanted = ids(wanted);
     db::chapters::set_monitored(&app.ctx.db, &wanted, true).await?;
     db::chapters::set_monitored(&app.ctx.db, &ids(unwanted), false).await?;
-    for (chapter_id, source) in db::chapters::wanted_picks(&app.ctx.db, &wanted).await? {
-        app.jobs
-            .submit(Job::DownloadChapter { chapter_id, source })
-            .await?;
+    for pick in db::chapters::wanted_picks(&app.ctx.db, &wanted).await? {
+        app.jobs.submit(pick.into()).await?;
     }
     Ok(())
 }

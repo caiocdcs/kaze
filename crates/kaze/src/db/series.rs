@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use kaze_core::{ChapterNumber, Series, SeriesKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary};
+use crate::library::{Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary, SourceOrder};
 
 /// A series about to be followed.
 #[derive(Debug)]
@@ -239,11 +239,10 @@ pub async fn add_source(
     Ok(())
 }
 
-/// Give the sources priorities 0, 1, … in `order`, which must hold each
-/// of the series' sources once.
-pub async fn reorder_sources(db: &SqlitePool, id: i64, order: &[String]) -> sqlx::Result<()> {
+/// Give the sources priorities 0, 1, … in `order`.
+pub async fn reorder_sources(db: &SqlitePool, id: i64, order: &SourceOrder) -> sqlx::Result<()> {
     let mut tx = db.begin().await?;
-    for (priority, source) in (0_i64..).zip(order) {
+    for (priority, source) in (0_i64..).zip(order.as_slice()) {
         sqlx::query!(
             "UPDATE series_sources SET priority = ? WHERE series_id = ? AND source = ?",
             priority,

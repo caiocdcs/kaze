@@ -14,7 +14,7 @@ use crate::{
     import,
     integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
-    library::{self, Libraries, Monitor},
+    library::{self, Libraries, Monitor, SourceOrder},
     settings::SettingsStore,
 };
 
@@ -282,28 +282,20 @@ impl App {
     pub async fn reorder_sources(
         &self,
         series_id: i64,
-        order: &[String],
+        order: Vec<String>,
     ) -> Result<(), SeriesSourceError> {
         let linked = db::series::sources(&self.ctx.db, series_id).await?;
         if linked.is_empty() {
             return Err(SeriesSourceError::SeriesNotFound);
         }
-        let mut given: Vec<&str> = order.iter().map(String::as_str).collect();
-        let mut current: Vec<&str> = linked.iter().map(|l| l.source.as_str()).collect();
-        given.sort_unstable();
-        current.sort_unstable();
-        if given != current {
-            return Err(SeriesSourceError::BadOrder);
-        }
-        db::series::reorder_sources(&self.ctx.db, series_id, order).await?;
+        let order = SourceOrder::new(order, &linked).ok_or(SeriesSourceError::BadOrder)?;
+        db::series::reorder_sources(&self.ctx.db, series_id, &order).await?;
         // A new primary brings its metadata.
-        if let Some(primary) = order.first()
-            && linked.first().is_none_or(|l| &l.source != primary)
-        {
+        if linked[0].source != order.primary() {
             self.jobs
                 .submit(Job::RefreshSeries {
                     series_id,
-                    source: primary.clone(),
+                    source: order.primary().to_owned(),
                 })
                 .await?;
         }
@@ -343,10 +335,8 @@ impl App {
                 .await?;
         }
         // Chapters it was going to download now come from the others.
-        for (chapter_id, source) in db::chapters::wanted_ids(&self.ctx.db, series_id).await? {
-            self.jobs
-                .submit(Job::DownloadChapter { chapter_id, source })
-                .await?;
+        for pick in db::chapters::wanted_for_series(&self.ctx.db, series_id).await? {
+            self.jobs.submit(pick.into()).await?;
         }
         Ok(())
     }
@@ -422,10 +412,8 @@ impl App {
             }
         }
         db::series::mark_checked(&self.ctx.db, id, source_id).await?;
-        for (chapter_id, source) in db::chapters::wanted_ids(&self.ctx.db, id).await? {
-            self.jobs
-                .submit(Job::DownloadChapter { chapter_id, source })
-                .await?;
+        for pick in db::chapters::wanted_for_series(&self.ctx.db, id).await? {
+            self.jobs.submit(pick.into()).await?;
         }
         Ok((id, matched))
     }

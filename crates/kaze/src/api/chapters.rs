@@ -31,10 +31,8 @@ pub async fn set_monitored(
 ) -> ApiResult<Json<Value>> {
     let updated = db::chapters::set_monitored(&app.ctx.db, &req.ids, req.monitored).await?;
     if req.monitored {
-        for (chapter_id, source) in db::chapters::wanted_picks(&app.ctx.db, &req.ids).await? {
-            app.jobs
-                .submit(Job::DownloadChapter { chapter_id, source })
-                .await?;
+        for pick in db::chapters::wanted_picks(&app.ctx.db, &req.ids).await? {
+            app.jobs.submit(pick.into()).await?;
         }
     }
     Ok(Json(json!({ "updated": updated })))

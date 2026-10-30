@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id AS \"id!\", source AS \"source!\" FROM chapter_choice\n           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL AND NOT blocked\n           ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id AS \"chapter_id!\", source AS \"source!\" FROM chapter_choice\n           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL AND source != ?1 AND NOT blocked\n             AND series_id IN (SELECT series_id FROM series_sources WHERE source = ?1)\n           ORDER BY series_id, number_whole, number_frac",
   "describe": {
     "columns": [
       {
-        "name": "id!",
+        "name": "chapter_id!",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
@@ -34,5 +34,5 @@
       false
     ]
   },
-  "hash": "621cdfc1e24a6c6ef54e331c349ebf0fed83adb77515aec8da943d7949350691"
+  "hash": "3542792c3459d0e10174fbbad49cfd889e444eb22325f6ec95f16a5c5f97f487"
 }
