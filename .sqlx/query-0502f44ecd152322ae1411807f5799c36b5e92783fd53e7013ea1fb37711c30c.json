@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n               SELECT 1 FROM chapters c JOIN chapters o\n                 ON o.series_id = c.series_id AND o.number = c.number AND o.id != c.id\n               WHERE c.id = ? AND o.file_path IS NOT NULL\n           ) AS \"on_disk!: bool\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "on_disk!: bool",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0502f44ecd152322ae1411807f5799c36b5e92783fd53e7013ea1fb37711c30c"
+}

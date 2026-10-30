@@ -47,21 +47,26 @@ pub async fn insert_new(
     Ok(inserted)
 }
 
+// `from "chapter_choice"` reads the ranked view (see migration 0009); its
+// columns come back as nullable, hence the `!` overrides.
 macro_rules! select_chapters {
-    ($rest:literal $(, $arg:expr)*) => {
+    (from $from:literal, $rest:literal $(, $arg:expr)*) => {
         sqlx::query_as!(
             ChapterRecord,
-            r#"SELECT id, series_id, source, source_key AS "source_key: ChapterKey",
-                      number AS "number: _", volume, title, url, language, scanlator,
+            r#"SELECT id AS "id!", series_id AS "series_id!", source AS "source!",
+                      source_key AS "source_key!: ChapterKey",
+                      number AS "number!: _", volume, title, url AS "url!", language, scanlator,
                       published_at AS "published_at: _",
-                      monitored AS "monitored: bool",
+                      monitored AS "monitored!: bool",
                       file_path, size_bytes,
                       downloaded_at AS "downloaded_at: _",
-                      discovered_at AS "discovered_at: _"
-               FROM chapters
-               "# + $rest,
+                      discovered_at AS "discovered_at!: _"
+               FROM "# + $from + " " + $rest,
             $($arg),*
         )
+    };
+    ($rest:literal $(, $arg:expr)*) => {
+        select_chapters!(from "chapters", $rest $(, $arg)*)
     };
 }
 
@@ -84,10 +89,27 @@ pub async fn for_series(
     .await
 }
 
+/// One chapter per number: the copy on disk, else the one to download.
+pub async fn picks_for_series(
+    db: impl SqliteExecutor<'_>,
+    series_id: i64,
+) -> sqlx::Result<Vec<ChapterRecord>> {
+    select_chapters!(
+        from "chapter_choice",
+        "WHERE series_id = ? AND pick = 1 ORDER BY number_whole, number_frac, id",
+        series_id
+    )
+    .fetch_all(db)
+    .await
+}
+
 /// Monitored chapters without a file, oldest series first, in reading order.
+/// Only the picked copy of each number counts.
 pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec<ChapterRecord>> {
     select_chapters!(
-        "WHERE monitored = 1 AND file_path IS NULL ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
+        from "chapter_choice",
+        "WHERE pick = 1 AND monitored = 1 AND file_path IS NULL
+         ORDER BY series_id, number_whole, number_frac, id LIMIT ?",
         limit
     )
     .fetch_all(db)
@@ -97,8 +119,8 @@ pub async fn wanted(db: impl SqliteExecutor<'_>, limit: i64) -> sqlx::Result<Vec
 /// Ids of the wanted chapters of one series, in reading order.
 pub async fn wanted_ids(db: impl SqliteExecutor<'_>, series_id: i64) -> sqlx::Result<Vec<i64>> {
     sqlx::query_scalar!(
-        r#"SELECT id AS "id!" FROM chapters
-           WHERE series_id = ? AND monitored = 1 AND file_path IS NULL
+        r#"SELECT id AS "id!" FROM chapter_choice
+           WHERE series_id = ? AND pick = 1 AND monitored = 1 AND file_path IS NULL
            ORDER BY number_whole, number_frac, id"#,
         series_id
     )
@@ -117,12 +139,12 @@ pub async fn wanted_with_series(
                   c.number AS "number: _", c.volume, c.title, c.published_at AS "published_at: _",
                   j.updated_at AS "last_attempt_at?: _", j.state AS "last_attempt_state?",
                   j.last_error AS "last_error?"
-           FROM chapters c JOIN series s ON s.id = c.series_id
+           FROM chapter_choice c JOIN series s ON s.id = c.series_id
            -- The newest download job of each chapter (ids only grow).
            LEFT JOIN jobs j ON j.id = (
                SELECT max(id) FROM jobs WHERE dedupe_key = 'download:' || c.id
            )
-           WHERE c.monitored = 1 AND c.file_path IS NULL
+           WHERE c.pick = 1 AND c.monitored = 1 AND c.file_path IS NULL
            ORDER BY s.title COLLATE NOCASE, c.number_whole, c.number_frac
            LIMIT ?"#,
         limit
@@ -192,7 +214,8 @@ pub async fn set_size(
     Ok(())
 }
 
-/// Monitor or unmonitor many chapters in one statement.
+/// Monitor or unmonitor many chapters in one statement, with every other
+/// copy of the same numbers, so a choice holds whichever copy is picked.
 ///
 /// SQLite has no array parameters, so the ids travel as one JSON array
 /// that `json_each` unpacks into rows.
@@ -203,13 +226,50 @@ pub async fn set_monitored(
 ) -> sqlx::Result<u64> {
     let ids = Json(ids);
     let result = sqlx::query!(
-        "UPDATE chapters SET monitored = ? WHERE id IN (SELECT value FROM json_each(?))",
+        "UPDATE chapters SET monitored = ?
+         WHERE (series_id, number) IN (
+             SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))
+         )",
         monitored,
         ids
     )
     .execute(db)
     .await?;
     Ok(result.rows_affected())
+}
+
+/// The wanted picks among the numbers of `ids`, as (id, source): what to
+/// queue after monitoring those chapters.
+pub async fn wanted_picks(
+    db: impl SqliteExecutor<'_>,
+    ids: &[i64],
+) -> sqlx::Result<Vec<(i64, String)>> {
+    let ids = Json(ids);
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", source AS "source!" FROM chapter_choice
+           WHERE pick = 1 AND monitored = 1 AND file_path IS NULL
+             AND (series_id, number) IN (
+                 SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))
+             )"#,
+        ids
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows.into_iter().map(|r| (r.id, r.source)).collect())
+}
+
+/// Whether another copy of this chapter's number is already on disk.
+pub async fn number_on_disk(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Result<bool> {
+    sqlx::query_scalar!(
+        r#"SELECT EXISTS(
+               SELECT 1 FROM chapters c JOIN chapters o
+                 ON o.series_id = c.series_id AND o.number = c.number AND o.id != c.id
+               WHERE c.id = ? AND o.file_path IS NOT NULL
+           ) AS "on_disk!: bool""#,
+        id
+    )
+    .fetch_one(db)
+    .await
 }
 
 #[cfg(test)]
@@ -364,6 +424,133 @@ mod tests {
         assert_eq!(wanted(&pool, 100).await.unwrap().len(), 0);
         let done = get(&pool, ids[1]).await.unwrap().unwrap();
         assert!(done.downloaded_at.is_some() && !done.is_wanted());
+    }
+
+    /// Follow the series on a second source too, ranked after "test".
+    async fn add_source(pool: &SqlitePool, series_id: i64, source: &str) {
+        sqlx::query(
+            "INSERT INTO series_sources (series_id, source, source_key, language, url, priority)
+             VALUES (?, ?, 'S1', 'en', 'https://example.com/S1', 1)",
+        )
+        .bind(series_id)
+        .bind(source)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    fn wanted_sources(list: &[ChapterRecord]) -> Vec<(String, String)> {
+        list.iter()
+            .map(|c| (c.number.to_string(), c.source.clone()))
+            .collect()
+    }
+
+    #[tokio::test]
+    async fn one_copy_per_number_is_wanted() {
+        let (pool, id) = setup().await;
+        add_source(&pool, id, "other").await;
+        let ours = insert_new(
+            &pool,
+            id,
+            "test",
+            &[chapter("a", "1"), chapter("b", "2")],
+            |_| true,
+        )
+        .await
+        .unwrap();
+        let theirs = [chapter("x", "1"), chapter("y", "2"), chapter("z", "3")];
+        insert_new(&pool, id, "other", &theirs, |_| true)
+            .await
+            .unwrap();
+
+        // The primary's copy wins; "other" fills the gap at 3.
+        let expected = [("1", "test"), ("2", "test"), ("3", "other")]
+            .map(|(n, s)| (n.to_owned(), s.to_owned()));
+        assert_eq!(wanted_sources(&wanted(&pool, 100).await.unwrap()), expected);
+        assert_eq!(picks_for_series(&pool, id).await.unwrap().len(), 3);
+        assert_eq!(wanted_ids(&pool, id).await.unwrap().len(), 3);
+
+        // A copy on disk is the pick, whichever source it came from.
+        let other_1 = for_series(&pool, id).await.unwrap()[1].id;
+        mark_downloaded(&pool, other_1, "/lib/Ch.1.cbz", None)
+            .await
+            .unwrap();
+        assert!(number_on_disk(&pool, ours[0]).await.unwrap());
+        let picks = picks_for_series(&pool, id).await.unwrap();
+        assert_eq!(picks[0].id, other_1);
+        assert_eq!(wanted(&pool, 100).await.unwrap().len(), 2);
+    }
+
+    #[tokio::test]
+    async fn monitoring_applies_to_every_copy() {
+        let (pool, id) = setup().await;
+        add_source(&pool, id, "other").await;
+        let ours = insert_new(&pool, id, "test", &[chapter("a", "1")], |_| true)
+            .await
+            .unwrap();
+        insert_new(&pool, id, "other", &[chapter("x", "1")], |_| true)
+            .await
+            .unwrap();
+
+        assert_eq!(set_monitored(&pool, &ours, false).await.unwrap(), 2);
+        assert_eq!(wanted(&pool, 100).await.unwrap().len(), 0);
+        assert_eq!(wanted_picks(&pool, &ours).await.unwrap().len(), 0);
+
+        set_monitored(&pool, &ours, true).await.unwrap();
+        assert_eq!(
+            wanted_picks(&pool, &ours).await.unwrap(),
+            [(ours[0], "test".to_owned())]
+        );
+    }
+
+    #[tokio::test]
+    async fn broken_sources_and_failed_copies_go_last() {
+        let (pool, id) = setup().await;
+        add_source(&pool, id, "other").await;
+        let ours = insert_new(
+            &pool,
+            id,
+            "test",
+            &[chapter("a", "1"), chapter("b", "2")],
+            |_| true,
+        )
+        .await
+        .unwrap();
+        insert_new(
+            &pool,
+            id,
+            "other",
+            &[chapter("x", "1"), chapter("y", "2")],
+            |_| true,
+        )
+        .await
+        .unwrap();
+
+        // Chapter 1's last download on "test" failed for good.
+        sqlx::query(
+            "INSERT INTO jobs (kind, payload, dedupe_key, state, run_after, created_at, updated_at)
+             VALUES ('download_chapter', '{}', ?, 'failed', '', '', '')",
+        )
+        .bind(format!("download:{}", ours[0]))
+        .execute(&pool)
+        .await
+        .unwrap();
+        let picked = || async { wanted_sources(&wanted(&pool, 100).await.unwrap()) };
+        let expect =
+            |a: &str, b: &str| [("1", a), ("2", b)].map(|(n, s)| (n.to_owned(), s.to_owned()));
+        assert_eq!(picked().await, expect("other", "test"));
+
+        // One failure short of broken changes nothing; reaching it moves all.
+        for n in 1..db::sources::FAILING_AFTER {
+            db::sources::record_failure(&pool, "test", &format!("error {n}"))
+                .await
+                .unwrap();
+        }
+        assert_eq!(picked().await, expect("other", "test"));
+        db::sources::record_failure(&pool, "test", "error")
+            .await
+            .unwrap();
+        assert_eq!(picked().await, expect("other", "other"));
     }
 
     #[tokio::test]

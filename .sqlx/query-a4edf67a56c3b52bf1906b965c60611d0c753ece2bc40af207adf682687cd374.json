@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT id, series_id, source, source_key AS \"source_key: ChapterKey\",\n                      number AS \"number: _\", volume, title, url, language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at: _\"\n               FROM chapters\n               WHERE series_id = ? ORDER BY number_whole, number_frac, id",
+  "query": "SELECT id AS \"id!\", series_id AS \"series_id!\", source AS \"source!\",\n                      source_key AS \"source_key!: ChapterKey\",\n                      number AS \"number!: _\", volume, title, url AS \"url!\", language, scanlator,\n                      published_at AS \"published_at: _\",\n                      monitored AS \"monitored!: bool\",\n                      file_path, size_bytes,\n                      downloaded_at AS \"downloaded_at: _\",\n                      discovered_at AS \"discovered_at!: _\"\n               FROM chapter_choice WHERE series_id = ? AND pick = 1 ORDER BY number_whole, number_frac, id",
   "describe": {
     "columns": [
       {
-        "name": "id",
+        "name": "id!",
         "ordinal": 0,
         "type_info": "Integer",
         "origin": {
@@ -15,7 +15,7 @@
         }
       },
       {
-        "name": "series_id",
+        "name": "series_id!",
         "ordinal": 1,
         "type_info": "Integer",
         "origin": {
@@ -26,7 +26,7 @@
         }
       },
       {
-        "name": "source",
+        "name": "source!",
         "ordinal": 2,
         "type_info": "Text",
         "origin": {
@@ -37,7 +37,7 @@
         }
       },
       {
-        "name": "source_key: ChapterKey",
+        "name": "source_key!: ChapterKey",
         "ordinal": 3,
         "type_info": "Text",
         "origin": {
@@ -48,7 +48,7 @@
         }
       },
       {
-        "name": "number: _",
+        "name": "number!: _",
         "ordinal": 4,
         "type_info": "Text",
         "origin": {
@@ -81,7 +81,7 @@
         }
       },
       {
-        "name": "url",
+        "name": "url!",
         "ordinal": 7,
         "type_info": "Text",
         "origin": {
@@ -125,7 +125,7 @@
         }
       },
       {
-        "name": "monitored: bool",
+        "name": "monitored!: bool",
         "ordinal": 11,
         "type_info": "Integer",
         "origin": {
@@ -169,7 +169,7 @@
         }
       },
       {
-        "name": "discovered_at: _",
+        "name": "discovered_at!: _",
         "ordinal": 15,
         "type_info": "Text",
         "origin": {
@@ -184,7 +184,7 @@
       "Right": 1
     },
     "nullable": [
-      false,
+      null,
       false,
       false,
       false,
@@ -202,5 +202,5 @@
       false
     ]
   },
-  "hash": "79025a095972c6a4f75e0beb5a429d8c59e6a984d56eae9bbb53815fa8a9273d"
+  "hash": "a4edf67a56c3b52bf1906b965c60611d0c753ece2bc40af207adf682687cd374"
 }

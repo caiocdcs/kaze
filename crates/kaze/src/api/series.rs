@@ -69,7 +69,7 @@ pub async fn get(
     Path(id): Path<i64>,
 ) -> ApiResult<Json<SeriesDetail>> {
     let series = load(&app, id).await?;
-    let chapters = db::chapters::for_series(&app.ctx.db, id).await?;
+    let chapters = db::chapters::picks_for_series(&app.ctx.db, id).await?;
     Ok(Json(SeriesDetail { series, chapters }))
 }
 
@@ -126,12 +126,9 @@ async fn remonitor(
     let wanted = ids(wanted);
     db::chapters::set_monitored(&app.ctx.db, &wanted, true).await?;
     db::chapters::set_monitored(&app.ctx.db, &ids(unwanted), false).await?;
-    for chapter_id in wanted {
+    for (chapter_id, source) in db::chapters::wanted_picks(&app.ctx.db, &wanted).await? {
         app.jobs
-            .submit(Job::DownloadChapter {
-                chapter_id,
-                source: series.source.clone(),
-            })
+            .submit(Job::DownloadChapter { chapter_id, source })
             .await?;
     }
     Ok(())

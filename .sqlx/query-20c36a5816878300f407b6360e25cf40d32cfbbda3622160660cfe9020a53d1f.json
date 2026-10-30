@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chapters SET monitored = ?\n         WHERE (series_id, number) IN (\n             SELECT series_id, number FROM chapters WHERE id IN (SELECT value FROM json_each(?))\n         )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "20c36a5816878300f407b6360e25cf40d32cfbbda3622160660cfe9020a53d1f"
+}

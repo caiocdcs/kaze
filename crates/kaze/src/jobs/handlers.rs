@@ -184,7 +184,8 @@ async fn download_chapter(
     let chapter = db::chapters::get(&ctx.db, chapter_id)
         .await?
         .ok_or_else(|| JobError::Gone(format!("chapter {chapter_id} was removed")))?;
-    if chapter.file_path.is_some() {
+    // Another copy of the number may have landed since this one was queued.
+    if chapter.file_path.is_some() || db::chapters::number_on_disk(&ctx.db, chapter_id).await? {
         return Ok(());
     }
     let series = load_series(ctx, chapter.series_id).await?;
