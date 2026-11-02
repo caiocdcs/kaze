@@ -1,0 +1,36 @@
+# Flake checks (clippy, fmt, nextest, web) and cargo audit, in one job so both
+# share the container's nix store. nixos/nix has no node for actions/checkout,
+# so the job clones with git. Images are built on GitHub only.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: alpine
+    container:
+      image: nixos/nix:latest
+    env:
+      NIX_CONFIG: experimental-features = nix-command flakes
+    steps:
+      - name: checkout
+        env:
+          TOKEN: ${{ github.token }}
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          git init -q .
+          git -c http.extraHeader="Authorization: token $TOKEN" \
+            fetch -q --depth 1 "${{ github.server_url }}/${{ github.repository }}.git" "$SHA"
+          git checkout -q FETCH_HEAD
+      - name: flake check
+        run: nix flake check --print-build-logs
+      - name: audit
+        run: nix develop --command cargo audit
