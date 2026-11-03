@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series SET title = ?, description = ?, authors = ?, tags = ?, status = ?, year = ?, cover_url = ?\n           WHERE id = ? AND anilist_id IS ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 9
+    },
+    "nullable": []
+  },
+  "hash": "6d2e51129fbe9e607eba041b9aaaef1584b827ebf3bf9139763d57cac3d9c510"
+}

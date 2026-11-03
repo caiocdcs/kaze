@@ -144,17 +144,19 @@ pub async fn folder_taken(db: impl SqliteExecutor<'_>, folder: &str) -> sqlx::Re
     Ok(taken)
 }
 
-/// Where new metadata comes from.
+/// Where new metadata comes from. Each is only written while the series
+/// is still linked that way.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MetadataFrom {
-    /// The primary source: ignored while the series is linked to AniList.
+    /// The primary source: while the series isn't linked to AniList.
     Source,
-    AniList,
+    /// This AniList entry: while the series is linked to it.
+    AniList(AniListId),
 }
 
-/// Refresh metadata; keeps the folder and monitor settings. False when a
-/// source's metadata was ignored because the series is linked. The check
-/// is in the `UPDATE`, so a link made meanwhile is never overwritten.
+/// Refresh metadata; keeps the folder and monitor settings. False when the
+/// link changed meanwhile and nothing was written: the check is in the
+/// `UPDATE`, so a newer link is never overwritten.
 pub async fn update_metadata(
     db: impl SqliteExecutor<'_>,
     id: i64,
@@ -165,10 +167,13 @@ pub async fn update_metadata(
     let tags = Json(&s.tags);
     let year = s.year.map(i64::from);
     let cover = s.cover_url.as_ref().map(url::Url::as_str);
-    let linked_too = from == MetadataFrom::AniList;
+    let linked = match from {
+        MetadataFrom::Source => None,
+        MetadataFrom::AniList(anilist) => Some(anilist),
+    };
     let result = sqlx::query!(
         r#"UPDATE series SET title = ?, description = ?, authors = ?, tags = ?, status = ?, year = ?, cover_url = ?
-           WHERE id = ? AND (? OR anilist_id IS NULL)"#,
+           WHERE id = ? AND anilist_id IS ?"#,
         s.title,
         s.description,
         authors,
@@ -177,7 +182,7 @@ pub async fn update_metadata(
         year,
         cover,
         id,
-        linked_too,
+        linked,
     )
     .execute(db)
     .await?;
@@ -220,19 +225,23 @@ pub async fn link_found_metadata(
     Ok(result.rows_affected() == 1)
 }
 
+/// Record a metadata check made for the link `anilist` (`None`: while
+/// unlinked). False when the link changed meanwhile and nothing was written.
 pub async fn mark_metadata_checked(
     db: impl SqliteExecutor<'_>,
     id: i64,
+    anilist: Option<AniListId>,
     now: DateTime<Utc>,
-) -> sqlx::Result<()> {
-    sqlx::query!(
-        "UPDATE series SET metadata_checked_at = ? WHERE id = ?",
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        "UPDATE series SET metadata_checked_at = ? WHERE id = ? AND anilist_id IS ?",
         now,
-        id
+        id,
+        anilist
     )
     .execute(db)
     .await?;
-    Ok(())
+    Ok(result.rows_affected() == 1)
 }
 
 /// Series whose metadata was last checked before `cutoff`, or never.
@@ -505,4 +514,61 @@ pub async fn summaries(db: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<SeriesSu
     )
     .fetch_all(db)
     .await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{db, testing::FakeSource};
+
+    #[tokio::test]
+    async fn metadata_is_written_only_for_the_current_link() {
+        let db = db::memory().await;
+        let source = FakeSource::new();
+        let new = NewSeries {
+            series: &source.series,
+            source: "fake",
+            language: "en",
+            folder: "f",
+            monitor: Monitor::All,
+            monitor_from: None,
+        };
+        let id = insert(&db, &new).await.unwrap();
+        let (old, current) = (AniListId(1), AniListId(2));
+        let from_old = MetadataFrom::AniList(old);
+
+        assert!(
+            !update_metadata(&db, id, &source.series, from_old)
+                .await
+                .unwrap()
+        );
+        link_metadata(&db, id, Some(current), MetadataLink::Auto)
+            .await
+            .unwrap();
+        assert!(
+            !update_metadata(&db, id, &source.series, from_old)
+                .await
+                .unwrap(),
+            "a stale job"
+        );
+        assert!(
+            !update_metadata(&db, id, &source.series, MetadataFrom::Source)
+                .await
+                .unwrap()
+        );
+        let from_current = MetadataFrom::AniList(current);
+        assert!(
+            update_metadata(&db, id, &source.series, from_current)
+                .await
+                .unwrap()
+        );
+        link_metadata(&db, id, None, MetadataLink::Manual)
+            .await
+            .unwrap();
+        assert!(
+            update_metadata(&db, id, &source.series, MetadataFrom::Source)
+                .await
+                .unwrap()
+        );
+    }
 }

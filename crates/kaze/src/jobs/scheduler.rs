@@ -331,7 +331,7 @@ mod tests {
         }
         let now = Utc::now();
         for &id in &ids[1..] {
-            db::series::mark_metadata_checked(&db, id, now)
+            db::series::mark_metadata_checked(&db, id, None, now)
                 .await
                 .unwrap();
         }

@@ -683,7 +683,10 @@ async fn latest_updates_refresh_followed_series() {
             .wait_for(|e| matches!(e, Event::JobQueued { .. } | Event::JobFinished { .. }))
             .await
         {
-            Event::JobQueued { job_id, .. } => queued.push(job_id),
+            // The metadata lookup that follows the refresh doesn't count.
+            Event::JobQueued { job_id, job } if !matches!(job, Job::RefreshMetadata { .. }) => {
+                queued.push(job_id);
+            }
             Event::JobFinished { job_id } if queued.contains(&job_id) => pending -= 1,
             _ => {}
         }

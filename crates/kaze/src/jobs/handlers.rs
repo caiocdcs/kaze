@@ -227,50 +227,66 @@ async fn queue_metadata(
 /// Take metadata from the series' AniList entry, finding it by title
 /// first if the series has none.
 async fn refresh_metadata(ctx: &Context, series_id: i64) -> Result<(), JobError> {
-    let record = load_series(ctx, series_id).await?;
-    let now = Utc::now();
-    let id = match record.anilist_id {
-        Some(id) => Some(id),
-        // Unlinked by hand: no metadata wanted.
-        None if record.metadata_link == MetadataLink::Manual => return Ok(()),
-        None => {
-            match metadata::find(&ctx.anilist, &record.title).await? {
-                Match::Found { id, how } => {
-                    if db::series::link_found_metadata(&ctx.db, series_id, id).await? {
-                        tracing::info!(series = %record.title, anilist = %id, ?how, "linked metadata by title");
-                    }
-                }
-                Match::Ambiguous => {
-                    tracing::warn!(series = %record.title, "several AniList entries match: link one by hand");
-                }
-                Match::NotFound => {}
+    let mut searched = false;
+    // Starts over when the link changes meanwhile: the job for the new
+    // link was dropped as a duplicate of this one.
+    loop {
+        let record = load_series(ctx, series_id).await?;
+        let id = match record.anilist_id {
+            Some(id) => id,
+            // Unlinked by hand: no metadata wanted.
+            None if record.metadata_link == MetadataLink::Manual => return Ok(()),
+            None if !searched => {
+                searched = true;
+                search_anilist(ctx, &record).await?;
+                continue;
             }
-            // A link by the source's id may have landed during the search;
-            // its own job was dropped as a duplicate of this one.
-            load_series(ctx, series_id).await?.anilist_id
-        }
-    };
-    let Some(id) = id else {
-        db::series::mark_metadata_checked(&ctx.db, series_id, now).await?;
-        return Ok(());
-    };
-
-    let series = ctx.anilist.media(id).await?.into_series();
-    db::series::update_metadata(&ctx.db, series_id, &series, MetadataFrom::AniList).await?;
-    db::series::mark_metadata_checked(&ctx.db, series_id, now).await?;
-    // Best effort, like source covers; only when AniList's changed.
-    if let Some(url) = series
-        .cover_url
-        .filter(|url| record.cover_url.as_deref() != Some(url.as_str()))
-    {
-        let dir = ctx.libraries.root(&record.language).join(&record.folder);
-        let saved = match ctx.anilist.image(&url).await {
-            Ok(image) => download::replace_cover(&image, &url, &dir).await,
-            Err(err) => Err(err.into()),
+            None => {
+                if db::series::mark_metadata_checked(&ctx.db, series_id, None, Utc::now()).await? {
+                    return Ok(());
+                }
+                continue;
+            }
         };
-        if let Err(err) = saved {
-            tracing::warn!(dir = %dir.display(), "could not save cover: {err}");
+
+        let series = ctx.anilist.media(id).await?.into_series();
+        let from = MetadataFrom::AniList(id);
+        if !db::series::update_metadata(&ctx.db, series_id, &series, from).await?
+            || !db::series::mark_metadata_checked(&ctx.db, series_id, Some(id), Utc::now()).await?
+        {
+            continue;
         }
+        // Best effort, like source covers; only when AniList's changed.
+        if let Some(url) = series
+            .cover_url
+            .filter(|url| record.cover_url.as_deref() != Some(url.as_str()))
+        {
+            let dir = ctx.libraries.root(&record.language).join(&record.folder);
+            let saved = match ctx.anilist.image(&url).await {
+                Ok(image) => download::replace_cover(&image, &url, &dir).await,
+                Err(err) => Err(err.into()),
+            };
+            if let Err(err) = saved {
+                tracing::warn!(dir = %dir.display(), "could not save cover: {err}");
+            }
+        }
+        return Ok(());
+    }
+}
+
+/// Look the series up by title and link what is found, unless a link
+/// landed meanwhile.
+async fn search_anilist(ctx: &Context, record: &SeriesRecord) -> Result<(), JobError> {
+    match metadata::find(&ctx.anilist, &record.title).await? {
+        Match::Found { id, how } => {
+            if db::series::link_found_metadata(&ctx.db, record.id, id).await? {
+                tracing::info!(series = %record.title, anilist = %id, ?how, "linked metadata by title");
+            }
+        }
+        Match::Ambiguous => {
+            tracing::warn!(series = %record.title, "several AniList entries match: link one by hand");
+        }
+        Match::NotFound => {}
     }
     Ok(())
 }
