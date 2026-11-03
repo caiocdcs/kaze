@@ -1592,7 +1592,7 @@ dependencies = [
 
 [[package]]
 name = "kaze"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -1633,7 +1633,7 @@ dependencies = [
 
 [[package]]
 name = "kaze-core"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -1649,7 +1649,7 @@ dependencies = [
 
 [[package]]
 name = "kaze-sources"
-version = "0.5.0"
+version = "0.6.0"
 dependencies = [
  "async-trait",
  "backon",
