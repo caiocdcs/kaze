@@ -79,6 +79,7 @@ export const api = {
 	runTask: (task: Task) => http.post<void>(`/tasks/${task}/run`),
 	backup: () => http.save('/backup'),
 	health: () => http.get<HealthCheck[]>('/health'),
+	healthProblems: () => http.get<HealthCheck[]>('/health/problems'),
 
 	importCandidates: () => http.get<Candidate[]>('/import'),
 	importMatches: (folder: string) => http.get<Match[]>('/import/match', { folder }),

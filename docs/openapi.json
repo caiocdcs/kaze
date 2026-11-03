@@ -267,6 +267,31 @@
         }
       }
     },
+    "/api/v1/health/problems": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Problems kaze knows of without checking the network",
+        "description": "Broken sources, low disk space and integrations whose last send failed: cheap enough for the UI to poll.",
+        "operationId": "health_problems",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HealthCheck"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/history": {
       "get": {
         "tags": [

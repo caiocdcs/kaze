@@ -1,5 +1,5 @@
 import { SvelteMap } from 'svelte/reactivity';
-import { api, type JobRecord } from './api/index.ts';
+import { api, type HealthCheck, type JobRecord } from './api/index.ts';
 import type { Event } from './api/types/Event.ts';
 
 export type Progress = { done: number; total: number };
@@ -19,8 +19,8 @@ class Live {
 	/** Bumped on every job event, for pages showing the queue. */
 	jobsVersion = $state(0);
 	wanted = $state(0);
-	/** Names of the sources whose recent jobs keep failing. */
-	failingSources = $state<string[]>([]);
+	/** What kaze knows is wrong without pinging: broken sources, low disk, failed sends. */
+	problems = $state<HealthCheck[]>([]);
 
 	running = $derived(this.active.filter((j) => j.state === 'running'));
 	queued = $derived(this.active.filter((j) => j.state === 'queued'));
@@ -104,14 +104,14 @@ class Live {
 
 	async #reload() {
 		try {
-			const [jobs, series, sources] = await Promise.all([
+			const [jobs, series, problems] = await Promise.all([
 				api.jobs(500),
 				api.series(),
-				api.sources()
+				api.healthProblems()
 			]);
 			this.active = jobs.filter((j) => j.state === 'queued' || j.state === 'running');
 			this.wanted = series.reduce((sum, s) => sum + s.wanted, 0);
-			this.failingSources = sources.filter((s) => s.failing).map((s) => s.name);
+			this.problems = problems;
 			this.jobsVersion++;
 		} catch {
 			// Shown as "offline" through `connected`; the next event retries.

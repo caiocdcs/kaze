@@ -970,3 +970,66 @@ async fn everything_moves_under_the_url_base() {
     assert_eq!(get("/kaze/healthz").await.status(), StatusCode::OK);
     api.app.shutdown().await;
 }
+
+#[tokio::test]
+async fn known_problems_are_listed_without_pinging() {
+    let api = api(None).await;
+    let db = &api.app.ctx.db;
+    // The startup sync's success would reset the failures recorded below.
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while db::sources::get(db, "fake")
+            .await
+            .unwrap()
+            .last_success_at
+            .is_none()
+        {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    for _ in 0..db::sources::FAILING_AFTER {
+        db::sources::record_failure(db, "fake", "HTTP 500")
+            .await
+            .unwrap();
+    }
+    let komga = json!({ "kind": "komga", "url": "http://komga:25600", "api_key": "k" });
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/integrations",
+            Some(json!({ "name": "Komga", "config": komga })),
+        )
+        .await;
+    let integration = created["id"].as_i64().unwrap();
+    db::integrations::record(db, integration, false, "HTTP 401")
+        .await
+        .unwrap();
+    let pause = json!({ "paused_sources": ["other"] });
+    api.app
+        .ctx
+        .settings
+        .update(pause.as_object().unwrap().clone())
+        .await
+        .unwrap();
+
+    let (status, problems) = api.get("/api/v1/health/problems").await;
+    assert_eq!(status, StatusCode::OK);
+    let named = |name: &str| {
+        problems
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["name"] == name)
+            .cloned()
+    };
+    let fake = named("Fake").expect("the broken source");
+    assert_eq!(fake["state"], "down");
+    assert_eq!(fake["detail"], "failed 3 times in a row: HTTP 500");
+    assert_eq!(named("Komga").unwrap()["detail"], "HTTP 401");
+    assert!(
+        named("Other").is_none(),
+        "paused is a choice, not a problem"
+    );
+    api.app.shutdown().await;
+}

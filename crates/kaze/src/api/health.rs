@@ -45,10 +45,18 @@ const LOW_DISK: u64 = 5 * 1024 * 1024 * 1024;
     responses((status = 200, description = "OK", body = Vec<HealthCheck>))
 )]
 pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthCheck>>> {
-    let sources = app.ctx.sources.iter().map(|source| {
+    let mut known = Vec::new();
+    for source in app.ctx.sources.iter() {
+        known.push(known_source_state(&app, source.meta()).await?);
+    }
+    // Broken or paused sources say so; only the others are pinged.
+    let sources = app.ctx.sources.iter().zip(known).map(|(source, known)| {
         let meta = source.meta();
         let http = app.ctx.http.clone();
         async move {
+            if let Some(check) = known {
+                return check;
+            }
             let started = Instant::now();
             let result = http
                 .get(meta.base_url.clone())
@@ -90,7 +98,60 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
         state,
         detail,
     });
+    checks.extend(stored_checks(&app).await?);
+    Ok(Json(checks))
+}
 
+#[utoipa::path(
+    operation_id = "health_problems",
+    summary = "Problems kaze knows of without checking the network",
+    description = "Broken sources, low disk space and integrations whose last send failed: cheap enough for the UI to poll.",
+    get,
+    path = "/health/problems",
+    tag = "system",
+    responses((status = 200, description = "OK", body = Vec<HealthCheck>))
+)]
+pub async fn problems(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthCheck>>> {
+    let mut checks = Vec::new();
+    for source in app.ctx.sources.iter() {
+        checks.extend(known_source_state(&app, source.meta()).await?);
+    }
+    checks.extend(stored_checks(&app).await?);
+    // Paused and unused things are choices, not problems.
+    checks.retain(|c| matches!(c.state, HealthState::Down | HealthState::Slow));
+    Ok(Json(checks))
+}
+
+/// A source's state from what kaze recorded: paused, or broken by
+/// failures in a row. `None` when neither, so it needs a ping.
+async fn known_source_state(
+    app: &AppState,
+    meta: &kaze_core::SourceMeta,
+) -> sqlx::Result<Option<HealthCheck>> {
+    let (state, detail) = if app.ctx.settings.current().is_paused(meta.id) {
+        (HealthState::Off, "paused".to_owned())
+    } else {
+        let health = db::sources::get(&app.ctx.db, meta.id).await?;
+        if !health.is_failing() {
+            return Ok(None);
+        }
+        let failures = format!("failed {} times in a row", health.failures_in_row);
+        let detail = health
+            .last_error
+            .map_or_else(|| failures.clone(), |e| format!("{failures}: {e}"));
+        (HealthState::Down, detail)
+    };
+    Ok(Some(HealthCheck {
+        name: meta.name.to_owned(),
+        kind: "source",
+        state,
+        detail,
+    }))
+}
+
+/// Library disks and integrations: no requests to other hosts.
+async fn stored_checks(app: &AppState) -> sqlx::Result<Vec<HealthCheck>> {
+    let mut checks = Vec::new();
     for (language, root) in app.ctx.libraries.roots() {
         let root = root.to_owned();
         let space = tokio::task::spawn_blocking(move || fs4::available_space(&root))
@@ -130,7 +191,7 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
             detail,
         });
     }
-    Ok(Json(checks))
+    Ok(checks)
 }
 
 #[allow(clippy::cast_precision_loss)] // display only

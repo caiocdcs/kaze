@@ -27,6 +27,7 @@
 			? page.route.id === '/' || !!page.route.id?.startsWith('/series')
 			: !!page.route.id?.startsWith(href);
 
+	const problemList = $derived(live.problems.map((p) => `${p.name}: ${p.detail}`).join('\n'));
 	const current = $derived(live.running[0]);
 	const currentProgress = $derived(current ? live.progress.get(current.id) : undefined);
 </script>
@@ -55,10 +56,10 @@
 					>{num(live.wanted)}</span
 				>
 			{/if}
-			{#if item.href === '/settings' && live.failingSources.length > 0}
+			{#if item.href === '/settings' && live.problems.length > 0}
 				<span
 					class="rounded-full bg-bad-wash px-[7px] py-px font-mono text-xs text-bad"
-					title="Failing: {live.failingSources.join(', ')}">{live.failingSources.length}</span
+					title={problemList}>{live.problems.length}</span
 				>
 			{/if}
 		</a>
@@ -112,10 +113,10 @@
 					>{live.wanted}</span
 				>
 			{/if}
-			{#if item.href === '/settings' && live.failingSources.length > 0}
+			{#if item.href === '/settings' && live.problems.length > 0}
 				<span
 					class="absolute top-1 left-[calc(50%+6px)] rounded-full bg-bad px-1.5 font-mono text-[10px] text-bad-wash"
-					title="Failing: {live.failingSources.join(', ')}">{live.failingSources.length}</span
+					title={problemList}>{live.problems.length}</span
 				>
 			{/if}
 		</a>

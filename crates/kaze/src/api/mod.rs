@@ -122,6 +122,7 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(jobs::history))
         .routes(routes!(settings::get, settings::update))
         .routes(routes!(health::check))
+        .routes(routes!(health::problems))
         .routes(routes!(backup::download))
         .routes(routes!(import::candidates, import::import))
         .routes(routes!(import::matches))
