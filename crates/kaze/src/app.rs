@@ -2,19 +2,19 @@
 
 use std::sync::Arc;
 
-use kaze_core::{ChapterNumber, SeriesKey, Source, SourceError};
+use kaze_core::{AniListId, ChapterNumber, SeriesKey, Source, SourceError};
 use kaze_sources::{Registry, anilist::AniList, flaresolverr::FlareSolverr};
 use sqlx::SqlitePool;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
 use crate::{
     db::{self, series::NewSeries},
-    download::naming::sanitize_file_name,
+    download::{self, DownloadError, naming::sanitize_file_name},
     events::{self, Events},
     import,
     integrations::notifier,
     jobs::{Dispatcher, Job, JobQueue, QueueError, RetryPolicy, scheduler},
-    library::{self, Libraries, Monitor, SourceOrder},
+    library::{self, Libraries, MetadataLink, Monitor, SourceOrder},
     settings::SettingsStore,
 };
 
@@ -84,6 +84,23 @@ pub enum SeriesSourceError {
     LastSource,
     #[error("the new order must list each of the series' sources once")]
     BadOrder,
+    #[error(transparent)]
+    Db(#[from] sqlx::Error),
+    #[error(transparent)]
+    Queue(#[from] QueueError),
+}
+
+/// Why a series' AniList link could not be changed.
+#[derive(Debug, thiserror::Error)]
+pub enum MetadataError {
+    #[error("series not found")]
+    SeriesNotFound,
+    #[error("AniList has no manga {0}")]
+    NotOnAniList(AniListId),
+    #[error("AniList failed: {0}")]
+    AniList(SourceError),
+    #[error(transparent)]
+    Cover(#[from] DownloadError),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
     #[error(transparent)]
@@ -340,6 +357,44 @@ impl App {
         for pick in db::chapters::wanted_for_series(&self.ctx.db, series_id).await? {
             self.jobs.submit(pick.into()).await?;
         }
+        Ok(())
+    }
+
+    /// Link a series to an AniList entry by hand, or unlink it with `None`.
+    /// Either way, automatic linking leaves it alone from now on.
+    pub async fn link_metadata(
+        &self,
+        series_id: i64,
+        anilist: Option<AniListId>,
+    ) -> Result<(), MetadataError> {
+        let series = db::series::get(&self.ctx.db, series_id)
+            .await?
+            .ok_or(MetadataError::SeriesNotFound)?;
+        if let Some(id) = anilist {
+            // Checked now, so a wrong id fails here, not in a background job.
+            self.ctx.anilist.media(id).await.map_err(|err| match err {
+                SourceError::NotFound { .. } => MetadataError::NotOnAniList(id),
+                err => MetadataError::AniList(err),
+            })?;
+        }
+        db::series::link_metadata(&self.ctx.db, series_id, anilist, MetadataLink::Manual).await?;
+        tracing::info!(series = series.title, anilist = ?anilist, "metadata linked by hand");
+        let job = if anilist.is_some() {
+            Job::RefreshMetadata { series_id }
+        } else {
+            // The source's metadata and cover come back with its refresh.
+            let dir = self
+                .ctx
+                .libraries
+                .root(&series.language)
+                .join(&series.folder);
+            download::remove_cover(&dir).await?;
+            Job::RefreshSeries {
+                series_id,
+                source: series.source,
+            }
+        };
+        self.jobs.submit(job).await?;
         Ok(())
     }
 

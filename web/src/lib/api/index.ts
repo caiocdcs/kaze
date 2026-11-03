@@ -6,6 +6,7 @@ import type { Config } from './types/Config.ts';
 import type { ImportRequest } from './types/ImportRequest.ts';
 import type { Imported } from './types/Imported.ts';
 import type { Match } from './types/Match.ts';
+import type { MetadataHit } from './types/MetadataHit.ts';
 import type { HealthCheck } from './types/HealthCheck.ts';
 import type { Integration } from './types/Integration.ts';
 import type { IntegrationInput } from './types/IntegrationInput.ts';
@@ -51,6 +52,9 @@ export const api = {
 	removeSource: (id: number, source: string) =>
 		http.del<SeriesDetail>(`/series/${id}/sources/${encodeURIComponent(source)}`),
 	coverUrl: (id: number) => url(`/series/${id}/cover`),
+	searchMetadata: (q: string) => http.get<MetadataHit[]>('/metadata/search', { q }),
+	linkMetadata: (id: number, anilistId: number | null) =>
+		http.put<SeriesDetail>(`/series/${id}/metadata`, { anilist_id: anilistId }),
 
 	setMonitored: (ids: number[], monitored: boolean) =>
 		http.patch<{ updated: number }>('/chapters', { ids, monitored }),
@@ -101,6 +105,7 @@ export type {
 	ChapterCopy,
 	ChapterRecord,
 	Match,
+	MetadataHit,
 	Config,
 	HealthCheck,
 	Integration,

@@ -199,6 +199,14 @@ pub async fn replace_cover(image: &Image, url: &Url, dir: &Path) -> Result<PathB
     Ok(path)
 }
 
+/// Remove the series cover, if there is one.
+pub async fn remove_cover(dir: &Path) -> Result<(), DownloadError> {
+    if let Some(cover) = existing_cover(dir).await? {
+        tokio::fs::remove_file(cover).await?;
+    }
+    Ok(())
+}
+
 /// The `cover.*` file in `dir`, creating `dir` if needed.
 async fn existing_cover(dir: &Path) -> Result<Option<PathBuf>, DownloadError> {
     let mut entries = match tokio::fs::read_dir(dir).await {

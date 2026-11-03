@@ -849,6 +849,60 @@
         }
       }
     },
+    "/api/v1/metadata/search": {
+      "get": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Search AniList for a series' entry",
+        "operationId": "metadata_search",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MetadataHit"
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AniList failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/search": {
       "get": {
         "tags": [
@@ -1159,6 +1213,69 @@
           },
           "4XX": {
             "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/series/{id}/metadata": {
+      "put": {
+        "tags": [
+          "series"
+        ],
+        "summary": "Link a series to an AniList entry by hand, or unlink it",
+        "operationId": "series_link_metadata",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Series id",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkMetadata"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK; the metadata refresh is queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SeriesDetail"
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "AniList failed",
             "content": {
               "application/json": {
                 "schema": {
@@ -3003,6 +3120,22 @@
           }
         }
       },
+      "LinkMetadata": {
+        "type": "object",
+        "properties": {
+          "anilist_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AniListId",
+                "description": "`null` unlinks: the series takes its metadata from its source again."
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
       "LinkedSource": {
         "allOf": [
           {
@@ -3115,6 +3248,58 @@
           },
           "trigger": {
             "$ref": "#/components/schemas/Trigger"
+          }
+        }
+      },
+      "MetadataHit": {
+        "type": "object",
+        "description": "An AniList entry to link a series to.",
+        "required": [
+          "anilist_id",
+          "title",
+          "status",
+          "one_shot",
+          "url"
+        ],
+        "properties": {
+          "anilist_id": {
+            "$ref": "#/components/schemas/AniListId"
+          },
+          "cover_url": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uri"
+          },
+          "one_shot": {
+            "type": "boolean",
+            "description": "One-shots often share a series' title."
+          },
+          "romaji": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The romanized title, when it differs."
+          },
+          "status": {
+            "$ref": "#/components/schemas/SeriesStatus"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "year": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "format": "int32",
+            "minimum": 0
           }
         }
       },

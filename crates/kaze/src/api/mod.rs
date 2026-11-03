@@ -9,6 +9,7 @@ mod health;
 mod import;
 mod integrations;
 mod jobs;
+mod metadata;
 mod patch;
 mod series;
 mod settings;
@@ -106,6 +107,8 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(series::add_source, series::reorder_sources))
         .routes(routes!(series::remove_source))
         .routes(routes!(series::cover))
+        .routes(routes!(metadata::link))
+        .routes(routes!(metadata::search))
         .routes(routes!(chapters::set_monitored))
         .routes(routes!(chapters::download))
         .routes(routes!(chapters::copies))

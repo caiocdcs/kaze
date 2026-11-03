@@ -32,6 +32,14 @@ async fn api(api_key: Option<&str>) -> Api {
 }
 
 async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
+    api_full(api_key, db, crate::testing::empty_anilist().await).await
+}
+
+async fn api_full(
+    api_key: Option<&str>,
+    db: sqlx::SqlitePool,
+    anilist: kaze_sources::anilist::AniList,
+) -> Api {
     let library = tempfile::tempdir().unwrap();
     let source = Arc::new(FakeSource::new().with_chapters(&["1", "2"]));
     let other = Arc::new(
@@ -55,7 +63,7 @@ async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
         flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
             .unwrap()
             .flaresolverr(),
-        anilist: crate::testing::empty_anilist().await,
+        anilist,
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -862,5 +870,85 @@ async fn the_spec_is_served_without_the_api_key() {
     let schemes = &spec["components"]["securitySchemes"];
     assert_eq!(schemes["api_key_header"]["name"], "X-Api-Key");
     assert_eq!(schemes["api_key_query"]["in"], "query");
+    api.app.shutdown().await;
+}
+
+/// Whether the series' title becomes `expected` within 5 seconds.
+async fn shows_title(api: &Api, id: i64, expected: &str) -> bool {
+    let uri = format!("/api/v1/series/{id}");
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while api.get(&uri).await.1["title"] != expected {
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .is_ok()
+}
+
+#[tokio::test]
+async fn metadata_is_searched_and_linked_by_hand() {
+    let anilist = crate::testing::fake_anilist(|vars, base| {
+        let mut media = crate::testing::anilist_media(42, "From AniList", base);
+        media["title"]["romaji"] = json!("Romaji Title");
+        if vars.get("search").is_some() {
+            Some(json!({ "Page": { "media": [media] } }))
+        } else {
+            (vars["id"] == 42).then(|| json!({ "Media": media }))
+        }
+    })
+    .await;
+    let api = api_full(None, db::memory().await, anilist).await;
+
+    let (status, hits) = api.get("/api/v1/metadata/search?q=anything").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(hits[0]["anilist_id"], 42);
+    assert_eq!(hits[0]["title"], "From AniList");
+    assert_eq!(hits[0]["romaji"], "Romaji Title");
+    assert_eq!(hits[0]["one_shot"], false);
+    assert_eq!(hits[0]["url"], "https://anilist.co/manga/42");
+    let (status, _) = api.get("/api/v1/metadata/search?q=%20").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+
+    let (_, created) = api
+        .call(
+            Method::POST,
+            "/api/v1/series",
+            Some(json!({ "source": "fake", "key": "S1" })),
+        )
+        .await;
+    let id = created["id"].as_i64().unwrap();
+    let metadata = format!("/api/v1/series/{id}/metadata");
+    let (status, _) = api
+        .call(Method::PUT, &metadata, Some(json!({ "anilist_id": 7 })))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "not on AniList");
+
+    let (status, detail) = api
+        .call(Method::PUT, &metadata, Some(json!({ "anilist_id": 42 })))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["anilist_id"], 42);
+    assert_eq!(detail["metadata_link"], "manual");
+    assert!(shows_title(&api, id, "From AniList").await);
+
+    let (status, detail) = api
+        .call(Method::PUT, &metadata, Some(json!({ "anilist_id": null })))
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(detail["anilist_id"], Value::Null);
+    assert_eq!(detail["metadata_link"], "manual");
+    assert!(
+        shows_title(&api, id, "Test Series").await,
+        "unlinking brings the source's metadata back"
+    );
+
+    let (status, _) = api
+        .call(
+            Method::PUT,
+            "/api/v1/series/999/metadata",
+            Some(json!({ "anilist_id": null })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
     api.app.shutdown().await;
 }

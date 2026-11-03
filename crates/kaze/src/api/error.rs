@@ -8,7 +8,7 @@ use serde::Serialize;
 use utoipa::ToSchema;
 
 use crate::{
-    app::{FollowError, SeriesSourceError},
+    app::{FollowError, MetadataError, SeriesSourceError},
     jobs::QueueError,
     settings::SettingsError,
 };
@@ -114,6 +114,22 @@ impl From<SeriesSourceError> for ApiError {
             SeriesSourceError::Follow(e) => e.into(),
             SeriesSourceError::Db(e) => e.into(),
             SeriesSourceError::Queue(e) => e.into(),
+        }
+    }
+}
+
+impl From<MetadataError> for ApiError {
+    fn from(err: MetadataError) -> Self {
+        match err {
+            MetadataError::SeriesNotFound => Self::NotFound("series"),
+            MetadataError::NotOnAniList(_) => Self::NotFound("AniList entry"),
+            MetadataError::AniList(e) => Self::Upstream(e.to_string()),
+            MetadataError::Cover(e) => {
+                tracing::error!("removing the cover: {e}");
+                Self::Internal
+            }
+            MetadataError::Db(e) => e.into(),
+            MetadataError::Queue(e) => e.into(),
         }
     }
 }

@@ -14,6 +14,7 @@
 	import { live } from '#lib/live.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 	import GroupPicker from './GroupPicker.svelte';
+	import Metadata from './Metadata.svelte';
 	import Sources from './Sources.svelte';
 
 	const PAGE = 50;
@@ -369,6 +370,7 @@
 		</aside>
 
 		<Sources {series} onchange={apply} />
+		<Metadata {series} onchange={apply} />
 	</div>
 
 	<section aria-labelledby="chapters-heading" class="flex flex-col gap-3.5">

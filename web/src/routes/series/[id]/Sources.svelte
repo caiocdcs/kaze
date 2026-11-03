@@ -85,7 +85,7 @@
 	<h2 id="sources-heading" class="m-0 text-[15px] font-semibold">Sources</h2>
 	<p class="m-0 text-[13px] text-muted">
 		Tried in this order. Later sources fill missing chapters and take over when one breaks. The
-		first gives the metadata.
+		first gives the metadata unless the series is linked to AniList.
 	</p>
 	<ol class="m-0 flex list-none flex-col gap-2 p-0">
 		{#each series.sources as s, i (s.source)}
