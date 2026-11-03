@@ -59,13 +59,16 @@ fixtures source:
     fresh=target/fixtures/{{source}}
     [ -f "$saved/urls.tsv" ] || { echo "no $saved/urls.tsv"; exit 1; }
     mkdir -p "$fresh"
-    grep -v '^#' "$saved/urls.tsv" | while IFS=$'\t' read -r name url; do
-        # MangaDex asks API clients to name themselves; sites expect a browser.
+    grep -v '^#' "$saved/urls.tsv" | while IFS=$'\t' read -r name url body; do
+        # APIs ask clients to name themselves; sites expect a browser.
         case "$url" in
-            *api.mangadex.org*) ua="kaze-fixtures" ;;
+            *api.mangadex.org*|*graphql.anilist.co*) ua="kaze-fixtures" ;;
             *) ua="Mozilla/5.0 (X11; Linux x86_64; rv:140.0) Gecko/20100101 Firefox/140.0" ;;
         esac
-        if curl -fsSL --max-time 30 -A "$ua" -o "$fresh/$name" "$url"; then
+        # A third column is a JSON body to POST (GraphQL).
+        post=()
+        [ -n "$body" ] && post=(-H 'Content-Type: application/json' --data "$body")
+        if curl -fsSL --max-time 30 -A "$ua" "${post[@]}" -o "$fresh/$name" "$url"; then
             echo "ok    $name"
         else
             echo "FAIL  $name  $url"

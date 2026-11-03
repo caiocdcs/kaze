@@ -6,6 +6,7 @@
 mod chapter_number;
 mod error;
 pub mod language;
+mod metadata;
 mod model;
 mod source;
 #[cfg(feature = "sqlx")]
@@ -13,5 +14,6 @@ mod sqlx_impls;
 
 pub use chapter_number::{ChapterNumber, ParseChapterNumberError};
 pub use error::{Result, SourceError};
+pub use metadata::AniListId;
 pub use model::{ChapterInfo, ChapterKey, Image, Series, SeriesHit, SeriesKey, SeriesStatus};
 pub use source::{RateLimit, Source, SourceMeta, UrlTarget};

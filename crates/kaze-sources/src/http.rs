@@ -10,8 +10,8 @@ use std::{sync::Arc, time::Duration};
 use backon::{ExponentialBuilder, Retryable};
 use governor::{DefaultDirectRateLimiter, Quota, RateLimiter};
 use kaze_core::{Image, RateLimit, Result, SourceError};
-use reqwest::{Client, Response, StatusCode, cookie::Jar, header};
-use serde::de::DeserializeOwned;
+use reqwest::{Client, RequestBuilder, Response, StatusCode, cookie::Jar, header};
+use serde::{Serialize, de::DeserializeOwned};
 use url::Url;
 
 use crate::flaresolverr::{FlareSolverr, Solution};
@@ -170,18 +170,62 @@ impl SourceHttp {
         })
     }
 
-    /// GET with rate limiting and retries. Each attempt waits for the
-    /// limiter, so retries count against the source's budget too.
+    /// POST a JSON body and read a JSON answer, for APIs such as GraphQL.
+    /// Never goes through FlareSolverr, which only loads pages.
+    pub async fn post_json<B: Serialize + Sync, T: DeserializeOwned>(
+        &self,
+        url: &Url,
+        body: &B,
+    ) -> Result<T> {
+        let body = serde_json::to_vec(body)
+            .map_err(|e| SourceError::parse("JSON request", e.to_string()))?;
+        let response = self
+            .retrying(url, || async {
+                let request = self
+                    .http
+                    .client
+                    .post(url.clone())
+                    .header(header::CONTENT_TYPE, "application/json")
+                    .header(header::ACCEPT, "application/json")
+                    .body(body.clone());
+                let response = self
+                    .with_headers(request, url)
+                    .send()
+                    .await
+                    .map_err(|e| transport(url, e))?;
+                check_status(url, response)
+            })
+            .await?;
+        let body = response.bytes().await.map_err(|e| transport(url, e))?;
+        serde_json::from_slice(&body)
+            .map_err(|e| SourceError::parse("JSON response", e.to_string()))
+    }
+
+    /// GET with rate limiting and retries.
     async fn get(&self, url: &Url, kind: Kind) -> Result<Response> {
+        self.retrying(url, || self.send_once(url, kind)).await
+    }
+
+    /// Each attempt waits for the limiter, so retries count against the
+    /// source's budget too.
+    async fn retrying<F, Fut>(&self, url: &Url, mut attempt: F) -> Result<Response>
+    where
+        F: FnMut() -> Fut,
+        Fut: Future<Output = Result<Response>>,
+    {
         let config = &self.http.config;
         let backoff = ExponentialBuilder::default()
             .with_min_delay(config.retry_base_delay)
             .with_max_times(config.max_retries)
             .with_jitter();
 
-        (|| async {
-            self.limiter.until_ready().await;
-            self.send_once(url, kind).await
+        // Futures are lazy: the request starts only after the limiter allows it.
+        (|| {
+            let request = attempt();
+            async {
+                self.limiter.until_ready().await;
+                request.await
+            }
         })
         .retry(backoff)
         .sleep(tokio::time::sleep)
@@ -215,7 +259,12 @@ impl SourceHttp {
     }
 
     async fn send_direct(&self, url: &Url) -> Result<Response> {
-        let mut request = self.http.client.get(url.clone());
+        let request = self.with_headers(self.http.client.get(url.clone()), url);
+        let response = request.send().await.map_err(|e| transport(url, e))?;
+        check_status(url, response)
+    }
+
+    fn with_headers(&self, mut request: RequestBuilder, url: &Url) -> RequestBuilder {
         if let Some(referer) = &self.referer {
             request = request.header(header::REFERER, referer.clone());
         }
@@ -226,8 +275,7 @@ impl SourceHttp {
         if let Some(user_agent) = solved_agent.as_ref().or(self.user_agent.as_ref()) {
             request = request.header(header::USER_AGENT, user_agent.clone());
         }
-        let response = request.send().await.map_err(|e| transport(url, e))?;
-        check_status(url, response)
+        request
     }
 }
 
