@@ -1,6 +1,6 @@
-# Flake checks (clippy, fmt, nextest, web) and cargo audit, in one job so both
-# share the container's nix store. nixos/nix has no node for actions/checkout,
-# so the job clones with git. Images are built on GitHub only.
+# Flake checks (clippy, fmt, nextest, web) and cargo audit, on the CI host's nix
+# store (runner label `nix`), so builds are reused between runs. The job clones
+# with git. Images are built on GitHub only.
 name: CI
 
 on:
@@ -15,9 +15,7 @@ concurrency:
 
 jobs:
   check:
-    runs-on: alpine
-    container:
-      image: nixos/nix:latest
+    runs-on: nix
     env:
       NIX_CONFIG: experimental-features = nix-command flakes
     steps:
