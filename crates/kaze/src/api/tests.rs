@@ -67,7 +67,7 @@ async fn api_full(
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
-        router: router(Arc::clone(&app)),
+        router: router(Arc::clone(&app), &crate::config::UrlBase::default()),
         app,
         _library: library,
     }
@@ -941,5 +941,32 @@ async fn metadata_is_searched_and_linked_by_hand() {
         )
         .await;
     assert_eq!(status, StatusCode::NOT_FOUND);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn everything_moves_under_the_url_base() {
+    let api = api(None).await;
+    let base = crate::config::UrlBase::try_from("/kaze".to_owned()).unwrap();
+    let routed = router(Arc::clone(&api.app), &base);
+    let get = |uri: &'static str| {
+        let routed = routed.clone();
+        async move {
+            routed
+                .oneshot(Request::get(uri).body(Body::empty()).unwrap())
+                .await
+                .unwrap()
+        }
+    };
+    assert_eq!(get("/kaze/api/v1/sources").await.status(), StatusCode::OK);
+    assert_eq!(get("/api/v1/sources").await.status(), StatusCode::NOT_FOUND);
+    let home = get("/").await;
+    assert_eq!(home.status(), StatusCode::SEE_OTHER);
+    assert_eq!(home.headers()[header::LOCATION], "/kaze");
+    assert_eq!(get("/kaze/").await.headers()[header::LOCATION], "/kaze");
+    assert_eq!(get("/kaze").await.status(), StatusCode::OK, "the UI");
+    assert_eq!(get("/kaze/series/1").await.status(), StatusCode::OK);
+    assert_eq!(get("/healthz").await.status(), StatusCode::OK, "for probes");
+    assert_eq!(get("/kaze/healthz").await.status(), StatusCode::OK);
     api.app.shutdown().await;
 }

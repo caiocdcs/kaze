@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { api, type Upcoming } from '#lib/api/index.ts';
 	import Cover from '#lib/components/Cover.svelte';
 	import { ago, errorMessage, num } from '#lib/format.ts';
@@ -63,7 +64,7 @@
 					{#each g.rows as u (u.series_id)}
 						<li>
 							<a
-								href="/series/{u.series_id}"
+								href={resolve('/series/[id]', { id: String(u.series_id) })}
 								class="flex items-center gap-3.5 rounded-xl border border-raised bg-surface-2 py-2 pr-4 pl-2 text-ink no-underline hover:border-line-strong"
 							>
 								<Cover

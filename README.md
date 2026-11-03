@@ -143,7 +143,7 @@ Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec
 
 Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
 
-- **Boot settings:** `listen`, `data_dir`, `library_dir` and `library_dirs` are read at startup.
+- **Boot settings:** `listen`, `url_base`, `data_dir`, `library_dir` and `library_dirs` are read at startup. `url_base` (e.g. `/kaze`) serves everything under a path, for a reverse proxy that keeps the prefix; `/healthz` also answers at the root.
 - **Everything else** can be changed in the UI under **Settings** while kaze runs:
   - the naming template
   - concurrency

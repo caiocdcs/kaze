@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { untrack } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
@@ -213,7 +214,7 @@
 					? `Unfollowed ${series.title} and deleted its files`
 					: `Unfollowed ${series.title}`
 			);
-			goto('/');
+			goto(resolve('/'));
 		} catch (e) {
 			toasts.error(e);
 		}
@@ -249,7 +250,7 @@
 <svelte:head><title>{series?.title ?? 'Series'} · kaze</title></svelte:head>
 
 <p class="m-0 text-sm text-muted">
-	<a href="/" class="text-muted">Library</a> <span aria-hidden="true">/</span>
+	<a href={resolve('/')} class="text-muted">Library</a> <span aria-hidden="true">/</span>
 	{series?.title ?? '…'}
 </p>
 

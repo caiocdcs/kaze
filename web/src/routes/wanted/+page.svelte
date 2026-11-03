@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { api, type WantedChapter } from '#lib/api/index.ts';
 	import { chapterName } from '#lib/chapters.ts';
 	import Icon from '#lib/components/Icon.svelte';
@@ -204,7 +205,10 @@
 						</td>
 						<th scope="rowgroup" colspan="4" class="px-3 py-3 text-left">
 							<span class="flex items-center gap-3">
-								<a href="/series/{g.id}" class="font-semibold no-underline">{g.title}</a>
+								<a
+									href={resolve('/series/[id]', { id: String(g.id) })}
+									class="font-semibold no-underline">{g.title}</a
+								>
 								<span class="text-xs text-muted capitalize">{g.source}</span>
 								<span class="rounded-full bg-wanted-wash px-2 py-px font-mono text-xs text-wanted"
 									>{num(g.rows.length)}</span

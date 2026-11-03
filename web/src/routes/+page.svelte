@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { api, type SeriesSummary } from '#lib/api/index.ts';
 	import Cover from '#lib/components/Cover.svelte';
 	import Icon from '#lib/components/Icon.svelte';
@@ -115,7 +116,9 @@
 				{ value: 'unmonitored', label: 'Unmonitored' }
 			]}
 		/>
-		<a href="/add" class="btn-primary"><Icon name="add" size={16} stroke={2.4} /> Add series</a>
+		<a href={resolve('/add')} class="btn-primary"
+			><Icon name="add" size={16} stroke={2.4} /> Add series</a
+		>
 	</div>
 </header>
 
@@ -136,7 +139,7 @@
 			Search the sources for a series, or paste its link. kaze downloads the chapters you choose and
 			keeps watching for new ones.
 		</p>
-		<a href="/add" class="btn-primary"
+		<a href={resolve('/add')} class="btn-primary"
 			><Icon name="add" size={16} stroke={2.4} /> Add your first series</a
 		>
 	</div>
@@ -149,7 +152,7 @@
 	>
 		{#each visible as s (s.id)}
 			<a
-				href="/series/{s.id}"
+				href={resolve('/series/[id]', { id: String(s.id) })}
 				class="group flex flex-col gap-2.5 text-ink no-underline hover:text-ink"
 			>
 				<div class="relative">

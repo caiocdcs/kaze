@@ -1,12 +1,16 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
+	import type { RouteId } from '$app/types';
 	import { live } from '#lib/live.svelte.ts';
 	import { jobLabel, num } from '#lib/format.ts';
 	import type { IconName } from '#lib/icons.ts';
 	import Icon from './Icon.svelte';
 	import ProgressBar from './ProgressBar.svelte';
 
-	type Item = { href: string; label: string; icon: IconName; tab?: boolean };
+	// Pages without parameters: `resolve` needs none for them.
+	type Page = Exclude<RouteId, `${string}[${string}`>;
+	type Item = { href: Page; label: string; icon: IconName; tab?: boolean };
 	const items: Item[] = [
 		{ href: '/', label: 'Library', icon: 'library', tab: true },
 		{ href: '/add', label: 'Add series', icon: 'add' },
@@ -17,10 +21,11 @@
 		{ href: '/settings', label: 'Settings', icon: 'settings', tab: true }
 	];
 
-	const active = (href: string) =>
+	// Route ids, not paths: they don't change under a URL base.
+	const active = (href: RouteId) =>
 		href === '/'
-			? page.url.pathname === '/' || page.url.pathname.startsWith('/series')
-			: page.url.pathname.startsWith(href);
+			? page.route.id === '/' || !!page.route.id?.startsWith('/series')
+			: !!page.route.id?.startsWith(href);
 
 	const current = $derived(live.running[0]);
 	const currentProgress = $derived(current ? live.progress.get(current.id) : undefined);
@@ -31,13 +36,13 @@
 	aria-label="Main"
 	class="sticky top-0 hidden h-dvh w-[232px] shrink-0 flex-col gap-1 border-r border-line bg-rail px-3.5 py-6 md:flex"
 >
-	<a href="/" class="flex items-baseline gap-2.5 px-2.5 pb-[22px] text-ink no-underline">
+	<a href={resolve('/')} class="flex items-baseline gap-2.5 px-2.5 pb-[22px] text-ink no-underline">
 		<span class="font-display text-[30px] leading-none font-bold text-seal">風</span>
 		<span class="font-display text-[21px] font-bold tracking-[0.06em]">kaze</span>
 	</a>
 	{#each items as item (item.href)}
 		<a
-			href={item.href}
+			href={resolve(item.href)}
 			aria-current={active(item.href) ? 'page' : undefined}
 			class="flex min-h-11 items-center gap-3 rounded-[9px] px-3 no-underline {active(item.href)
 				? 'bg-raised font-semibold text-seal-soft'
@@ -60,7 +65,7 @@
 	{/each}
 
 	<a
-		href="/activity"
+		href={resolve('/activity')}
 		class="mt-auto flex flex-col gap-2 rounded-[10px] border border-line bg-surface-2 p-3.5 text-ink no-underline hover:text-ink"
 	>
 		<span class="flex justify-between text-xs text-muted">
@@ -91,7 +96,7 @@
 >
 	{#each items.filter((i) => i.tab) as item (item.href)}
 		<a
-			href={item.href}
+			href={resolve(item.href)}
 			aria-current={active(item.href) ? 'page' : undefined}
 			class="relative flex min-h-[52px] flex-col items-center justify-center gap-0.5 text-xs no-underline {active(
 				item.href

@@ -27,7 +27,7 @@
 					token: null,
 					username: null,
 					password: null,
-					click_url: location.origin
+					click_url: location.origin + resolve('/').replace(/\/$/, '')
 				};
 			case 'gotify':
 				return { kind, url: 'https://gotify.example.com', token: '' };
@@ -57,6 +57,7 @@
 </script>
 
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { api, type SourceInfo } from '#lib/api/index.ts';
 	import Segmented from '#lib/components/Segmented.svelte';
 	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';

@@ -22,6 +22,8 @@ use crate::library::Libraries;
 pub struct Config {
     /// Address the web server listens on.
     pub listen: SocketAddr,
+    /// Path the UI and API are served under, behind a reverse proxy.
+    pub url_base: UrlBase,
     /// Where kaze keeps its database.
     pub data_dir: PathBuf,
     /// Library root; each series gets a folder inside.
@@ -32,6 +34,45 @@ pub struct Config {
     pub http: HttpConfig,
     /// Locked settings; validated by `SettingsStore::load`.
     pub settings: Map<String, Value>,
+}
+
+/// A path prefix like `/kaze`: a leading slash, no trailing one. Empty
+/// means the root. Only URL-safe characters, since it is written into the
+/// UI's HTML.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(try_from = "String", into = "String")]
+pub struct UrlBase(String);
+
+impl UrlBase {
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl TryFrom<String> for UrlBase {
+    type Error = String;
+
+    fn try_from(base: String) -> Result<Self, String> {
+        let trimmed = base.trim().trim_matches('/');
+        let safe = |c: char| c.is_ascii_alphanumeric() || "._~/-".contains(c);
+        if !trimmed.chars().all(safe) || trimmed.contains("//") {
+            return Err(format!(
+                "url_base {base:?}: use a path like /kaze (letters, digits and . _ ~ - /)"
+            ));
+        }
+        Ok(Self(if trimmed.is_empty() {
+            String::new()
+        } else {
+            format!("/{trimmed}")
+        }))
+    }
+}
+
+impl From<UrlBase> for String {
+    fn from(base: UrlBase) -> Self {
+        base.0
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +86,7 @@ impl Default for Config {
     fn default() -> Self {
         Self {
             listen: ([0, 0, 0, 0], 6531).into(),
+            url_base: UrlBase::default(),
             data_dir: "data".into(),
             library_dir: "library".into(),
             library_dirs: BTreeMap::new(),
@@ -104,6 +146,19 @@ mod tests {
     use figment::Jail;
 
     use super::*;
+
+    #[test]
+    fn url_base_is_normalized() {
+        let base = |s: &str| UrlBase::try_from(s.to_owned()).map(String::from);
+        assert_eq!(base("").unwrap(), "");
+        assert_eq!(base("/").unwrap(), "");
+        assert_eq!(base("kaze").unwrap(), "/kaze");
+        assert_eq!(base("/kaze/").unwrap(), "/kaze");
+        assert_eq!(base("/apps/kaze").unwrap(), "/apps/kaze");
+        assert!(base("/ka ze").is_err());
+        assert!(base("/kaze\"").is_err(), "it goes into HTML");
+        assert!(base("/a//b").is_err());
+    }
 
     #[test]
     #[allow(clippy::result_large_err)] // the closure type is figment::Jail's, not ours

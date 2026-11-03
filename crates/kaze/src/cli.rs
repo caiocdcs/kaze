@@ -190,7 +190,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
     log_setup(&app).await;
 
     let shutdown = app.shutdown_token();
-    axum::serve(listener, api::router(Arc::clone(&app)))
+    axum::serve(listener, api::router(Arc::clone(&app), &config.url_base))
         .with_graceful_shutdown(async move {
             shutdown_signal().await;
             tracing::info!("shutting down");

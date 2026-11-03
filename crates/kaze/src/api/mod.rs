@@ -25,7 +25,7 @@ use axum::{
     extract::Request,
     http::Method,
     middleware::{self, Next},
-    response::Response,
+    response::{Redirect, Response},
     routing::get,
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
@@ -35,7 +35,7 @@ use utoipa::{
 };
 use utoipa_axum::{router::OpenApiRouter, routes};
 
-use crate::app::App;
+use crate::{app::App, config::UrlBase};
 
 pub use self::error::{ApiError, ApiResult, ErrorBody};
 
@@ -145,7 +145,9 @@ pub fn openapi() -> utoipa::openapi::OpenApi {
         .into_openapi()
 }
 
-pub fn router(app: AppState) -> Router {
+/// The whole app, under `base` when one is set; `/healthz` also answers
+/// at the root for container health checks.
+pub fn router(app: AppState, base: &UrlBase) -> Router {
     let api = api_routes()
         .layer(middleware::from_fn_with_state(
             Arc::clone(&app),
@@ -156,14 +158,30 @@ pub fn router(app: AppState) -> Router {
         .nest("/api/v1", api)
         .split_for_parts();
 
-    routes
+    let routes: Router = routes
         // Outside the API key: the spec holds no secrets.
         .route(
             "/api/v1/openapi.json",
             get(move || std::future::ready(Json(spec.clone()))),
         )
         .route("/healthz", get(|| async { "ok" }))
-        .fallback_service(get(ui::serve).layer(CompressionLayer::new()))
-        .layer(TraceLayer::new_for_http())
-        .with_state(app)
+        .fallback_service({
+            let base = base.as_str().to_owned();
+            get(move |uri: axum::http::Uri| std::future::ready(ui::serve(&uri, &base)))
+                .layer(CompressionLayer::new())
+        })
+        .with_state(app);
+    let routes = if base.as_str().is_empty() {
+        routes
+    } else {
+        // SvelteKit's home under a base is `/kaze`, without the slash.
+        let home = base.as_str().to_owned();
+        let to_home = move || std::future::ready(Redirect::to(&home));
+        Router::new()
+            .nest(base.as_str(), routes)
+            .route("/", get(to_home.clone()))
+            .route(&format!("{}/", base.as_str()), get(to_home))
+            .route("/healthz", get(|| async { "ok" }))
+    };
+    routes.layer(TraceLayer::new_for_http())
 }

@@ -24,6 +24,7 @@ let
   configFile = toml.generate "kaze.toml" (
     lib.recursiveUpdate {
       listen = "${cfg.address}:${toString cfg.port}";
+      url_base = cfg.urlBase;
       data_dir = cfg.dataDir;
       library_dir = cfg.libraryDir;
       library_dirs = cfg.libraryDirs;
@@ -51,6 +52,13 @@ in
       type = lib.types.port;
       default = 6531;
       description = "Port the web UI and API listen on.";
+    };
+
+    urlBase = lib.mkOption {
+      type = lib.types.str;
+      default = "";
+      example = "/kaze";
+      description = "Path the UI and API are served under, for a reverse proxy that keeps the prefix. Empty serves at the root.";
     };
 
     dataDir = lib.mkOption {

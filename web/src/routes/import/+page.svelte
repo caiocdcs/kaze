@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { api, type Candidate, type Match, type SourceInfo } from '#lib/api/index.ts';
 	import type { Monitor } from '#lib/api/types/Monitor.ts';
 	import { compareNumbers } from '#lib/chapters.ts';
@@ -124,7 +125,9 @@
 						</p>
 					</div>
 					{#if row.done}
-						<a href="/series/{row.done.id}" class="text-sm text-disk">Imported · open series →</a>
+						<a href={resolve('/series/[id]', { id: String(row.done.id) })} class="text-sm text-disk"
+							>Imported · open series →</a
+						>
 					{:else if !row.matches}
 						<button
 							type="button"

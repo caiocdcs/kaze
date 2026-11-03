@@ -1,6 +1,9 @@
 import { auth } from '../auth.svelte.ts';
 
-const BASE = '/api/v1';
+import { resolve } from '$app/paths';
+
+// `resolve('/')` carries the URL base kaze is served under, if any.
+const BASE = `${resolve('/').replace(/\/$/, '')}/api/v1`;
 const KEY_STORAGE = 'kaze.apiKey';
 
 export class ApiError extends Error {

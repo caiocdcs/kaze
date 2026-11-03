@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
@@ -80,7 +81,7 @@
 			try {
 				const found = await api.lookup(q, language);
 				if (found.followed_id !== null) {
-					goto(`/series/${found.followed_id}`);
+					goto(resolve('/series/[id]', { id: String(found.followed_id) }));
 					return;
 				}
 				preview = found;
@@ -171,7 +172,7 @@
 				monitor_from: f || null
 			});
 			toasts.show(`Following ${pick.hit.title}`);
-			goto(`/series/${id}`);
+			goto(resolve('/series/[id]', { id: String(id) }));
 		} catch (e) {
 			toasts.error(e);
 		} finally {
@@ -313,8 +314,9 @@
 							>
 						</div>
 						{#if inLibrary !== undefined}
-							<a href="/series/{inLibrary}" class="text-sm whitespace-nowrap text-disk"
-								>In library →</a
+							<a
+								href={resolve('/series/[id]', { id: String(inLibrary) })}
+								class="text-sm whitespace-nowrap text-disk">In library →</a
 							>
 						{:else}
 							<button

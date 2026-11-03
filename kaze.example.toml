@@ -6,6 +6,10 @@
 
 listen = "0.0.0.0:6531"
 
+# Serve the UI and API under a path, e.g. behind a reverse proxy at
+# https://home.lan/kaze/ that passes the /kaze prefix through. Empty = root.
+url_base = ""
+
 # Database and other state.
 data_dir = "data"
 

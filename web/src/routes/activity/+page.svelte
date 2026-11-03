@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import {
@@ -207,7 +208,10 @@
 								</p>
 								<p class="m-0 truncate font-semibold">
 									{#if j.series_id !== null}
-										<a href="/series/{j.series_id}" class="no-underline">{jobLabel(j)}</a>
+										<a
+											href={resolve('/series/[id]', { id: String(j.series_id) })}
+											class="no-underline">{jobLabel(j)}</a
+										>
 									{:else}
 										{jobLabel(j)}
 									{/if}
@@ -330,7 +334,9 @@
 						</span>
 						<span class="min-w-0 flex-1">
 							{#if e.series_id !== null}
-								<a href="/series/{e.series_id}" class="no-underline">{e.message}</a>
+								<a href={resolve('/series/[id]', { id: String(e.series_id) })} class="no-underline"
+									>{e.message}</a
+								>
 							{:else}
 								{e.message}
 							{/if}
