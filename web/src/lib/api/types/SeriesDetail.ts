@@ -17,7 +17,7 @@ sources: Array<LinkedSource>,
 /**
  * Groups seen in the chapters, to choose preferences from.
  */
-scanlators: Array<string>, chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
+scanlators: Array<string>, chapters: Array<ChapterRecord>, id: number, title: string, description: string | null, authors: Array<string>, artists: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
 /**
  * BCP 47 tag, e.g. `pt-BR`.
  */

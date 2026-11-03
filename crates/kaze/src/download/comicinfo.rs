@@ -31,6 +31,7 @@ pub fn render(meta: &ChapterMeta, page_count: usize) -> String {
         &meta.year.map(|y| y.to_string()).unwrap_or_default(),
     );
     field("Writer", &meta.authors.join(", "));
+    field("Penciller", &meta.artists.join(", "));
     field("Genre", &meta.tags.join(", "));
     field("Web", meta.url.as_deref().unwrap_or_default());
     field("PageCount", &page_count.to_string());
@@ -70,6 +71,7 @@ mod tests {
             volume: Some(2),
             title: None,
             authors: vec!["A".into(), "B".into()],
+            artists: vec!["C".into()],
             tags: vec!["Action".into()],
             year: Some(2001),
             summary: Some("He said \"hi\"\u{0}".into()),
@@ -81,6 +83,7 @@ mod tests {
         assert!(xml.contains("<Number>12.5</Number>"));
         assert!(xml.contains("<Volume>2</Volume>"));
         assert!(xml.contains("<Writer>A, B</Writer>"));
+        assert!(xml.contains("<Penciller>C</Penciller>"));
         assert!(xml.contains("<Summary>He said &quot;hi&quot;</Summary>"));
         assert!(xml.contains("<Web>https://example.com/c?a=1&amp;b=2</Web>"));
         assert!(xml.contains("<PageCount>16</PageCount>"));

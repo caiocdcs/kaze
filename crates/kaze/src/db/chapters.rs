@@ -370,6 +370,7 @@ mod tests {
             cover_url: None,
             description: Some("Pirates".into()),
             authors: vec!["Oda".into()],
+            artists: vec![],
             tags: vec!["Action".into()],
             status: SeriesStatus::Ongoing,
             year: Some(1997),

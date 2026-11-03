@@ -441,6 +441,9 @@ fn describe(source: &dyn Source, series: &Series, chapters: &[ChapterInfo]) -> S
     if !series.authors.is_empty() {
         let _ = writeln!(out, "  authors:  {}", series.authors.join(", "));
     }
+    if !series.artists.is_empty() {
+        let _ = writeln!(out, "  artists:  {}", series.artists.join(", "));
+    }
     let _ = writeln!(out, "  status:   {:?}", series.status);
     if let Some(year) = series.year {
         let _ = writeln!(out, "  year:     {year}");

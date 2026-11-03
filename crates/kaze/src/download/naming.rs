@@ -287,6 +287,7 @@ mod tests {
         let m = ChapterMeta {
             year: Some(1997),
             authors: vec!["Oda".into()],
+            artists: vec![],
             title: Some("Start".into()),
             ..meta()
         };

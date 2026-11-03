@@ -7,7 +7,7 @@ import type { Scanlators } from "./Scanlators";
 import type { SeriesKey } from "./SeriesKey";
 import type { SeriesStatus } from "./SeriesStatus";
 
-export type SeriesRecord = { id: number, title: string, description: string | null, authors: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
+export type SeriesRecord = { id: number, title: string, description: string | null, authors: Array<string>, artists: Array<string>, tags: Array<string>, status: SeriesStatus, year: number | null, cover_url: string | null, folder: string, monitor: Monitor, monitor_from: ChapterNumber | null, source: string, source_key: SeriesKey, 
 /**
  * BCP 47 tag, e.g. `pt-BR`.
  */

@@ -168,15 +168,17 @@ impl Manga {
             .cloned()
             .collect();
         alt_titles.dedup();
-        let mut authors: Vec<String> = Vec::new();
-        for r in &self.relationships {
-            if matches!(r.kind.as_str(), "author" | "artist")
-                && let Some(name) = r.attr("name")
-                && !authors.iter().any(|a| a == name)
-            {
-                authors.push(name.to_owned());
+        let people = |kind: &str| {
+            let mut names: Vec<String> = Vec::new();
+            for r in self.relationships.iter().filter(|r| r.kind == kind) {
+                if let Some(name) = r.attr("name")
+                    && !names.iter().any(|n| n == name)
+                {
+                    names.push(name.to_owned());
+                }
             }
-        }
+            names
+        };
         Series {
             key: self.id.clone().into(),
             title,
@@ -190,7 +192,8 @@ impl Manga {
                 .or_else(|| a.description.values().next())
                 .filter(|d| !d.trim().is_empty())
                 .cloned(),
-            authors,
+            authors: people("author"),
+            artists: people("artist"),
             tags: a
                 .tags
                 .iter()

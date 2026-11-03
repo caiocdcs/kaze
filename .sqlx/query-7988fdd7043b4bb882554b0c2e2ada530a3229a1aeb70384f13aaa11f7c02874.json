@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours,\n                      s.preferred_scanlators AS \"preferred_scanlators: Json<Scanlators>\",\n                      s.blocked_scanlators AS \"blocked_scanlators: Json<Scanlators>\",\n                      s.anilist_id AS \"anilist_id: AniListId\",\n                      s.metadata_link AS \"metadata_link: MetadataLink\",\n                      s.metadata_checked_at AS \"metadata_checked_at: _\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               WHERE s.id = ?",
+  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.artists AS \"artists: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours,\n                      s.preferred_scanlators AS \"preferred_scanlators: Json<Scanlators>\",\n                      s.blocked_scanlators AS \"blocked_scanlators: Json<Scanlators>\",\n                      s.anilist_id AS \"anilist_id: AniListId\",\n                      s.metadata_link AS \"metadata_link: MetadataLink\",\n                      s.metadata_checked_at AS \"metadata_checked_at: _\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -48,8 +48,19 @@
         }
       },
       {
-        "name": "tags: Json<Vec<String>>",
+        "name": "artists: Json<Vec<String>>",
         "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "artists"
+          }
+        }
+      },
+      {
+        "name": "tags: Json<Vec<String>>",
+        "ordinal": 5,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -60,7 +71,7 @@
       },
       {
         "name": "status: _",
-        "ordinal": 5,
+        "ordinal": 6,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -71,7 +82,7 @@
       },
       {
         "name": "year",
-        "ordinal": 6,
+        "ordinal": 7,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -82,7 +93,7 @@
       },
       {
         "name": "cover_url",
-        "ordinal": 7,
+        "ordinal": 8,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -93,7 +104,7 @@
       },
       {
         "name": "folder",
-        "ordinal": 8,
+        "ordinal": 9,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -104,7 +115,7 @@
       },
       {
         "name": "monitor: Monitor",
-        "ordinal": 9,
+        "ordinal": 10,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -115,7 +126,7 @@
       },
       {
         "name": "monitor_from: _",
-        "ordinal": 10,
+        "ordinal": 11,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -126,7 +137,7 @@
       },
       {
         "name": "source",
-        "ordinal": 11,
+        "ordinal": 12,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -137,7 +148,7 @@
       },
       {
         "name": "source_key: SeriesKey",
-        "ordinal": 12,
+        "ordinal": 13,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -148,7 +159,7 @@
       },
       {
         "name": "language",
-        "ordinal": 13,
+        "ordinal": 14,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -159,7 +170,7 @@
       },
       {
         "name": "url",
-        "ordinal": 14,
+        "ordinal": 15,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -170,7 +181,7 @@
       },
       {
         "name": "added_at: _",
-        "ordinal": 15,
+        "ordinal": 16,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -181,7 +192,7 @@
       },
       {
         "name": "last_checked_at: _",
-        "ordinal": 16,
+        "ordinal": 17,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -192,7 +203,7 @@
       },
       {
         "name": "refresh_hours",
-        "ordinal": 17,
+        "ordinal": 18,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -203,7 +214,7 @@
       },
       {
         "name": "preferred_scanlators: Json<Scanlators>",
-        "ordinal": 18,
+        "ordinal": 19,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -214,7 +225,7 @@
       },
       {
         "name": "blocked_scanlators: Json<Scanlators>",
-        "ordinal": 19,
+        "ordinal": 20,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -225,7 +236,7 @@
       },
       {
         "name": "anilist_id: AniListId",
-        "ordinal": 20,
+        "ordinal": 21,
         "type_info": "Integer",
         "origin": {
           "Table": {
@@ -236,7 +247,7 @@
       },
       {
         "name": "metadata_link: MetadataLink",
-        "ordinal": 21,
+        "ordinal": 22,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -247,7 +258,7 @@
       },
       {
         "name": "metadata_checked_at: _",
-        "ordinal": 22,
+        "ordinal": 23,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -258,12 +269,13 @@
       }
     ],
     "parameters": {
-      "Right": 1
+      "Right": 0
     },
     "nullable": [
       false,
       false,
       true,
+      false,
       false,
       false,
       false,
@@ -286,5 +298,5 @@
       true
     ]
   },
-  "hash": "8d9717fdb835fe98d3e6d830145d6ce8d011da91cd8ef6f44febd0a9d406ddb6"
+  "hash": "7988fdd7043b4bb882554b0c2e2ada530a3229a1aeb70384f13aaa11f7c02874"
 }

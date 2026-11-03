@@ -335,6 +335,7 @@ async fn download_chapter(
         volume: chapter.volume.and_then(|v| u32::try_from(v).ok()),
         title: chapter.title.clone(),
         authors: series.authors.0.clone(),
+        artists: series.artists.0.clone(),
         tags: series.tags.0.clone(),
         year: series.year.and_then(|y| u16::try_from(y).ok()),
         summary: series.description.clone(),

@@ -107,6 +107,9 @@ pub struct SeriesRecord {
     pub authors: Json<Vec<String>>,
     #[ts(as = "Vec<String>")]
     #[schema(value_type = Vec<String>)]
+    pub artists: Json<Vec<String>>,
+    #[ts(as = "Vec<String>")]
+    #[schema(value_type = Vec<String>)]
     pub tags: Json<Vec<String>>,
     pub status: SeriesStatus,
     pub year: Option<i64>,

@@ -44,6 +44,7 @@ impl FakeSource {
                 cover_url: Some(base.join("/cover/0").unwrap()),
                 description: None,
                 authors: vec!["Author".into()],
+                artists: vec![],
                 tags: vec![],
                 status: SeriesStatus::Ongoing,
                 year: Some(2020),

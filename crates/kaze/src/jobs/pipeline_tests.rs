@@ -832,7 +832,8 @@ async fn metadata_comes_from_anilist_once_linked() {
     assert_eq!(record.metadata_link, crate::library::MetadataLink::Auto);
     assert_eq!(record.title, "From AniList");
     assert_eq!(record.description.as_deref(), Some("From AniList."));
-    assert_eq!(record.authors.0, ["Mangaka"]);
+    assert_eq!(record.authors.0, ["Mangaka"], "story & art: writer…");
+    assert_eq!(record.artists.0, ["Mangaka"], "…and artist");
     let folder = h.library.path().join("Test Series");
     assert!(
         folder.join("cover.png").exists(),

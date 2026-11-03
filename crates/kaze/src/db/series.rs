@@ -22,6 +22,7 @@ pub struct NewSeries<'a> {
 pub async fn insert(db: &SqlitePool, new: &NewSeries<'_>) -> sqlx::Result<i64> {
     let s = new.series;
     let authors = Json(&s.authors);
+    let artists = Json(&s.artists);
     let tags = Json(&s.tags);
     let year = s.year.map(i64::from);
     let cover = s.cover_url.as_ref().map(url::Url::as_str);
@@ -29,13 +30,14 @@ pub async fn insert(db: &SqlitePool, new: &NewSeries<'_>) -> sqlx::Result<i64> {
 
     let mut tx = db.begin().await?;
     let id = sqlx::query_scalar!(
-        r#"INSERT INTO series (title, description, authors, tags, status, year, cover_url, folder, monitor, monitor_from)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        r#"INSERT INTO series (title, description, authors, artists, tags, status, year, cover_url, folder, monitor, monitor_from)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
            RETURNING id AS "id!"
            "#,
         s.title,
         s.description,
         authors,
+        artists,
         tags,
         s.status,
         year,
@@ -68,6 +70,7 @@ macro_rules! select_series {
             SeriesRecord,
             r#"SELECT s.id, s.title, s.description,
                       s.authors AS "authors: Json<Vec<String>>",
+                      s.artists AS "artists: Json<Vec<String>>",
                       s.tags AS "tags: Json<Vec<String>>",
                       s.status AS "status: _",
                       s.year, s.cover_url, s.folder,
@@ -164,6 +167,7 @@ pub async fn update_metadata(
     from: MetadataFrom,
 ) -> sqlx::Result<bool> {
     let authors = Json(&s.authors);
+    let artists = Json(&s.artists);
     let tags = Json(&s.tags);
     let year = s.year.map(i64::from);
     let cover = s.cover_url.as_ref().map(url::Url::as_str);
@@ -172,11 +176,12 @@ pub async fn update_metadata(
         MetadataFrom::AniList(anilist) => Some(anilist),
     };
     let result = sqlx::query!(
-        r#"UPDATE series SET title = ?, description = ?, authors = ?, tags = ?, status = ?, year = ?, cover_url = ?
+        r#"UPDATE series SET title = ?, description = ?, authors = ?, artists = ?, tags = ?, status = ?, year = ?, cover_url = ?
            WHERE id = ? AND anilist_id IS ?"#,
         s.title,
         s.description,
         authors,
+        artists,
         tags,
         s.status,
         year,

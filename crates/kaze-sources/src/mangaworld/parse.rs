@@ -120,6 +120,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
             .and_then(|src| url.join(src).ok()),
         description: doc.select(sel!("#noidungm")).next().and_then(text),
         authors,
+        artists: Vec::new(),
         tags: links(field(&doc, "Generi")),
         status,
         year: links(field(&doc, "Anno di uscita"))

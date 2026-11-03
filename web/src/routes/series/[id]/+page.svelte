@@ -61,6 +61,8 @@
 	});
 
 	const chapters = $derived([...(series?.chapters ?? [])].sort(newestFirst));
+	/** Writers, then artists who aren't also writers. */
+	const people = $derived([...new Set([...(series?.authors ?? []), ...(series?.artists ?? [])])]);
 	const stats = $derived({
 		total: chapters.length,
 		disk: chapters.filter((c) => c.file_path).length,
@@ -267,7 +269,7 @@
 				{series.title}
 			</h1>
 			<p class="m-0 flex flex-wrap gap-x-[18px] gap-y-1.5 text-ink-2">
-				{#if series.authors.length}<span>{series.authors.join(', ')}</span>{/if}
+				{#if people.length}<span>{people.join(', ')}</span>{/if}
 				{#if series.year}<span>{series.year}</span>{/if}
 				{#if series.status !== 'unknown'}<span class="capitalize">{series.status}</span>{/if}
 				<span>{languageName(series.language)}</span>

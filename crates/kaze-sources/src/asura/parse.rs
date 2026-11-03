@@ -160,6 +160,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
             text(fragment.root_element())
         }),
         authors,
+        artists: Vec::new(),
         tags: d.genres.into_iter().map(|g| g.name).collect(),
         status: match d.status.as_deref() {
             Some("ongoing" | "season end") => SeriesStatus::Ongoing,

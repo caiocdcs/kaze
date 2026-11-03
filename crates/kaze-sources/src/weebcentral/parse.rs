@@ -103,6 +103,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
             .and_then(|c| url.join(c).ok()),
         description: None,
         authors: Vec::new(),
+        artists: Vec::new(),
         tags: Vec::new(),
         status: SeriesStatus::Unknown,
         year: None,

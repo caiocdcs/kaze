@@ -27,7 +27,9 @@ pub struct ChapterMeta {
     pub number: ChapterNumber,
     pub volume: Option<u32>,
     pub title: Option<String>,
+    /// The writers, or everyone credited when roles are unknown.
     pub authors: Vec<String>,
+    pub artists: Vec<String>,
     pub tags: Vec<String>,
     pub year: Option<u16>,
     pub summary: Option<String>,
@@ -44,6 +46,7 @@ impl ChapterMeta {
             volume: chapter.volume,
             title: chapter.title.clone(),
             authors: series.authors.clone(),
+            artists: series.artists.clone(),
             tags: series.tags.clone(),
             year: series.year,
             summary: series.description.clone(),

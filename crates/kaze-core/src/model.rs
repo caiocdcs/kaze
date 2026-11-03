@@ -92,7 +92,11 @@ pub struct Series {
     pub url: Url,
     pub cover_url: Option<Url>,
     pub description: Option<String>,
+    /// The writers; everyone credited when the source doesn't tell roles.
     pub authors: Vec<String>,
+    /// Credited for the art, when the source tells.
+    #[serde(default)]
+    pub artists: Vec<String>,
     pub tags: Vec<String>,
     pub status: SeriesStatus,
     pub year: Option<u16>,

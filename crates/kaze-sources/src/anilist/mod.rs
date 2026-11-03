@@ -127,8 +127,8 @@ impl Media {
         url
     }
 
-    /// As a [`Series`], the shape the library stores metadata in. Story
-    /// writers come before artists; genres before tags.
+    /// As a [`Series`], the shape the library stores metadata in. Who did
+    /// story and art counts as both; genres come before tags.
     #[must_use]
     pub fn into_series(self) -> Series {
         let title = self.title();
@@ -145,6 +145,10 @@ impl Media {
         let authors = unique(
             by_role(Role::StoryAndArt)
                 .chain(by_role(Role::Story))
+                .map(|s| s.name.clone()),
+        );
+        let artists = unique(
+            by_role(Role::StoryAndArt)
                 .chain(by_role(Role::Art))
                 .map(|s| s.name.clone()),
         );
@@ -157,6 +161,7 @@ impl Media {
             cover_url: self.cover_url,
             description: self.description,
             authors,
+            artists,
             tags,
             status: self.status,
             year: self.year,
@@ -254,12 +259,8 @@ mod tests {
         assert_eq!(series.title, "Frieren: Beyond Journey’s End");
         assert!(series.alt_titles.contains(&"Sousou no Frieren".to_owned()));
         assert_eq!(series.url.as_str(), "https://anilist.co/manga/118586");
-        assert_eq!(
-            series.authors.len(),
-            2,
-            "writer then artist: {:?}",
-            series.authors
-        );
+        assert_eq!(series.authors, ["Kanehito Yamada"]);
+        assert_eq!(series.artists, ["Tsukasa Abe"]);
         assert_eq!(series.tags.first().map(String::as_str), Some("Adventure"));
     }
 
