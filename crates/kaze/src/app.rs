@@ -378,7 +378,8 @@ impl App {
             })?;
         }
         db::series::link_metadata(&self.ctx.db, series_id, anilist, MetadataLink::Manual).await?;
-        tracing::info!(series = series.title, anilist = ?anilist, "metadata linked by hand");
+        let id = anilist.map(|a| a.0);
+        tracing::info!(series = series.title, anilist = ?id, "metadata linked by hand");
         let job = if anilist.is_some() {
             Job::RefreshMetadata { series_id }
         } else {

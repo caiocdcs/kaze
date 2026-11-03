@@ -887,23 +887,14 @@ async fn shows_title(api: &Api, id: i64, expected: &str) -> bool {
 
 #[tokio::test]
 async fn metadata_is_searched_and_linked_by_hand() {
-    let anilist = crate::testing::fake_anilist(|vars, base| {
-        let mut media = crate::testing::anilist_media(42, "From AniList", base);
-        media["title"]["romaji"] = json!("Romaji Title");
-        if vars.get("search").is_some() {
-            Some(json!({ "Page": { "media": [media] } }))
-        } else {
-            (vars["id"] == 42).then(|| json!({ "Media": media }))
-        }
-    })
-    .await;
+    let anilist = crate::testing::anilist_with("From AniList").await;
     let api = api_full(None, db::memory().await, anilist).await;
 
     let (status, hits) = api.get("/api/v1/metadata/search?q=anything").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(hits[0]["anilist_id"], 42);
     assert_eq!(hits[0]["title"], "From AniList");
-    assert_eq!(hits[0]["romaji"], "Romaji Title");
+    assert_eq!(hits[0]["romaji"], Value::Null, "the same as the title");
     assert_eq!(hits[0]["one_shot"], false);
     assert_eq!(hits[0]["url"], "https://anilist.co/manga/42");
     let (status, _) = api.get("/api/v1/metadata/search?q=%20").await;

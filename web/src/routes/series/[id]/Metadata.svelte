@@ -35,7 +35,7 @@
 	const byHand = $derived(series.metadata_link === 'manual');
 	const status = $derived.by(() => {
 		if (series.anilist_id !== null) return byHand ? 'Linked by hand' : 'Linked automatically';
-		if (byHand) return `Unlinked by hand: metadata comes from ${series.source}`;
+		if (byHand) return 'Unlinked by hand: metadata comes from its source';
 		if (!series.metadata_checked_at) return 'Looking for it on AniList…';
 		return 'Not found on AniList; kaze tries again weekly';
 	});
@@ -76,9 +76,7 @@
 	}
 
 	function unlink() {
-		if (
-			!confirm(`Unlink ${series.title}? Its metadata and cover come from ${series.source} again.`)
-		)
+		if (!confirm(`Unlink ${series.title}? Its metadata and cover come from its source again.`))
 			return;
 		link(null, 'Unlinked from AniList');
 	}

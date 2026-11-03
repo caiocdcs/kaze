@@ -246,3 +246,16 @@ pub fn anilist_media(id: u32, title: &str, base: &Url) -> serde_json::Value {
         "staff": { "edges": [{ "role": "Story & Art", "node": { "name": { "full": "Mangaka" } } }] }
     })
 }
+
+/// AniList with one entry, 42, also found by searching its title.
+pub async fn anilist_with(title: &'static str) -> kaze_sources::anilist::AniList {
+    fake_anilist(move |vars, base| {
+        let media = anilist_media(42, title, base);
+        if vars.get("search").is_some() {
+            Some(serde_json::json!({ "Page": { "media": [media] } }))
+        } else {
+            (vars["id"] == 42).then(|| serde_json::json!({ "Media": media }))
+        }
+    })
+    .await
+}

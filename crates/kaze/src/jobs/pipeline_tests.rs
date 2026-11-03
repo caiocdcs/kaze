@@ -815,19 +815,6 @@ async fn downloads_are_announced_in_one_batched_webhook() {
     h.app.shutdown().await;
 }
 
-/// AniList with one entry, 42, also found by searching its title.
-async fn anilist_with(title: &'static str) -> kaze_sources::anilist::AniList {
-    crate::testing::fake_anilist(move |vars, base| {
-        let media = crate::testing::anilist_media(42, title, base);
-        if vars.get("search").is_some() {
-            Some(serde_json::json!({ "Page": { "media": [media] } }))
-        } else {
-            (vars["id"] == 42).then(|| serde_json::json!({ "Media": media }))
-        }
-    })
-    .await
-}
-
 #[tokio::test]
 async fn metadata_comes_from_anilist_once_linked() {
     let mut source = FakeSource::new().with_chapters(&["1"]);
@@ -835,7 +822,7 @@ async fn metadata_comes_from_anilist_once_linked() {
     let h = start_full(
         vec![source],
         db::memory().await,
-        anilist_with("From AniList").await,
+        crate::testing::anilist_with("From AniList").await,
     )
     .await;
     let id = h.follow(Monitor::None).await;
@@ -867,7 +854,7 @@ async fn a_series_without_an_id_is_linked_by_title() {
     let h = start_full(
         vec![source],
         db::memory().await,
-        anilist_with("The Test Series").await,
+        crate::testing::anilist_with("The Test Series").await,
     )
     .await;
     let id = h.follow(Monitor::None).await;
@@ -908,7 +895,7 @@ async fn unlinking_by_hand_restores_source_metadata() {
     let h = start_full(
         vec![source],
         db::memory().await,
-        anilist_with("From AniList").await,
+        crate::testing::anilist_with("From AniList").await,
     )
     .await;
     let id = h.follow(Monitor::None).await;
