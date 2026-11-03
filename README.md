@@ -24,6 +24,7 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
   - Each site has its own rate limit and a cap on parallel jobs.
   - Failed downloads retry with backoff.
   - kaze reads each site's "latest updates" page every few minutes instead of polling every series.
+- **Metadata from AniList.** Each series is linked to its AniList entry, through MangaDex's link or by title, and takes its title, summary, genres, writers, artists and cover from there. A doubtful match stays unlinked; link or unlink by hand on the series page.
 - **Clean files.** Downloads go to `library/<Series>/<Series> - Vol.1 Ch.12.cbz`, with `ComicInfo.xml` and `cover.jpg`. The file name template can be changed.
 - **Integrations.**
   - Komga and Kavita library scans, debounced so a backfill triggers one scan.
