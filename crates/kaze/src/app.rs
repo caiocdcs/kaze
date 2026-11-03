@@ -33,6 +33,8 @@ pub struct Context {
     pub flaresolverr: FlareSolverr,
     /// Where series metadata comes from once linked.
     pub anilist: AniList,
+    /// Database backups (`data_dir/backups`).
+    pub backups: std::path::PathBuf,
 }
 
 /// The running application.

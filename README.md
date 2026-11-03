@@ -151,6 +151,7 @@ Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
   - the API key
   - the FlareSolverr URL
   - the default language
+  - the backup schedule (`backup_days`, `backup_keep`): copies of the database in `data_dir/backups`, also made by hand under Settings → System
 - **Locked settings:** a value set under `[settings]` in `kaze.toml`, or as `KAZE_SETTINGS__*` in the environment, wins over the UI. The UI shows it as locked. This keeps declarative setups (NixOS, compose files) the source of truth.
 
 Environment variables use the `KAZE_` prefix, with `__` for nesting. For example, `KAZE_LIBRARY_DIR=/manga` or `KAZE_SETTINGS__CONCURRENCY=2`.

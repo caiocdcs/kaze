@@ -51,10 +51,17 @@ async fn api_full(
         Some(key) => json!({ "api_key": key }),
         None => json!({}),
     };
+    let settings = SettingsStore::load(db.clone(), locked.as_object().unwrap().clone())
+        .await
+        .unwrap();
+    // No scheduled backups from tests; saved, not locked, so tests see no locks.
+    let no_backups = json!({ "backup_days": 0 });
+    settings
+        .update(no_backups.as_object().unwrap().clone())
+        .await
+        .unwrap();
     let ctx = Context {
-        settings: SettingsStore::load(db.clone(), locked.as_object().unwrap().clone())
-            .await
-            .unwrap(),
+        settings,
         db,
         sources: kaze_sources::Registry::from_sources(vec![source, other]),
         events: Events::new(256),
@@ -64,6 +71,7 @@ async fn api_full(
             .unwrap()
             .flaresolverr(),
         anilist,
+        backups: library.path().join(".backups"),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -1031,5 +1039,55 @@ async fn known_problems_are_listed_without_pinging() {
         named("Other").is_none(),
         "paused is a choice, not a problem"
     );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn saved_backups_are_listed_downloaded_and_deleted() {
+    let api = api(None).await;
+    let dir = api.app.ctx.backups.clone();
+    std::fs::create_dir_all(&dir).unwrap();
+    std::fs::write(dir.join("kaze-20261101-120000.db"), "older").unwrap();
+    std::fs::write(dir.join("kaze-20261102-120000.db"), "newer").unwrap();
+    std::fs::write(dir.join("secret.txt"), "not a backup").unwrap();
+
+    let (status, list) = api.get("/api/v1/backups").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(list.as_array().unwrap().len(), 2);
+    assert_eq!(list[0]["name"], "kaze-20261102-120000.db", "newest first");
+    assert_eq!(list[0]["size_bytes"], 5);
+
+    let response = api
+        .router
+        .clone()
+        .oneshot(
+            Request::get("/api/v1/backups/kaze-20261101-120000.db")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert_eq!(&bytes[..], b"older");
+    for name in ["secret.txt", "..%2Fsecret.txt", "kaze-20261103-120000.db"] {
+        let uri = format!("/api/v1/backups/{name}");
+        assert_eq!(api.get(&uri).await.0, StatusCode::NOT_FOUND, "{name}");
+    }
+
+    let uri = "/api/v1/backups/kaze-20261101-120000.db";
+    assert_eq!(
+        api.call(Method::DELETE, uri, None).await.0,
+        StatusCode::NO_CONTENT
+    );
+    assert_eq!(
+        api.call(Method::DELETE, uri, None).await.0,
+        StatusCode::NOT_FOUND
+    );
+    assert_eq!(
+        api.get("/api/v1/backups").await.1.as_array().unwrap().len(),
+        1
+    );
+    assert!(dir.join("secret.txt").exists());
     api.app.shutdown().await;
 }

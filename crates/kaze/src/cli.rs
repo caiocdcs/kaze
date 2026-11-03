@@ -171,6 +171,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         http: http.client(),
         flaresolverr: http.flaresolverr(),
         anilist: AniList::new(&http),
+        backups: config.data_dir.join("backups"),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

@@ -80,6 +80,8 @@ export function jobLabel(j: JobRecord): string {
 			return 'Measure library';
 		case 'refresh_metadata':
 			return `${series} · metadata`;
+		case 'backup':
+			return 'Back up database';
 	}
 }
 

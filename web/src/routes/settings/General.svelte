@@ -118,6 +118,20 @@
 			hint: 'How often each series’ whole chapter list is re-read. Series can override it.',
 			min: 1,
 			max: 2160
+		},
+		{
+			key: 'backup_days',
+			label: 'Back up every (days)',
+			hint: 'A copy of the database in data/backups. 0 turns scheduled backups off.',
+			min: 0,
+			max: 365
+		},
+		{
+			key: 'backup_keep',
+			label: 'Backups kept',
+			hint: 'Older backups are deleted after each new one.',
+			min: 1,
+			max: 100
 		}
 	];
 </script>

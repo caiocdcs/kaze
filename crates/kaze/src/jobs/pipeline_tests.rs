@@ -47,7 +47,8 @@ async fn start_full(
     let events = Events::new(1024);
     let receiver = events.subscribe();
     // Keep the scheduler quiet after its startup run; tests queue work themselves.
-    let quiet = serde_json::json!({ "sync_latest_minutes": 600, "refresh_hours": 2000 });
+    let quiet =
+        serde_json::json!({ "sync_latest_minutes": 600, "refresh_hours": 2000, "backup_days": 0 });
     let ctx = Context {
         settings: SettingsStore::load(db.clone(), quiet.as_object().unwrap().clone())
             .await
@@ -70,6 +71,7 @@ async fn start_full(
             .unwrap()
             .flaresolverr(),
         anilist,
+        backups: library.path().join(".backups"),
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),

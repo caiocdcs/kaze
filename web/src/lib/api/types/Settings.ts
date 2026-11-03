@@ -40,4 +40,12 @@ paused_sources: Array<string>,
 /**
  * What new series are followed in, when the source offers it.
  */
-default_language: string, };
+default_language: string, 
+/**
+ * Days between scheduled database backups; `0` turns them off.
+ */
+backup_days: number, 
+/**
+ * Scheduled and manual backups kept; older ones are deleted.
+ */
+backup_keep: number, };

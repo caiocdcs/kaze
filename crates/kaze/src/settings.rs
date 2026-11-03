@@ -53,6 +53,10 @@ pub struct Settings {
     pub paused_sources: Vec<String>,
     /// What new series are followed in, when the source offers it.
     pub default_language: String,
+    /// Days between scheduled database backups; `0` turns them off.
+    pub backup_days: u64,
+    /// Scheduled and manual backups kept; older ones are deleted.
+    pub backup_keep: usize,
 }
 
 impl Default for Settings {
@@ -68,6 +72,8 @@ impl Default for Settings {
             flaresolverr_url: None,
             paused_sources: Vec::new(),
             default_language: "en".into(),
+            backup_days: 7,
+            backup_keep: 4,
         }
     }
 }
@@ -108,6 +114,8 @@ impl Settings {
             7 * 24 * 60,
         )?;
         range("refresh_hours", self.refresh_hours, 1, 90 * 24)?;
+        range("backup_days", self.backup_days, 0, 365)?;
+        range("backup_keep", self.backup_keep as u64, 1, 100)?;
         if self
             .flaresolverr_url
             .as_ref()

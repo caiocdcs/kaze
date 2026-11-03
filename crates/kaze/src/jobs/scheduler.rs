@@ -1,4 +1,4 @@
-//! Periodic work: latest-updates sync, full refreshes and metadata.
+//! Periodic work: latest-updates sync, full refreshes, metadata and backups.
 //!
 //! The scheduler is an actor like the dispatcher: one task owns the
 //! timers, and the [`Tasks`] handle talks to it over an mpsc channel
@@ -22,7 +22,7 @@ use tokio::{
 use tokio_util::sync::CancellationToken;
 
 use super::{Job, JobQueue};
-use crate::{app::Context, db};
+use crate::{app::Context, backup, db};
 
 /// How often to look for series due a full refresh.
 const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
@@ -47,14 +47,17 @@ pub enum Task {
     /// Refresh metadata from AniList where it is a week old ("run now":
     /// all of it), linking series that have no entry yet.
     RefreshMetadata,
+    /// Back up the database every `backup_days` ("run now": at once).
+    Backup,
 }
 
 impl Task {
-    const ALL: [Self; 4] = [
+    const ALL: [Self; 5] = [
         Self::SyncLatest,
         Self::RefreshSeries,
         Self::MeasureLibrary,
         Self::RefreshMetadata,
+        Self::Backup,
     ];
 
     fn name(self) -> &'static str {
@@ -63,6 +66,7 @@ impl Task {
             Self::RefreshSeries => "Refresh series",
             Self::MeasureLibrary => "Measure library",
             Self::RefreshMetadata => "Refresh metadata",
+            Self::Backup => "Back up database",
         }
     }
 }
@@ -186,6 +190,8 @@ pub async fn run(
                 tasks.record(Task::RefreshSeries, REFRESH_CHECK_EVERY, true);
                 metadata_due(&ctx, &queue, Utc::now() - METADATA_EVERY).await;
                 tasks.record(Task::RefreshMetadata, REFRESH_CHECK_EVERY, true);
+                backup_due(&ctx, &queue).await;
+                tasks.record(Task::Backup, REFRESH_CHECK_EVERY, true);
             }
             _ = measure.tick() => {
                 submit(&queue, Job::MeasureLibrary).await;
@@ -197,6 +203,7 @@ pub async fn run(
                     Task::RefreshSeries => refresh_all(&ctx, &queue).await,
                     Task::MeasureLibrary => submit(&queue, Job::MeasureLibrary).await,
                     Task::RefreshMetadata => metadata_due(&ctx, &queue, Utc::now()).await,
+                    Task::Backup => submit(&queue, Job::Backup).await,
                 }
                 let mut status = tasks.status.lock().unwrap_or_else(PoisonError::into_inner);
                 status.entry(task).or_default().last_run = Some(Utc::now());
@@ -247,6 +254,19 @@ async fn metadata_due(ctx: &Context, queue: &JobQueue, cutoff: DateTime<Utc>) {
             }
         }
         Err(err) => tracing::error!("could not list series to refresh metadata: {err}"),
+    }
+}
+
+/// Queue a backup when the newest saved one is `backup_days` old.
+async fn backup_due(ctx: &Context, queue: &JobQueue) {
+    let every = ctx.settings.current().backup_days;
+    match backup::list(&ctx.backups).await {
+        Ok(saved) => {
+            if backup::is_due(saved.first().map(|b| b.created_at), every, Utc::now()) {
+                submit(queue, Job::Backup).await;
+            }
+        }
+        Err(err) => tracing::error!("could not list backups: {err}"),
     }
 }
 

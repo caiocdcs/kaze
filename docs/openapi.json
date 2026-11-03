@@ -42,6 +42,110 @@
         }
       }
     },
+    "/api/v1/backups": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Saved backups, newest first",
+        "operationId": "backups_list",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BackupFile"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/backups/{name}": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Download a saved backup",
+        "operationId": "backups_get",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Backup file name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The backup",
+            "content": {
+              "application/vnd.sqlite3": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "format": "int32",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "system"
+        ],
+        "summary": "Delete a saved backup",
+        "operationId": "backups_delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "description": "Backup file name",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Deleted"
+          },
+          "4XX": {
+            "description": "Bad request, not found or conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/chapters": {
       "patch": {
         "tags": [
@@ -1805,6 +1909,29 @@
           }
         }
       },
+      "BackupFile": {
+        "type": "object",
+        "description": "A saved backup as the API shows it.",
+        "required": [
+          "name",
+          "size_bytes",
+          "created_at"
+        ],
+        "properties": {
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "name": {
+            "type": "string"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          }
+        }
+      },
       "Candidate": {
         "type": "object",
         "description": "A folder in the library that no followed series uses.",
@@ -2983,6 +3110,21 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Save a database backup and delete the oldest beyond `backup_keep`.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "backup"
+                ]
+              }
+            }
           }
         ],
         "description": "A unit of background work. Stored as JSON in `jobs.payload`."
@@ -3887,6 +4029,19 @@
             "description": "When set, API requests must send it as `X-Api-Key` (or `?apikey=`).",
             "default": null
           },
+          "backup_days": {
+            "type": "integer",
+            "format": "int64",
+            "description": "Days between scheduled database backups; `0` turns them off.",
+            "default": 7,
+            "minimum": 0
+          },
+          "backup_keep": {
+            "type": "integer",
+            "description": "Scheduled and manual backups kept; older ones are deleted.",
+            "default": 4,
+            "minimum": 0
+          },
           "concurrency": {
             "type": "integer",
             "description": "Source jobs (downloads, refreshes) running at once.",
@@ -4083,7 +4238,8 @@
           "sync_latest",
           "refresh_series",
           "measure_library",
-          "refresh_metadata"
+          "refresh_metadata",
+          "backup"
         ]
       },
       "TaskInfo": {

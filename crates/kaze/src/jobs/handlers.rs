@@ -9,6 +9,7 @@ use tokio_util::task::TaskTracker;
 use super::{Job, JobQueue, QueueError};
 use crate::{
     app::Context,
+    backup::{self, BackupError},
     db::{self, series::MetadataFrom},
     download::{self, ChapterMeta, DownloadError, Outcome},
     events::Event,
@@ -29,6 +30,8 @@ pub enum JobError {
     Queue(#[from] QueueError),
     #[error(transparent)]
     Integration(#[from] IntegrationError),
+    #[error("backup: {0}")]
+    Backup(#[from] BackupError),
     /// Something the job needs no longer exists; retrying will not help.
     #[error("{0}")]
     Gone(String),
@@ -41,7 +44,7 @@ impl JobError {
             // A page that is not an image is usually a transient CDN error.
             Self::Download(DownloadError::NotAnImage { .. }) | Self::Db(_) => true,
             Self::Integration(e) => e.is_retryable(),
-            Self::Download(_) | Self::Queue(_) | Self::Gone(_) => false,
+            Self::Download(_) | Self::Queue(_) | Self::Gone(_) | Self::Backup(_) => false,
         }
     }
 
@@ -86,7 +89,23 @@ pub async fn run(
         } => deliver(ctx, *integration_id, None, language.as_deref()).await,
         Job::MeasureLibrary => measure_library(ctx).await,
         Job::RefreshMetadata { series_id } => refresh_metadata(ctx, *series_id).await,
+        Job::Backup => back_up(ctx).await,
     }
+}
+
+async fn back_up(ctx: &Context) -> Result<(), JobError> {
+    let saved = backup::create(&ctx.db, &ctx.backups, Utc::now()).await?;
+    let keep = ctx.settings.current().backup_keep;
+    let removed = backup::prune(&ctx.backups, keep)
+        .await
+        .map_err(BackupError::from)?;
+    tracing::info!(
+        name = saved.name,
+        bytes = saved.size_bytes,
+        removed,
+        "database backed up"
+    );
+    Ok(())
 }
 
 /// Re-read the size of every chapter file: fills in files from before

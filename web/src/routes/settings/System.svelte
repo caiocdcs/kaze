@@ -1,8 +1,10 @@
 <script lang="ts">
-	import { api, type TaskInfo } from '#lib/api/index.ts';
+	import { untrack } from 'svelte';
+	import { api, type BackupFile, type TaskInfo } from '#lib/api/index.ts';
 	import HealthPanel from '#lib/components/HealthPanel.svelte';
 	import Icon from '#lib/components/Icon.svelte';
-	import { ago, dateTime, errorMessage, every } from '#lib/format.ts';
+	import { ago, bytes, dateTime, errorMessage, every } from '#lib/format.ts';
+	import { live } from '#lib/live.svelte.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	let tasks = $state<TaskInfo[] | null>(null);
@@ -24,6 +26,13 @@
 	});
 
 	let backingUp = $state(false);
+	let backups = $state<BackupFile[]>([]);
+
+	// A backup job finishing moves jobsVersion; the list follows.
+	$effect(() => {
+		void live.jobsVersion;
+		untrack(() => api.backups().then((b) => (backups = b), toasts.error));
+	});
 
 	async function backup() {
 		backingUp = true;
@@ -33,6 +42,25 @@
 			toasts.error(e);
 		} finally {
 			backingUp = false;
+		}
+	}
+
+	async function backUpNow() {
+		try {
+			await api.runTask('backup');
+			toasts.show('Backing up the database…');
+		} catch (e) {
+			toasts.error(e);
+		}
+	}
+
+	async function remove(b: BackupFile) {
+		if (!confirm(`Delete the backup from ${dateTime(b.created_at)}?`)) return;
+		try {
+			await api.deleteBackup(b.name);
+			backups = backups.filter((x) => x.name !== b.name);
+		} catch (e) {
+			toasts.error(e);
 		}
 	}
 
@@ -86,15 +114,58 @@
 		</section>
 		<section aria-labelledby="backup-heading" class="flex flex-col gap-3">
 			<h2 id="backup-heading" class="section-title text-lg">Backup</h2>
-			<div class="card flex flex-wrap items-center justify-between gap-3 p-4">
-				<p class="m-0 text-sm text-muted">
-					A copy of the database: followed series, chapters, settings and integrations. Library
-					files are not included.
-				</p>
-				<button type="button" class="btn-ghost h-10" disabled={backingUp} onclick={backup}>
-					<Icon name="download" size={14} />
-					{backingUp ? 'Preparing…' : 'Download backup'}
-				</button>
+			<div class="card flex flex-col gap-3 p-4">
+				<div class="flex flex-wrap items-center justify-between gap-3">
+					<p class="m-0 text-sm text-muted">
+						Copies of the database: followed series, chapters, settings and integrations, kept in
+						<code>data/backups</code>. Library files are not included. The schedule is under
+						General.
+					</p>
+					<div class="flex gap-2">
+						<button type="button" class="btn-ghost h-10" onclick={backUpNow}>
+							<Icon name="play" size={14} /> Back up now
+						</button>
+						<button type="button" class="btn-ghost h-10" disabled={backingUp} onclick={backup}>
+							<Icon name="download" size={14} />
+							{backingUp ? 'Preparing…' : 'Download a fresh copy'}
+						</button>
+					</div>
+				</div>
+				{#if backups.length === 0}
+					<p class="m-0 text-sm text-muted">No saved backups yet.</p>
+				{:else}
+					<ul class="m-0 flex list-none flex-col gap-1.5 p-0">
+						{#each backups as b (b.name)}
+							<li
+								class="flex items-center gap-3 rounded-[10px] bg-ground py-1.5 pr-1.5 pl-3 text-sm"
+							>
+								<span class="flex-1" title={b.name}>{dateTime(b.created_at)}</span>
+								<span class="text-muted">{ago(b.created_at)}</span>
+								<span class="w-20 text-right font-mono text-xs text-muted"
+									>{bytes(b.size_bytes)}</span
+								>
+								<button
+									type="button"
+									class="icon-btn"
+									aria-label="Download the backup from {dateTime(b.created_at)}"
+									title="Download"
+									onclick={() => api.saveBackup(b.name).catch(toasts.error)}
+								>
+									<Icon name="download" />
+								</button>
+								<button
+									type="button"
+									class="icon-btn hover:text-bad"
+									aria-label="Delete the backup from {dateTime(b.created_at)}"
+									title="Delete"
+									onclick={() => remove(b)}
+								>
+									<Icon name="trash" />
+								</button>
+							</li>
+						{/each}
+					</ul>
+				{/if}
 			</div>
 		</section>
 	</div>

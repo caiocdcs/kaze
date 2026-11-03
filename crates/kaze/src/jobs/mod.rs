@@ -57,6 +57,8 @@ pub enum Job {
     MeasureLibrary,
     /// Find the series' AniList entry if it has none, and take its metadata.
     RefreshMetadata { series_id: i64 },
+    /// Save a database backup and delete the oldest beyond `backup_keep`.
+    Backup,
 }
 
 impl Job {
@@ -70,6 +72,7 @@ impl Job {
             Self::ScanLibrary { .. } => "scan_library",
             Self::MeasureLibrary => "measure_library",
             Self::RefreshMetadata { .. } => "refresh_metadata",
+            Self::Backup => "backup",
         }
     }
 
@@ -97,6 +100,7 @@ impl Job {
             ),
             Self::MeasureLibrary => "measure".into(),
             Self::RefreshMetadata { series_id } => format!("metadata:{series_id}"),
+            Self::Backup => "backup".into(),
         }
     }
 
@@ -111,7 +115,8 @@ impl Job {
             Self::Notify { .. }
             | Self::ScanLibrary { .. }
             | Self::MeasureLibrary
-            | Self::RefreshMetadata { .. } => None,
+            | Self::RefreshMetadata { .. }
+            | Self::Backup => None,
         }
     }
 }
