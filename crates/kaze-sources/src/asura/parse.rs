@@ -4,7 +4,9 @@
 //! plain JSON; the rest is serde.
 
 use chrono::{DateTime, Utc};
-use kaze_core::{ChapterInfo, Result, Series, SeriesHit, SeriesKey, SeriesStatus, SourceError};
+use kaze_core::{
+    ChapterInfo, ExternalIds, Result, Series, SeriesHit, SeriesKey, SeriesStatus, SourceError,
+};
 use scraper::Html;
 use serde::Deserialize;
 use serde_json::Value;
@@ -168,6 +170,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
         },
         year: None,
         language: Some("en".into()),
+        ids: ExternalIds::default(),
     })
 }
 

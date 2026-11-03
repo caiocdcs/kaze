@@ -4,7 +4,7 @@
 
 mod model;
 
-use kaze_core::{AniListId, RateLimit, Result, Series, SeriesKey};
+use kaze_core::{AniListId, ExternalIds, RateLimit, Result, Series, SeriesKey};
 use serde_json::json;
 use url::Url;
 
@@ -149,6 +149,9 @@ impl Media {
             status: self.status,
             year: self.year,
             language: None,
+            ids: ExternalIds {
+                anilist: Some(self.id),
+            },
         }
     }
 }

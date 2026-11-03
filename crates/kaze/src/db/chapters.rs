@@ -352,7 +352,7 @@ pub async fn number_on_disk(db: impl SqliteExecutor<'_>, id: i64) -> sqlx::Resul
 
 #[cfg(test)]
 mod tests {
-    use kaze_core::{Series, SeriesStatus};
+    use kaze_core::{ExternalIds, Series, SeriesStatus};
     use url::Url;
 
     use super::*;
@@ -374,6 +374,7 @@ mod tests {
             status: SeriesStatus::Ongoing,
             year: Some(1997),
             language: Some("en".into()),
+            ids: ExternalIds::default(),
         }
     }
 

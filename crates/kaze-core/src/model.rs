@@ -5,7 +5,7 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use url::Url;
 
-use crate::ChapterNumber;
+use crate::{ChapterNumber, ExternalIds};
 
 /// Declares a newtype around `String` for ids that only mean something on
 /// one source. Distinct types stop us from passing a chapter key where a
@@ -98,6 +98,9 @@ pub struct Series {
     pub year: Option<u16>,
     /// BCP 47 tag of the language the chapters are in, when known.
     pub language: Option<String>,
+    /// Metadata database ids, when the source links them.
+    #[serde(default)]
+    pub ids: ExternalIds,
 }
 
 /// One chapter as listed by the source.

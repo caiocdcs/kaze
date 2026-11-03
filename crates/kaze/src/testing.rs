@@ -8,8 +8,8 @@ use std::sync::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use kaze_core::{
-    ChapterInfo, ChapterKey, Image, RateLimit, Result, Series, SeriesHit, SeriesKey, SeriesStatus,
-    Source, SourceError, SourceMeta, UrlTarget,
+    ChapterInfo, ChapterKey, ExternalIds, Image, RateLimit, Result, Series, SeriesHit, SeriesKey,
+    SeriesStatus, Source, SourceError, SourceMeta, UrlTarget,
 };
 use url::Url;
 
@@ -48,6 +48,7 @@ impl FakeSource {
                 status: SeriesStatus::Ongoing,
                 year: Some(2020),
                 language: Some("en".into()),
+                ids: ExternalIds::default(),
             },
             meta: SourceMeta {
                 id: "fake",

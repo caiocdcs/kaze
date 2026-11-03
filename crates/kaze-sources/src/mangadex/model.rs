@@ -4,7 +4,9 @@
 use std::collections::BTreeMap;
 
 use chrono::{DateTime, Utc};
-use kaze_core::{ChapterInfo, ChapterNumber, Series, SeriesHit, SeriesStatus};
+use kaze_core::{
+    AniListId, ChapterInfo, ChapterNumber, ExternalIds, Series, SeriesHit, SeriesStatus,
+};
 use serde::Deserialize;
 use url::Url;
 
@@ -61,6 +63,8 @@ pub struct MangaAttributes {
     pub year: Option<u16>,
     #[serde(default)]
     pub tags: Vec<Tag>,
+    /// Ids on other sites by short name: `al` is AniList, `mu` MangaUpdates.
+    pub links: Option<BTreeMap<String, String>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -201,6 +205,13 @@ impl Manga {
             },
             year: a.year,
             language: kaze_core::language::normalize(language),
+            ids: ExternalIds {
+                anilist: a
+                    .links
+                    .as_ref()
+                    .and_then(|l| l.get("al")?.parse().ok())
+                    .map(AniListId),
+            },
         }
     }
 }

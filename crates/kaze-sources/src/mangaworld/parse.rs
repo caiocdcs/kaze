@@ -2,7 +2,8 @@
 
 use chrono::{DateTime, NaiveDate, Utc};
 use kaze_core::{
-    ChapterInfo, ChapterNumber, Result, Series, SeriesHit, SeriesKey, SeriesStatus, SourceError,
+    ChapterInfo, ChapterNumber, ExternalIds, Result, Series, SeriesHit, SeriesKey, SeriesStatus,
+    SourceError,
 };
 use scraper::{ElementRef, Html};
 use url::Url;
@@ -125,6 +126,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
             .first()
             .and_then(|y| y.parse().ok()),
         language: Some("it".into()),
+        ids: ExternalIds::default(),
     })
 }
 

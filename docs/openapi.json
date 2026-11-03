@@ -1626,6 +1626,12 @@
           }
         }
       },
+      "AniListId": {
+        "type": "integer",
+        "format": "int32",
+        "description": "A manga's id on [AniList](https://anilist.co).",
+        "minimum": 0
+      },
       "Apprise": {
         "type": "object",
         "description": "`urls` (such as `ntfy://topic`) are sent with each message; without\nthem, `key` names a configuration saved on the server.",
@@ -2404,6 +2410,22 @@
             }
           }
         ]
+      },
+      "ExternalIds": {
+        "type": "object",
+        "description": "Where a series is listed in metadata databases.",
+        "properties": {
+          "anilist": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AniListId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
       },
       "FollowRequest": {
         "type": "object",
@@ -3220,6 +3242,10 @@
               "string",
               "null"
             ]
+          },
+          "ids": {
+            "$ref": "#/components/schemas/ExternalIds",
+            "description": "Metadata database ids, when the source links them."
           },
           "key": {
             "$ref": "#/components/schemas/SeriesKey"

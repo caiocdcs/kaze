@@ -8,8 +8,8 @@ use std::collections::HashSet;
 
 use chrono::{DateTime, Utc};
 use kaze_core::{
-    ChapterInfo, ChapterKey, ChapterNumber, Result, Series, SeriesHit, SeriesKey, SeriesStatus,
-    SourceError,
+    ChapterInfo, ChapterKey, ChapterNumber, ExternalIds, Result, Series, SeriesHit, SeriesKey,
+    SeriesStatus, SourceError,
 };
 use scraper::{ElementRef, Html};
 use url::Url;
@@ -107,6 +107,7 @@ pub fn series(html: &str, key: &SeriesKey, url: &Url) -> Result<Series> {
         status: SeriesStatus::Unknown,
         year: None,
         language: Some("en".to_owned()),
+        ids: ExternalIds::default(),
     };
 
     // Metadata is a list of `<li><strong>Label: </strong> value…</li>`.

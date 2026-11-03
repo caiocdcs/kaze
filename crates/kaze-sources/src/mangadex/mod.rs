@@ -312,6 +312,7 @@ mod tests {
             ["Hyuuga Natsu", "Nanao Itsuki", "Nekokurage"]
         );
         assert_eq!(series.year, Some(2017));
+        assert_eq!(series.ids.anilist, Some(kaze_core::AniListId(99_022)));
         assert!(series.description.is_some());
         assert_ne!(series.tags.len(), 0);
     }

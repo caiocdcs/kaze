@@ -14,6 +14,6 @@ mod sqlx_impls;
 
 pub use chapter_number::{ChapterNumber, ParseChapterNumberError};
 pub use error::{Result, SourceError};
-pub use metadata::AniListId;
+pub use metadata::{AniListId, ExternalIds};
 pub use model::{ChapterInfo, ChapterKey, Image, Series, SeriesHit, SeriesKey, SeriesStatus};
 pub use source::{RateLimit, Source, SourceMeta, UrlTarget};
