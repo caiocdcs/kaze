@@ -188,3 +188,61 @@ impl Source for FakeSource {
         Ok(self.latest.lock().unwrap().clone())
     }
 }
+
+/// A local stand-in for AniList's GraphQL API. `reply` gets each request's
+/// `variables` and the server's base URL, and returns its `data`, or `None`
+/// to answer 404. Images are served at `/cover/<name>` as a PNG, so they
+/// differ from [`FakeSource`]'s JPEG covers.
+pub async fn fake_anilist(
+    reply: impl Fn(&serde_json::Value, &Url) -> Option<serde_json::Value>
+    + Clone
+    + Send
+    + Sync
+    + 'static,
+) -> kaze_sources::anilist::AniList {
+    use axum::{Json, Router, http::StatusCode, response::IntoResponse, routing::get};
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base: Url = format!("http://{}/", listener.local_addr().unwrap())
+        .parse()
+        .unwrap();
+    let app = Router::new()
+        .route("/cover/{name}", get(|| async { PNG }))
+        .fallback({
+            let base = base.clone();
+            move |Json(body): Json<serde_json::Value>| {
+                let reply = reply.clone();
+                let base = base.clone();
+                async move {
+                    match reply(&body["variables"], &base) {
+                        Some(data) => Json(serde_json::json!({ "data": data })).into_response(),
+                        None => StatusCode::NOT_FOUND.into_response(),
+                    }
+                }
+            }
+        });
+    tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+    let http = kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default()).unwrap();
+    kaze_sources::anilist::AniList::with(&http, base, RateLimit::per_second(1000))
+}
+
+/// AniList with no entries: searches find nothing, ids are unknown.
+pub async fn empty_anilist() -> kaze_sources::anilist::AniList {
+    fake_anilist(|vars, _| {
+        vars.get("search")
+            .map(|_| serde_json::json!({ "Page": { "media": [] } }))
+    })
+    .await
+}
+
+/// An AniList `Media` as the API sends it, with its cover on `base`.
+pub fn anilist_media(id: u32, title: &str, base: &Url) -> serde_json::Value {
+    serde_json::json!({
+        "id": id, "format": "MANGA", "popularity": 10, "status": "FINISHED",
+        "title": { "romaji": title, "english": title, "native": null },
+        "synonyms": [], "description": "From AniList.<br>", "genres": ["Drama"], "tags": [],
+        "startDate": { "year": 2001 },
+        "coverImage": { "extraLarge": base.join(&format!("/cover/{id}.jpg")).unwrap(), "large": null },
+        "staff": { "edges": [{ "role": "Story & Art", "node": { "name": { "full": "Mangaka" } } }] }
+    })
+}

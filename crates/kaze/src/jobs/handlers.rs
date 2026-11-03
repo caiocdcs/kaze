@@ -2,17 +2,19 @@
 
 use std::{collections::HashSet, path::Path};
 
-use kaze_core::{Source, SourceError};
+use chrono::Utc;
+use kaze_core::{Series, Source, SourceError};
 use tokio_util::task::TaskTracker;
 
 use super::{Job, JobQueue, QueueError};
 use crate::{
     app::Context,
-    db,
+    db::{self, series::MetadataFrom},
     download::{self, ChapterMeta, DownloadError, Outcome},
     events::Event,
     integrations::{self, IntegrationError, Message},
-    library::{self, SeriesRecord},
+    library::{self, MetadataLink, SeriesRecord},
+    metadata::{self, Outcome as Match},
 };
 
 #[derive(Debug, thiserror::Error)]
@@ -83,6 +85,7 @@ pub async fn run(
             language,
         } => deliver(ctx, *integration_id, None, language.as_deref()).await,
         Job::MeasureLibrary => measure_library(ctx).await,
+        Job::RefreshMetadata { series_id } => refresh_metadata(ctx, *series_id).await,
     }
 }
 
@@ -143,12 +146,20 @@ async fn refresh_series(
     let (title, chapters) = if link.priority == 0 {
         let (series, chapters) =
             tokio::try_join!(source.series(&link.source_key, &record.language), chapters)?;
-        db::series::update_metadata(&ctx.db, series_id, &series).await?;
-        // Saved now, not with the first chapter, so the library shows it at once.
-        let cover = series.cover_url.as_ref().map(ToString::to_string);
-        let dir = ctx.libraries.root(&record.language).join(&record.folder);
-        save_cover(source, &dir, cover.as_deref()).await;
-        (series.title, chapters)
+        let title =
+            if db::series::update_metadata(&ctx.db, series_id, &series, MetadataFrom::Source)
+                .await?
+            {
+                // Saved now, not with the first chapter, so the library shows it at once.
+                let cover = series.cover_url.as_ref().map(ToString::to_string);
+                let dir = ctx.libraries.root(&record.language).join(&record.folder);
+                save_cover(source, &dir, cover.as_deref()).await;
+                series.title.clone()
+            } else {
+                record.title.clone()
+            };
+        queue_metadata(ctx, queue, &record, &series).await?;
+        (title, chapters)
     } else {
         (record.title, chapters.await?)
     };
@@ -184,6 +195,84 @@ async fn refresh_series(
     // All wanted chapters, not only new ones, so earlier failures get
     // another chance; duplicates are ignored by the queue.
     queue_wanted(ctx, queue, series_id).await
+}
+
+/// Automatic links follow the primary source's AniList id. Without one,
+/// a new series gets a title search now; the scheduler retries weekly.
+async fn queue_metadata(
+    ctx: &Context,
+    queue: &JobQueue,
+    record: &SeriesRecord,
+    series: &Series,
+) -> Result<(), JobError> {
+    if record.metadata_link == MetadataLink::Manual {
+        return Ok(());
+    }
+    match series.ids.anilist {
+        Some(id) if record.anilist_id != Some(id) => {
+            db::series::link_metadata(&ctx.db, record.id, Some(id), MetadataLink::Auto).await?;
+            tracing::info!(series = %record.title, anilist = %id, "linked metadata by the source's id");
+        }
+        _ if record.metadata_checked_at.is_none() => {}
+        _ => return Ok(()),
+    }
+    queue
+        .submit(Job::RefreshMetadata {
+            series_id: record.id,
+        })
+        .await?;
+    Ok(())
+}
+
+/// Take metadata from the series' AniList entry, finding it by title
+/// first if the series has none.
+async fn refresh_metadata(ctx: &Context, series_id: i64) -> Result<(), JobError> {
+    let record = load_series(ctx, series_id).await?;
+    let now = Utc::now();
+    let id = match record.anilist_id {
+        Some(id) => Some(id),
+        // Unlinked by hand: no metadata wanted.
+        None if record.metadata_link == MetadataLink::Manual => return Ok(()),
+        None => {
+            match metadata::find(&ctx.anilist, &record.title).await? {
+                Match::Found { id, how } => {
+                    if db::series::link_found_metadata(&ctx.db, series_id, id).await? {
+                        tracing::info!(series = %record.title, anilist = %id, ?how, "linked metadata by title");
+                    }
+                }
+                Match::Ambiguous => {
+                    tracing::warn!(series = %record.title, "several AniList entries match: link one by hand");
+                }
+                Match::NotFound => {}
+            }
+            // A link by the source's id may have landed during the search;
+            // its own job was dropped as a duplicate of this one.
+            load_series(ctx, series_id).await?.anilist_id
+        }
+    };
+    let Some(id) = id else {
+        db::series::mark_metadata_checked(&ctx.db, series_id, now).await?;
+        return Ok(());
+    };
+
+    let series = ctx.anilist.media(id).await?.into_series();
+    db::series::update_metadata(&ctx.db, series_id, &series, MetadataFrom::AniList).await?;
+    db::series::mark_metadata_checked(&ctx.db, series_id, now).await?;
+    // Best effort, like source covers; only when AniList's changed.
+    if let Some(url) = series
+        .cover_url
+        .filter(|url| record.cover_url.as_deref() != Some(url.as_str()))
+    {
+        let dir = ctx.libraries.root(&record.language).join(&record.folder);
+        let saved = match ctx.anilist.image(&url).await {
+            Ok(image) => download::replace_cover(&image, &url, &dir).await,
+            Err(err) => Err(err.into()),
+        };
+        if let Err(err) = saved {
+            tracing::warn!(dir = %dir.display(), "could not save cover: {err}");
+        }
+    }
+    Ok(())
 }
 
 /// Queue the download of every wanted chapter of a series, each from the

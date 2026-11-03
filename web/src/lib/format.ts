@@ -78,6 +78,8 @@ export function jobLabel(j: JobRecord): string {
 			return 'Library server scan';
 		case 'measure_library':
 			return 'Measure library';
+		case 'refresh_metadata':
+			return `${series} · metadata`;
 	}
 }
 

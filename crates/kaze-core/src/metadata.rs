@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 /// A manga's id on [AniList](https://anilist.co).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(transparent)]
+#[cfg_attr(feature = "sqlx", derive(sqlx::Type), sqlx(transparent))]
 #[cfg_attr(feature = "ts", derive(ts_rs::TS), ts(export))]
 #[cfg_attr(feature = "openapi", derive(utoipa::ToSchema))]
 pub struct AniListId(pub u32);

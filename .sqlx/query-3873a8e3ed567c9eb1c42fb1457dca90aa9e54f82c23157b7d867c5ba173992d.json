@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series SET metadata_checked_at = ? WHERE id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3873a8e3ed567c9eb1c42fb1457dca90aa9e54f82c23157b7d867c5ba173992d"
+}

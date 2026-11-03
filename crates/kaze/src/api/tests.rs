@@ -55,6 +55,7 @@ async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
         flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
             .unwrap()
             .flaresolverr(),
+        anilist: crate::testing::empty_anilist().await,
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {

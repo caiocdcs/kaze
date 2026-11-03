@@ -4,7 +4,7 @@
 
 mod model;
 
-use kaze_core::{AniListId, ExternalIds, RateLimit, Result, Series, SeriesKey};
+use kaze_core::{AniListId, ExternalIds, Image, RateLimit, Result, Series, SeriesKey};
 use serde_json::json;
 use url::Url;
 
@@ -18,26 +18,33 @@ use crate::{
 const API_URL: &str = "https://graphql.anilist.co";
 const SITE_URL: &str = "https://anilist.co";
 const USER_AGENT: &str = concat!("kaze/", env!("CARGO_PKG_VERSION"));
+/// The documented limit is 90 a minute, lowered to 30 at times. kaze needs
+/// a few requests per series a week.
+pub const RATE_LIMIT: RateLimit = RateLimit::per_minute(20);
 
+#[derive(Debug)]
 pub struct AniList {
     api_url: Url,
     api: SourceHttp,
+    /// Covers come from a CDN, not the API, so they don't share its limit.
+    images: SourceHttp,
 }
 
 impl AniList {
     #[must_use]
     pub fn new(http: &Http) -> Self {
-        Self::with_api_url(http, url!(API_URL))
+        Self::with(http, url!(API_URL), RATE_LIMIT)
     }
 
-    /// Point at another host; tests use this with a mock server.
+    /// Point at another host and limit; tests use a mock server, unthrottled.
     #[must_use]
-    pub fn with_api_url(http: &Http, api_url: Url) -> Self {
+    pub fn with(http: &Http, api_url: Url, rate_limit: RateLimit) -> Self {
         Self {
-            // The documented limit is 90 a minute, lowered to 30 at times.
-            // kaze needs about one request per series a week.
             api: http
-                .for_source(RateLimit::per_minute(20), None)
+                .for_source(rate_limit, None)
+                .with_user_agent(USER_AGENT),
+            images: http
+                .for_source(RateLimit::per_second(4), None)
                 .with_user_agent(USER_AGENT),
             api_url,
         }
@@ -58,6 +65,11 @@ impl AniList {
             .into_iter()
             .map(Media::from)
             .collect())
+    }
+
+    /// A cover from AniList's image CDN.
+    pub async fn image(&self, url: &Url) -> Result<Image> {
+        self.images.get_image(url).await
     }
 
     /// One manga by id. An unknown id is [`kaze_core::SourceError::NotFound`].
@@ -170,9 +182,10 @@ mod tests {
     const FRIEREN: AniListId = AniListId(118_586);
 
     fn client(api: &str) -> AniList {
-        AniList::with_api_url(
+        AniList::with(
             &Http::new(HttpConfig::default()).unwrap(),
             api.parse().unwrap(),
+            RateLimit::per_second(1000),
         )
     }
 

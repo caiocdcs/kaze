@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours,\n                      s.preferred_scanlators AS \"preferred_scanlators: Json<Scanlators>\",\n                      s.blocked_scanlators AS \"blocked_scanlators: Json<Scanlators>\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
+  "query": "SELECT s.id, s.title, s.description,\n                      s.authors AS \"authors: Json<Vec<String>>\",\n                      s.tags AS \"tags: Json<Vec<String>>\",\n                      s.status AS \"status: _\",\n                      s.year, s.cover_url, s.folder,\n                      s.monitor AS \"monitor: Monitor\",\n                      s.monitor_from AS \"monitor_from: _\",\n                      ss.source, ss.source_key AS \"source_key: SeriesKey\", ss.language, ss.url,\n                      s.added_at AS \"added_at: _\",\n                      s.last_checked_at AS \"last_checked_at: _\",\n                      s.refresh_hours,\n                      s.preferred_scanlators AS \"preferred_scanlators: Json<Scanlators>\",\n                      s.blocked_scanlators AS \"blocked_scanlators: Json<Scanlators>\",\n                      s.anilist_id AS \"anilist_id: AniListId\",\n                      s.metadata_link AS \"metadata_link: MetadataLink\",\n                      s.metadata_checked_at AS \"metadata_checked_at: _\"\n               FROM series s\n               JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0\n               ORDER BY s.title COLLATE NOCASE",
   "describe": {
     "columns": [
       {
@@ -222,6 +222,39 @@
             "name": "blocked_scanlators"
           }
         }
+      },
+      {
+        "name": "anilist_id: AniListId",
+        "ordinal": 20,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "anilist_id"
+          }
+        }
+      },
+      {
+        "name": "metadata_link: MetadataLink",
+        "ordinal": 21,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "metadata_link"
+          }
+        }
+      },
+      {
+        "name": "metadata_checked_at: _",
+        "ordinal": 22,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "series",
+            "name": "metadata_checked_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -247,8 +280,11 @@
       true,
       true,
       false,
-      false
+      false,
+      true,
+      false,
+      true
     ]
   },
-  "hash": "6c015ca235998c93b756f9a9ec346d322a6cf8d5c672b1c0d8529929fb8bc8fc"
+  "hash": "eba6024f2792e54e8c4f783136b06e80e608d07b460cba4ebb20c590daf66862"
 }

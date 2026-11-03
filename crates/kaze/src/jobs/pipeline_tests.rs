@@ -31,6 +31,14 @@ async fn start_with(source: FakeSource, db: sqlx::SqlitePool) -> Harness {
 }
 
 async fn start_many(sources: Vec<FakeSource>, db: sqlx::SqlitePool) -> Harness {
+    start_full(sources, db, crate::testing::empty_anilist().await).await
+}
+
+async fn start_full(
+    sources: Vec<FakeSource>,
+    db: sqlx::SqlitePool,
+    anilist: kaze_sources::anilist::AniList,
+) -> Harness {
     let mut sources: Vec<Arc<FakeSource>> = sources.into_iter().map(Arc::new).collect();
     let others = sources.split_off(1);
     let source = sources.remove(0);
@@ -61,6 +69,7 @@ async fn start_many(sources: Vec<FakeSource>, db: sqlx::SqlitePool) -> Harness {
         flaresolverr: kaze_sources::http::Http::new(kaze_sources::http::HttpConfig::default())
             .unwrap()
             .flaresolverr(),
+        anilist,
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),
@@ -122,6 +131,39 @@ impl Harness {
             .follow("fake", &"S1".into(), None, monitor, None)
             .await
             .unwrap()
+    }
+
+    /// The series once `pred` holds, failing after 5 seconds.
+    async fn series_once(
+        &self,
+        id: i64,
+        pred: impl Fn(&crate::library::SeriesRecord) -> bool,
+    ) -> crate::library::SeriesRecord {
+        tokio::time::timeout(Duration::from_secs(5), async {
+            loop {
+                let record = db::series::get(&self.app.ctx.db, id)
+                    .await
+                    .unwrap()
+                    .unwrap();
+                if pred(&record) {
+                    return record;
+                }
+                tokio::time::sleep(Duration::from_millis(20)).await;
+            }
+        })
+        .await
+        .expect("timed out waiting for the series")
+    }
+
+    /// Refresh the series from its source again and wait for the check.
+    async fn refresh_again(&self, id: i64) -> crate::library::SeriesRecord {
+        let before = self.series_once(id, |_| true).await.last_checked_at;
+        let job = Job::RefreshSeries {
+            series_id: id,
+            source: "fake".into(),
+        };
+        self.app.jobs.submit(job).await.unwrap();
+        self.series_once(id, |r| r.last_checked_at > before).await
     }
 }
 
@@ -547,6 +589,8 @@ async fn paused_sources_hold_their_jobs_until_resumed() {
     h.follow(Monitor::All).await;
     tokio::time::sleep(Duration::from_millis(200)).await;
     let jobs = db::jobs::list(&h.app.ctx.db, 10).await.unwrap();
+    // Metadata comes from AniList, not the paused source.
+    let jobs: Vec<_> = jobs.iter().filter(|j| j.job.source().is_some()).collect();
     assert!(!jobs.is_empty());
     assert!(
         jobs.iter().all(|j| j.state == JobState::Queued),
@@ -765,5 +809,121 @@ async fn downloads_are_announced_in_one_batched_webhook() {
         .unwrap();
     assert_eq!(integration.last_ok, Some(true));
     assert_eq!(integration.last_status.as_deref(), Some("Sent"));
+    h.app.shutdown().await;
+}
+
+/// AniList with one entry, 42, also found by searching its title.
+async fn anilist_with(title: &'static str) -> kaze_sources::anilist::AniList {
+    crate::testing::fake_anilist(move |vars, base| {
+        let media = crate::testing::anilist_media(42, title, base);
+        if vars.get("search").is_some() {
+            Some(serde_json::json!({ "Page": { "media": [media] } }))
+        } else {
+            (vars["id"] == 42).then(|| serde_json::json!({ "Media": media }))
+        }
+    })
+    .await
+}
+
+#[tokio::test]
+async fn metadata_comes_from_anilist_once_linked() {
+    let mut source = FakeSource::new().with_chapters(&["1"]);
+    source.series.ids.anilist = Some(kaze_core::AniListId(42));
+    let h = start_full(
+        vec![source],
+        db::memory().await,
+        anilist_with("From AniList").await,
+    )
+    .await;
+    let id = h.follow(Monitor::None).await;
+
+    let record = h.series_once(id, |r| r.metadata_checked_at.is_some()).await;
+    assert_eq!(record.anilist_id, Some(kaze_core::AniListId(42)));
+    assert_eq!(record.metadata_link, crate::library::MetadataLink::Auto);
+    assert_eq!(record.title, "From AniList");
+    assert_eq!(record.description.as_deref(), Some("From AniList."));
+    assert_eq!(record.authors.0, ["Mangaka"]);
+    let folder = h.library.path().join("Test Series");
+    assert!(
+        folder.join("cover.png").exists(),
+        "AniList's cover replaces the source's"
+    );
+    assert!(!folder.join("cover.jpg").exists());
+
+    let record = h.refresh_again(id).await;
+    assert_eq!(
+        record.title, "From AniList",
+        "a source refresh keeps AniList's metadata"
+    );
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_series_without_an_id_is_linked_by_title() {
+    let source = FakeSource::new().with_chapters(&["1"]);
+    let h = start_full(
+        vec![source],
+        db::memory().await,
+        anilist_with("The Test Series").await,
+    )
+    .await;
+    let id = h.follow(Monitor::None).await;
+
+    let record = h.series_once(id, |r| r.metadata_checked_at.is_some()).await;
+    assert_eq!(
+        record.anilist_id,
+        Some(kaze_core::AniListId(42)),
+        "\"The\" is ignored"
+    );
+    assert_eq!(record.title, "The Test Series");
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn ambiguous_titles_stay_unlinked() {
+    let anilist = crate::testing::fake_anilist(|vars, base| {
+        vars.get("search").map(|_| {
+            let twins = [41, 42].map(|id| crate::testing::anilist_media(id, "Test Series", base));
+            serde_json::json!({ "Page": { "media": twins } })
+        })
+    })
+    .await;
+    let source = FakeSource::new().with_chapters(&["1"]);
+    let h = start_full(vec![source], db::memory().await, anilist).await;
+    let id = h.follow(Monitor::None).await;
+
+    let record = h.series_once(id, |r| r.metadata_checked_at.is_some()).await;
+    assert_eq!(record.anilist_id, None);
+    assert_eq!(record.title, "Test Series");
+    h.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn unlinking_by_hand_restores_source_metadata() {
+    let mut source = FakeSource::new().with_chapters(&["1"]);
+    source.series.ids.anilist = Some(kaze_core::AniListId(42));
+    let h = start_full(
+        vec![source],
+        db::memory().await,
+        anilist_with("From AniList").await,
+    )
+    .await;
+    let id = h.follow(Monitor::None).await;
+    h.series_once(id, |r| r.title == "From AniList").await;
+
+    db::series::link_metadata(
+        &h.app.ctx.db,
+        id,
+        None,
+        crate::library::MetadataLink::Manual,
+    )
+    .await
+    .unwrap();
+    let record = h.refresh_again(id).await;
+    assert_eq!(
+        record.anilist_id, None,
+        "the source's id doesn't relink a manual choice"
+    );
+    assert_eq!(record.title, "Test Series");
     h.app.shutdown().await;
 }

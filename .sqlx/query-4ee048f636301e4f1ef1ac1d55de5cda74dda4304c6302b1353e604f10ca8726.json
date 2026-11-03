@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE series SET anilist_id = ?\n         WHERE id = ? AND anilist_id IS NULL AND metadata_link = 'auto'",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "4ee048f636301e4f1ef1ac1d55de5cda74dda4304c6302b1353e604f10ca8726"
+}

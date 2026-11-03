@@ -2821,6 +2821,26 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "description": "Find the series' AniList entry if it has none, and take its metadata.",
+            "required": [
+              "series_id",
+              "type"
+            ],
+            "properties": {
+              "series_id": {
+                "type": "integer",
+                "format": "int64"
+              },
+              "type": {
+                "type": "string",
+                "enum": [
+                  "refresh_metadata"
+                ]
+              }
+            }
           }
         ],
         "description": "A unit of background work. Stored as JSON in `jobs.payload`."
@@ -3098,6 +3118,14 @@
           }
         }
       },
+      "MetadataLink": {
+        "type": "string",
+        "description": "Who decided a series' AniList link.",
+        "enum": [
+          "auto",
+          "manual"
+        ]
+      },
       "Monitor": {
         "type": "string",
         "description": "Which chapters of a series kaze should download (Sonarr's \"monitor\").",
@@ -3368,12 +3396,24 @@
           "url",
           "added_at",
           "preferred_scanlators",
-          "blocked_scanlators"
+          "blocked_scanlators",
+          "metadata_link"
         ],
         "properties": {
           "added_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "anilist_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AniListId",
+                "description": "While set, metadata comes from this AniList entry, not the source."
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "authors": {
             "type": "array",
@@ -3414,6 +3454,16 @@
               "null"
             ],
             "format": "date-time"
+          },
+          "metadata_checked_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "metadata_link": {
+            "$ref": "#/components/schemas/MetadataLink"
           },
           "monitor": {
             "$ref": "#/components/schemas/Monitor"
@@ -3807,7 +3857,8 @@
         "enum": [
           "sync_latest",
           "refresh_series",
-          "measure_library"
+          "measure_library",
+          "refresh_metadata"
         ]
       },
       "TaskInfo": {

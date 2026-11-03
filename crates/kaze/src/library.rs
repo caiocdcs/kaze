@@ -7,7 +7,7 @@ use std::{
 };
 
 use chrono::{DateTime, Utc};
-use kaze_core::{ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
+use kaze_core::{AniListId, ChapterKey, ChapterNumber, SeriesKey, SeriesStatus};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
 use ts_rs::TS;
@@ -48,6 +48,21 @@ impl Monitor {
             Self::None => false,
         }
     }
+}
+
+/// Who decided a series' AniList link.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize, sqlx::Type)]
+#[serde(rename_all = "lowercase")]
+#[sqlx(rename_all = "lowercase")]
+#[derive(TS, ToSchema)]
+#[ts(export)]
+pub enum MetadataLink {
+    /// kaze: by the source's AniList id, else by title. Relinked when the
+    /// source's id changes.
+    #[default]
+    Auto,
+    /// The user linked or unlinked it; kaze leaves it alone.
+    Manual,
 }
 
 /// Scanlation group names: trimmed, without blanks, and without repeats
@@ -116,6 +131,10 @@ pub struct SeriesRecord {
     #[ts(as = "Scanlators")]
     #[schema(value_type = Scanlators)]
     pub blocked_scanlators: Json<Scanlators>,
+    /// While set, metadata comes from this AniList entry, not the source.
+    pub anilist_id: Option<AniListId>,
+    pub metadata_link: MetadataLink,
+    pub metadata_checked_at: Option<DateTime<Utc>>,
 }
 
 /// A row of the library grid.

@@ -22,6 +22,7 @@ use kaze::{
 use kaze_core::{ChapterInfo, Series, SeriesHit, Source, UrlTarget};
 use kaze_sources::{
     Registry,
+    anilist::AniList,
     http::{Http, HttpConfig},
 };
 use url::Url;
@@ -169,6 +170,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         settings,
         http: http.client(),
         flaresolverr: http.flaresolverr(),
+        anilist: AniList::new(&http),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

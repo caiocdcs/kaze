@@ -1,4 +1,4 @@
-//! Periodic work: latest-updates sync and full refreshes.
+//! Periodic work: latest-updates sync, full refreshes and metadata.
 //!
 //! The scheduler is an actor like the dispatcher: one task owns the
 //! timers, and the [`Tasks`] handle talks to it over an mpsc channel
@@ -28,6 +28,8 @@ use crate::{app::Context, db};
 const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
 /// Downloads record their own size; this catches older and outside changes.
 const MEASURE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// Metadata changes slowly: each series is looked up on AniList weekly.
+const METADATA_EVERY: chrono::TimeDelta = chrono::TimeDelta::days(7);
 /// The first measure waits for startup work (sync, refreshes) to settle.
 const MEASURE_FIRST_AFTER: Duration = Duration::from_secs(5 * 60);
 
@@ -42,16 +44,25 @@ pub enum Task {
     RefreshSeries,
     /// Re-read the size of every chapter file.
     MeasureLibrary,
+    /// Refresh metadata from AniList where it is a week old ("run now":
+    /// all of it), linking series that have no entry yet.
+    RefreshMetadata,
 }
 
 impl Task {
-    const ALL: [Self; 3] = [Self::SyncLatest, Self::RefreshSeries, Self::MeasureLibrary];
+    const ALL: [Self; 4] = [
+        Self::SyncLatest,
+        Self::RefreshSeries,
+        Self::MeasureLibrary,
+        Self::RefreshMetadata,
+    ];
 
     fn name(self) -> &'static str {
         match self {
             Self::SyncLatest => "Check latest updates",
             Self::RefreshSeries => "Refresh series",
             Self::MeasureLibrary => "Measure library",
+            Self::RefreshMetadata => "Refresh metadata",
         }
     }
 }
@@ -173,6 +184,8 @@ pub async fn run(
             _ = refresh.tick() => {
                 refresh_due(&ctx, &queue).await;
                 tasks.record(Task::RefreshSeries, REFRESH_CHECK_EVERY, true);
+                metadata_due(&ctx, &queue, Utc::now() - METADATA_EVERY).await;
+                tasks.record(Task::RefreshMetadata, REFRESH_CHECK_EVERY, true);
             }
             _ = measure.tick() => {
                 submit(&queue, Job::MeasureLibrary).await;
@@ -183,6 +196,7 @@ pub async fn run(
                     Task::SyncLatest => sync_latest(&ctx, &queue).await,
                     Task::RefreshSeries => refresh_all(&ctx, &queue).await,
                     Task::MeasureLibrary => submit(&queue, Job::MeasureLibrary).await,
+                    Task::RefreshMetadata => metadata_due(&ctx, &queue, Utc::now()).await,
                 }
                 let mut status = tasks.status.lock().unwrap_or_else(PoisonError::into_inner);
                 status.entry(task).or_default().last_run = Some(Utc::now());
@@ -221,6 +235,18 @@ async fn refresh_all(ctx: &Context, queue: &JobQueue) {
             }
         }
         Err(err) => tracing::error!("could not list series to refresh: {err}"),
+    }
+}
+
+/// Queue a metadata refresh for every series last checked before `cutoff`.
+async fn metadata_due(ctx: &Context, queue: &JobQueue, cutoff: DateTime<Utc>) {
+    match db::series::metadata_due(&ctx.db, cutoff).await {
+        Ok(due) => {
+            for series_id in due {
+                submit(queue, Job::RefreshMetadata { series_id }).await;
+            }
+        }
+        Err(err) => tracing::error!("could not list series to refresh metadata: {err}"),
     }
 }
 
@@ -284,6 +310,48 @@ mod tests {
             due(25).await,
             [ids[0], ids[2]],
             "global 24h; 0 never refreshes"
+        );
+    }
+
+    #[tokio::test]
+    async fn metadata_is_due_weekly_unless_unlinked_by_hand() {
+        let db = db::memory().await;
+        let source = FakeSource::new();
+        let mut ids = Vec::new();
+        for folder in ["never", "recent", "unlinked", "linked by hand"] {
+            let new = NewSeries {
+                series: &source.series,
+                source: folder,
+                language: "en",
+                folder,
+                monitor: Monitor::All,
+                monitor_from: None,
+            };
+            ids.push(db::series::insert(&db, &new).await.unwrap());
+        }
+        let now = Utc::now();
+        for &id in &ids[1..] {
+            db::series::mark_metadata_checked(&db, id, now)
+                .await
+                .unwrap();
+        }
+        let manual = crate::library::MetadataLink::Manual;
+        db::series::link_metadata(&db, ids[2], None, manual)
+            .await
+            .unwrap();
+        let anilist = Some(kaze_core::AniListId(1));
+        db::series::link_metadata(&db, ids[3], anilist, manual)
+            .await
+            .unwrap();
+
+        let week = METADATA_EVERY;
+        let due = db::series::metadata_due(&db, now - week).await.unwrap();
+        assert_eq!(due, [ids[0]], "only the never-checked one");
+        let later = db::series::metadata_due(&db, now + week).await.unwrap();
+        assert_eq!(
+            later,
+            [ids[0], ids[1], ids[3]],
+            "a manual link refreshes too"
         );
     }
 }

@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use kaze_core::{ChapterNumber, SeriesKey, Source, SourceError};
-use kaze_sources::{Registry, flaresolverr::FlareSolverr};
+use kaze_sources::{Registry, anilist::AniList, flaresolverr::FlareSolverr};
 use sqlx::SqlitePool;
 use tokio_util::{sync::CancellationToken, task::TaskTracker};
 
@@ -31,6 +31,8 @@ pub struct Context {
     pub http: reqwest::Client,
     /// The sources' FlareSolverr fallback, pointed at the configured URL.
     pub flaresolverr: FlareSolverr,
+    /// Where series metadata comes from once linked.
+    pub anilist: AniList,
 }
 
 /// The running application.

@@ -55,6 +55,8 @@ pub enum Job {
     },
     /// Record the size of every chapter file, for disk usage.
     MeasureLibrary,
+    /// Find the series' AniList entry if it has none, and take its metadata.
+    RefreshMetadata { series_id: i64 },
 }
 
 impl Job {
@@ -67,6 +69,7 @@ impl Job {
             Self::Notify { .. } => "notify",
             Self::ScanLibrary { .. } => "scan_library",
             Self::MeasureLibrary => "measure_library",
+            Self::RefreshMetadata { .. } => "refresh_metadata",
         }
     }
 
@@ -93,6 +96,7 @@ impl Job {
                 language.as_deref().unwrap_or("*")
             ),
             Self::MeasureLibrary => "measure".into(),
+            Self::RefreshMetadata { series_id } => format!("metadata:{series_id}"),
         }
     }
 
@@ -103,7 +107,11 @@ impl Job {
             Self::RefreshSeries { source, .. }
             | Self::DownloadChapter { source, .. }
             | Self::SyncLatest { source } => Some(source),
-            Self::Notify { .. } | Self::ScanLibrary { .. } | Self::MeasureLibrary => None,
+            // AniList has its own rate limit in its client.
+            Self::Notify { .. }
+            | Self::ScanLibrary { .. }
+            | Self::MeasureLibrary
+            | Self::RefreshMetadata { .. } => None,
         }
     }
 }

@@ -11,6 +11,7 @@ pub mod import;
 pub mod integrations;
 pub mod jobs;
 pub mod library;
+pub mod metadata;
 pub mod settings;
 #[cfg(test)]
 mod testing;

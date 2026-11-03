@@ -1,8 +1,10 @@
 use chrono::{DateTime, Utc};
-use kaze_core::{ChapterNumber, Series, SeriesKey};
+use kaze_core::{AniListId, ChapterNumber, Series, SeriesKey};
 use sqlx::{SqliteExecutor, SqlitePool, types::Json};
 
-use crate::library::{Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary, SourceOrder};
+use crate::library::{
+    MetadataLink, Monitor, Scanlators, SeriesRecord, SeriesSource, SeriesSummary, SourceOrder,
+};
 
 /// A series about to be followed.
 #[derive(Debug)]
@@ -76,7 +78,10 @@ macro_rules! select_series {
                       s.last_checked_at AS "last_checked_at: _",
                       s.refresh_hours,
                       s.preferred_scanlators AS "preferred_scanlators: Json<Scanlators>",
-                      s.blocked_scanlators AS "blocked_scanlators: Json<Scanlators>"
+                      s.blocked_scanlators AS "blocked_scanlators: Json<Scanlators>",
+                      s.anilist_id AS "anilist_id: AniListId",
+                      s.metadata_link AS "metadata_link: MetadataLink",
+                      s.metadata_checked_at AS "metadata_checked_at: _"
                FROM series s
                JOIN series_sources ss ON ss.series_id = s.id AND ss.priority = 0
                "# + $where,
@@ -139,15 +144,31 @@ pub async fn folder_taken(db: impl SqliteExecutor<'_>, folder: &str) -> sqlx::Re
     Ok(taken)
 }
 
-/// Refresh metadata from the source; keeps the folder and monitor settings.
-pub async fn update_metadata(db: impl SqliteExecutor<'_>, id: i64, s: &Series) -> sqlx::Result<()> {
+/// Where new metadata comes from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MetadataFrom {
+    /// The primary source: ignored while the series is linked to AniList.
+    Source,
+    AniList,
+}
+
+/// Refresh metadata; keeps the folder and monitor settings. False when a
+/// source's metadata was ignored because the series is linked. The check
+/// is in the `UPDATE`, so a link made meanwhile is never overwritten.
+pub async fn update_metadata(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    s: &Series,
+    from: MetadataFrom,
+) -> sqlx::Result<bool> {
     let authors = Json(&s.authors);
     let tags = Json(&s.tags);
     let year = s.year.map(i64::from);
     let cover = s.cover_url.as_ref().map(url::Url::as_str);
-    sqlx::query!(
+    let linked_too = from == MetadataFrom::AniList;
+    let result = sqlx::query!(
         r#"UPDATE series SET title = ?, description = ?, authors = ?, tags = ?, status = ?, year = ?, cover_url = ?
-           WHERE id = ?"#,
+           WHERE id = ? AND (? OR anilist_id IS NULL)"#,
         s.title,
         s.description,
         authors,
@@ -156,10 +177,83 @@ pub async fn update_metadata(db: impl SqliteExecutor<'_>, id: i64, s: &Series) -
         year,
         cover,
         id,
+        linked_too,
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+/// Link the series to an AniList entry, or unlink it with `None`.
+pub async fn link_metadata(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    anilist: Option<AniListId>,
+    link: MetadataLink,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE series SET anilist_id = ?, metadata_link = ? WHERE id = ?",
+        anilist,
+        link,
+        id
     )
     .execute(db)
     .await?;
     Ok(())
+}
+
+/// Link an entry found by title, unless the series got a link meanwhile
+/// (the source's id wins) or is handled by hand. True if linked.
+pub async fn link_found_metadata(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    anilist: AniListId,
+) -> sqlx::Result<bool> {
+    let result = sqlx::query!(
+        "UPDATE series SET anilist_id = ?
+         WHERE id = ? AND anilist_id IS NULL AND metadata_link = 'auto'",
+        anilist,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(result.rows_affected() == 1)
+}
+
+pub async fn mark_metadata_checked(
+    db: impl SqliteExecutor<'_>,
+    id: i64,
+    now: DateTime<Utc>,
+) -> sqlx::Result<()> {
+    sqlx::query!(
+        "UPDATE series SET metadata_checked_at = ? WHERE id = ?",
+        now,
+        id
+    )
+    .execute(db)
+    .await?;
+    Ok(())
+}
+
+/// Series whose metadata was last checked before `cutoff`, or never.
+/// Unlinked by hand means "no metadata": those are left out.
+pub async fn metadata_due(
+    db: impl SqliteExecutor<'_>,
+    cutoff: DateTime<Utc>,
+) -> sqlx::Result<Vec<i64>> {
+    let rows = sqlx::query!(
+        r#"SELECT id AS "id!", metadata_checked_at AS "checked_at: DateTime<Utc>"
+           FROM series
+           WHERE NOT (anilist_id IS NULL AND metadata_link = 'manual')
+           ORDER BY id"#
+    )
+    .fetch_all(db)
+    .await?;
+    Ok(rows
+        .into_iter()
+        .filter(|r| r.checked_at.is_none_or(|checked| checked < cutoff))
+        .map(|r| r.id)
+        .collect())
 }
 
 pub async fn set_monitor(

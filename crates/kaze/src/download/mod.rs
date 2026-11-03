@@ -12,7 +12,7 @@ use std::{
 };
 
 use futures_util::{StreamExt as _, TryStreamExt as _, stream};
-use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber, Series, Source, SourceError};
+use kaze_core::{ChapterInfo, ChapterKey, ChapterNumber, Image, Series, Source, SourceError};
 use tokio_util::task::TaskTracker;
 use url::Url;
 
@@ -182,6 +182,25 @@ pub async fn cover(
     url: &Url,
     dir: &Path,
 ) -> Result<Option<PathBuf>, DownloadError> {
+    if existing_cover(dir).await?.is_some() {
+        return Ok(None);
+    }
+    let image = source.fetch_image(url).await?;
+    write_cover(&image, url, dir).await.map(Some)
+}
+
+/// Save `image` as the series cover, replacing one in any format.
+pub async fn replace_cover(image: &Image, url: &Url, dir: &Path) -> Result<PathBuf, DownloadError> {
+    let old = existing_cover(dir).await?;
+    let path = write_cover(image, url, dir).await?;
+    if let Some(old) = old.filter(|old| *old != path) {
+        tokio::fs::remove_file(old).await?;
+    }
+    Ok(path)
+}
+
+/// The `cover.*` file in `dir`, creating `dir` if needed.
+async fn existing_cover(dir: &Path) -> Result<Option<PathBuf>, DownloadError> {
     let mut entries = match tokio::fs::read_dir(dir).await {
         Ok(entries) => entries,
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
@@ -192,18 +211,20 @@ pub async fn cover(
     };
     while let Some(entry) = entries.next_entry().await? {
         if entry.file_name().to_string_lossy().starts_with("cover.") {
-            return Ok(None);
+            return Ok(Some(entry.path()));
         }
     }
+    Ok(None)
+}
 
-    let image = source.fetch_image(url).await?;
+async fn write_cover(image: &Image, url: &Url, dir: &Path) -> Result<PathBuf, DownloadError> {
     let format = ImageFormat::sniff(&image.bytes).ok_or_else(|| DownloadError::NotAnImage {
         page: 0,
         url: url.clone(),
     })?;
     let path = dir.join(format!("cover.{}", format.extension()));
     tokio::fs::write(&path, &image.bytes).await?;
-    Ok(Some(path))
+    Ok(path)
 }
 
 #[cfg(test)]
