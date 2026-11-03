@@ -55,12 +55,15 @@ async function send(
 	const headers: Record<string, string> = { Accept: 'application/json' };
 	const key = apiKey();
 	if (key) headers['X-Api-Key'] = key;
-	if (body !== undefined) headers['Content-Type'] = 'application/json';
+	// A file goes as it is; anything else as JSON.
+	const raw = body instanceof Blob;
+	if (body !== undefined)
+		headers['Content-Type'] = raw ? 'application/octet-stream' : 'application/json';
 
 	const res = await fetch(url(path, query), {
 		method,
 		headers,
-		body: body === undefined ? undefined : JSON.stringify(body)
+		body: body === undefined ? undefined : raw ? body : JSON.stringify(body)
 	});
 	if (res.status === 401) auth.needed = true;
 	if (!res.ok) {

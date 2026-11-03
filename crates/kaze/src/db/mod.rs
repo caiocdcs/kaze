@@ -41,6 +41,31 @@ pub async fn connect(path: &Path) -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
+/// The newest migration this build knows.
+#[must_use]
+pub fn latest_migration() -> i64 {
+    MIGRATOR.iter().map(|m| m.version).max().unwrap_or_default()
+}
+
+/// The newest migration applied to the database file at `path`, opened
+/// read-only; `None` when it has no migrations table (not kaze's).
+pub async fn schema_version(path: &Path) -> Result<Option<i64>, sqlx::Error> {
+    let options = SqliteConnectOptions::new().filename(path).read_only(true);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(1)
+        .connect_with(options)
+        .await?;
+    let version = sqlx::query_scalar::<_, Option<i64>>("SELECT MAX(version) FROM _sqlx_migrations")
+        .fetch_one(&pool)
+        .await;
+    pool.close().await;
+    match version {
+        Ok(version) => Ok(version),
+        Err(sqlx::Error::Database(e)) if e.message().contains("no such table") => Ok(None),
+        Err(e) => Err(e),
+    }
+}
+
 /// Write a consistent copy of the database to `path`, which must not
 /// exist. `VACUUM INTO` is safe while workers keep writing.
 pub async fn backup(db: &SqlitePool, path: &Path) -> Result<(), sqlx::Error> {

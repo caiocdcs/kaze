@@ -9,6 +9,7 @@ use utoipa::ToSchema;
 
 use crate::{
     app::{FollowError, MetadataError, SeriesSourceError},
+    backup::RestoreError,
     jobs::QueueError,
     settings::SettingsError,
 };
@@ -130,6 +131,20 @@ impl From<MetadataError> for ApiError {
             }
             MetadataError::Db(e) => e.into(),
             MetadataError::Queue(e) => e.into(),
+        }
+    }
+}
+
+impl From<RestoreError> for ApiError {
+    fn from(err: RestoreError) -> Self {
+        match err {
+            RestoreError::NotSqlite | RestoreError::NotKaze | RestoreError::Newer { .. } => {
+                Self::BadRequest(format!("can't restore it: {err}"))
+            }
+            RestoreError::Backup(e) => {
+                tracing::error!("staging a restore: {e}");
+                Self::Internal
+            }
         }
     }
 }

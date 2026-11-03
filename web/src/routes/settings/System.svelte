@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
-	import { api, type BackupFile, type TaskInfo } from '#lib/api/index.ts';
+	import { api, type BackupFile, type Backups, type TaskInfo } from '#lib/api/index.ts';
 	import HealthPanel from '#lib/components/HealthPanel.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import { ago, bytes, dateTime, errorMessage, every } from '#lib/format.ts';
@@ -27,11 +27,18 @@
 
 	let backingUp = $state(false);
 	let backups = $state<BackupFile[]>([]);
+	let restoreStaged = $state(false);
+	let restoreFile = $state<HTMLInputElement>();
+
+	function show(b: Backups) {
+		backups = b.saved;
+		restoreStaged = b.restore_staged;
+	}
 
 	// A backup job finishing moves jobsVersion; the list follows.
 	$effect(() => {
 		void live.jobsVersion;
-		untrack(() => api.backups().then((b) => (backups = b), toasts.error));
+		untrack(() => api.backups().then(show, toasts.error));
 	});
 
 	async function backup() {
@@ -52,6 +59,33 @@
 		} catch (e) {
 			toasts.error(e);
 		}
+	}
+
+	async function staging(work: () => Promise<Backups>, done: string) {
+		try {
+			show(await work());
+			toasts.show(done);
+		} catch (e) {
+			toasts.error(e);
+		}
+	}
+
+	function restore(b: BackupFile) {
+		if (
+			!confirm(
+				`Restore the backup from ${dateTime(b.created_at)} when kaze next starts? Changes made after it are lost; the database as it is then is kept as a backup.`
+			)
+		)
+			return;
+		staging(() => api.restoreBackup(b.name), 'Restore staged: restart kaze to finish');
+	}
+
+	function upload(event: Event) {
+		const input = event.currentTarget as HTMLInputElement;
+		const file = input.files?.[0];
+		input.value = '';
+		if (!file || !confirm(`Restore ${file.name} when kaze next starts?`)) return;
+		staging(() => api.uploadRestore(file), 'Restore staged: restart kaze to finish');
 	}
 
 	async function remove(b: BackupFile) {
@@ -114,6 +148,22 @@
 		</section>
 		<section aria-labelledby="backup-heading" class="flex flex-col gap-3">
 			<h2 id="backup-heading" class="section-title text-lg">Backup</h2>
+			{#if restoreStaged}
+				<div
+					role="status"
+					class="card flex flex-wrap items-center justify-between gap-3 border-wanted p-4 text-sm"
+				>
+					<span
+						>A restore is staged. <strong>Restart kaze to finish</strong>; the current database is
+						kept as a backup.</span
+					>
+					<button
+						type="button"
+						class="btn-ghost h-10"
+						onclick={() => staging(api.cancelRestore, 'Restore cancelled')}>Cancel restore</button
+					>
+				</div>
+			{/if}
 			<div class="card flex flex-col gap-3 p-4">
 				<div class="flex flex-wrap items-center justify-between gap-3">
 					<p class="m-0 text-sm text-muted">
@@ -129,6 +179,16 @@
 							<Icon name="download" size={14} />
 							{backingUp ? 'Preparing…' : 'Download a fresh copy'}
 						</button>
+						<button type="button" class="btn-ghost h-10" onclick={() => restoreFile?.click()}>
+							<Icon name="import" size={14} /> Restore from a file
+						</button>
+						<input
+							bind:this={restoreFile}
+							type="file"
+							accept=".db,.sqlite,application/vnd.sqlite3"
+							class="hidden"
+							onchange={upload}
+						/>
 					</div>
 				</div>
 				{#if backups.length === 0}
@@ -144,6 +204,15 @@
 								<span class="w-20 text-right font-mono text-xs text-muted"
 									>{bytes(b.size_bytes)}</span
 								>
+								<button
+									type="button"
+									class="icon-btn"
+									aria-label="Restore the backup from {dateTime(b.created_at)}"
+									title="Restore on next start"
+									onclick={() => restore(b)}
+								>
+									<Icon name="refresh" />
+								</button>
 								<button
 									type="button"
 									class="icon-btn"

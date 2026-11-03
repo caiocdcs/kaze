@@ -1053,6 +1053,8 @@ async fn saved_backups_are_listed_downloaded_and_deleted() {
 
     let (status, list) = api.get("/api/v1/backups").await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(list["restore_staged"], false);
+    let list = &list["saved"];
     assert_eq!(list.as_array().unwrap().len(), 2);
     assert_eq!(list[0]["name"], "kaze-20261102-120000.db", "newest first");
     assert_eq!(list[0]["size_bytes"], 5);
@@ -1085,9 +1087,61 @@ async fn saved_backups_are_listed_downloaded_and_deleted() {
         StatusCode::NOT_FOUND
     );
     assert_eq!(
-        api.get("/api/v1/backups").await.1.as_array().unwrap().len(),
+        api.get("/api/v1/backups").await.1["saved"]
+            .as_array()
+            .unwrap()
+            .len(),
         1
     );
     assert!(dir.join("secret.txt").exists());
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn restores_are_staged_checked_and_cancelled() {
+    let api = api(None).await;
+    let dir = api.app.ctx.backups.clone();
+    std::fs::create_dir_all(&dir).unwrap();
+    let good = dir.join("kaze-20261104-120000.db");
+    db::connect(&good).await.unwrap().close().await;
+    std::fs::write(dir.join("kaze-20261101-120000.db"), "not sqlite").unwrap();
+    let staged = || async { api.get("/api/v1/backups").await.1["restore_staged"].clone() };
+
+    let bad = "/api/v1/backups/kaze-20261101-120000.db/restore";
+    assert_eq!(
+        api.call(Method::POST, bad, None).await.0,
+        StatusCode::BAD_REQUEST
+    );
+    let (status, body) = api
+        .call(
+            Method::POST,
+            "/api/v1/backups/kaze-20261104-120000.db/restore",
+            None,
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["restore_staged"], true);
+
+    let (status, body) = api.call(Method::DELETE, "/api/v1/restore", None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["restore_staged"], false);
+
+    let upload = |bytes: Vec<u8>| {
+        let router = api.router.clone();
+        async move {
+            let request = Request::post("/api/v1/restore")
+                .header("content-type", "application/octet-stream")
+                .body(Body::from(bytes))
+                .unwrap();
+            router.oneshot(request).await.unwrap().status()
+        }
+    };
+    assert_eq!(upload(b"hello".to_vec()).await, StatusCode::BAD_REQUEST);
+    assert_eq!(staged().await, false);
+    // Larger than axum's default body limit, to check the raised one.
+    let mut bytes = std::fs::read(&good).unwrap();
+    bytes.resize(3 * 1024 * 1024, 0);
+    assert_eq!(upload(bytes).await, StatusCode::OK);
+    assert_eq!(staged().await, true);
     api.app.shutdown().await;
 }

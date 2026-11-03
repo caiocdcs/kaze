@@ -1,5 +1,6 @@
 import { http, url } from './client.ts';
 import type { BackupFile } from './types/BackupFile.ts';
+import type { Backups } from './types/Backups.ts';
 import type { ChapterCopy } from './types/ChapterCopy.ts';
 import type { ChapterRecord } from './types/ChapterRecord.ts';
 import type { Candidate } from './types/Candidate.ts';
@@ -79,7 +80,11 @@ export const api = {
 	tasks: () => http.get<TaskInfo[]>('/tasks'),
 	runTask: (task: Task) => http.post<void>(`/tasks/${task}/run`),
 	backup: () => http.save('/backup'),
-	backups: () => http.get<BackupFile[]>('/backups'),
+	backups: () => http.get<Backups>('/backups'),
+	restoreBackup: (name: string) =>
+		http.post<Backups>(`/backups/${encodeURIComponent(name)}/restore`),
+	uploadRestore: (file: File) => http.post<Backups>('/restore', file),
+	cancelRestore: () => http.del<Backups>('/restore'),
 	saveBackup: (name: string) => http.save(`/backups/${encodeURIComponent(name)}`),
 	deleteBackup: (name: string) => http.del<void>(`/backups/${encodeURIComponent(name)}`),
 	health: () => http.get<HealthCheck[]>('/health'),
@@ -107,6 +112,7 @@ export type { SmtpSecurity } from './types/SmtpSecurity.ts';
 
 export type {
 	BackupFile,
+	Backups,
 	Candidate,
 	ChapterCopy,
 	ChapterRecord,

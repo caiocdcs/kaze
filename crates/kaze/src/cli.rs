@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use kaze::{
     api,
     app::{App, Context},
+    backup,
     config::Config,
     db,
     download::{
@@ -155,6 +156,16 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
             .with_context(|| format!("creating {}", dir.display()))?;
     }
 
+    let backups = config.data_dir.join("backups");
+    match backup::apply_staged(&config.database_path(), &backups, chrono::Utc::now()).await {
+        Ok(backup::Applied::NothingStaged) => {}
+        Ok(backup::Applied::Restored { previous }) => tracing::info!(
+            previous = previous.map(|b| b.name),
+            "restored the staged backup; the replaced database is kept as a backup"
+        ),
+        // Starting with the current database beats not starting.
+        Err(err) => tracing::error!("did not restore the staged backup: {err}"),
+    }
     let db = db::connect(&config.database_path())
         .await
         .context("opening database")?;
@@ -171,7 +182,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         http: http.client(),
         flaresolverr: http.flaresolverr(),
         anilist: AniList::new(&http),
-        backups: config.data_dir.join("backups"),
+        backups,
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

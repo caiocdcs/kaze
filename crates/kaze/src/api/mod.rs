@@ -22,7 +22,7 @@ use std::{sync::Arc, time::Instant};
 
 use axum::{
     Json, Router,
-    extract::Request,
+    extract::{DefaultBodyLimit, Request},
     http::Method,
     middleware::{self, Next},
     response::{Redirect, Response},
@@ -36,6 +36,9 @@ use utoipa::{
 use utoipa_axum::{router::OpenApiRouter, routes};
 
 use crate::{app::App, config::UrlBase};
+
+/// Largest database accepted for a restore.
+const UPLOAD_LIMIT: usize = 1024 * 1024 * 1024;
 
 pub use self::error::{ApiError, ApiResult, ErrorBody};
 
@@ -126,6 +129,14 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(backup::download))
         .routes(routes!(backup::list))
         .routes(routes!(backup::get, backup::delete))
+        .routes(routes!(backup::restore))
+        .routes(routes!(backup::cancel_restore))
+        // A whole database is larger than axum's default 2 MB body limit.
+        .merge(
+            OpenApiRouter::new()
+                .routes(routes!(backup::upload))
+                .layer(DefaultBodyLimit::max(UPLOAD_LIMIT)),
+        )
         .routes(routes!(import::candidates, import::import))
         .routes(routes!(import::matches))
         .routes(routes!(jobs::tasks))

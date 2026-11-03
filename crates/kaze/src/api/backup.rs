@@ -3,11 +3,15 @@
 
 use axum::{
     Json,
+    body::Bytes,
     extract::{Path, State},
     http::{StatusCode, header},
     response::IntoResponse,
 };
 use chrono::Utc;
+use serde::Serialize;
+use ts_rs::TS;
+use utoipa::ToSchema;
 
 use super::{ApiError, ApiResult, AppState, ErrorBody};
 use crate::{
@@ -54,18 +58,84 @@ pub async fn download(State(app): State<AppState>) -> ApiResult<impl IntoRespons
     ))
 }
 
+#[derive(Serialize, TS, ToSchema)]
+#[ts(export)]
+pub struct Backups {
+    /// Newest first.
+    saved: Vec<BackupFile>,
+    /// A restore waits for kaze's next start.
+    restore_staged: bool,
+}
+
 #[utoipa::path(
     operation_id = "backups_list",
-    summary = "Saved backups, newest first",
+    summary = "Saved backups, and whether a restore is staged",
     get,
     path = "/backups",
     tag = "system",
-    responses((status = 200, description = "OK", body = Vec<BackupFile>))
+    responses((status = 200, description = "OK", body = Backups))
 )]
-pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Vec<BackupFile>>> {
-    Ok(Json(
-        backup::list(&app.ctx.backups).await.map_err(|e| io(&e))?,
-    ))
+pub async fn list(State(app): State<AppState>) -> ApiResult<Json<Backups>> {
+    let dir = &app.ctx.backups;
+    Ok(Json(Backups {
+        saved: backup::list(dir).await.map_err(|e| io(&e))?,
+        restore_staged: backup::is_staged(dir).await,
+    }))
+}
+
+#[utoipa::path(
+    operation_id = "backups_restore",
+    summary = "Restore a saved backup on kaze's next start",
+    post,
+    path = "/backups/{name}/restore",
+    tag = "system",
+    params(("name" = String, Path, description = "Backup file name")),
+    responses((status = 200, description = "Staged", body = Backups), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
+pub async fn restore(
+    State(app): State<AppState>,
+    Path(name): Path<String>,
+) -> ApiResult<Json<Backups>> {
+    let path = saved(&app, &name).await?;
+    backup::stage(&app.ctx.backups, &path).await?;
+    tracing::info!(name, "restore staged for the next start");
+    list(State(app)).await
+}
+
+#[utoipa::path(
+    operation_id = "backups_upload_restore",
+    summary = "Restore an uploaded database file on kaze's next start",
+    post,
+    path = "/restore",
+    tag = "system",
+    request_body(content = Vec<u8>, content_type = "application/octet-stream", description = "A kaze database or backup"),
+    responses((status = 200, description = "Staged", body = Backups), (status = "4XX", description = "Bad request, not found or conflict", body = ErrorBody))
+)]
+pub async fn upload(State(app): State<AppState>, body: Bytes) -> ApiResult<Json<Backups>> {
+    backup::stage_upload(&app.ctx.backups, &body).await?;
+    tracing::info!(
+        bytes = body.len(),
+        "uploaded restore staged for the next start"
+    );
+    list(State(app)).await
+}
+
+#[utoipa::path(
+    operation_id = "backups_cancel_restore",
+    summary = "Cancel a staged restore",
+    delete,
+    path = "/restore",
+    tag = "system",
+    responses((status = 200, description = "OK", body = Backups))
+)]
+pub async fn cancel_restore(State(app): State<AppState>) -> ApiResult<Json<Backups>> {
+    if backup::unstage(&app.ctx.backups)
+        .await
+        .map_err(|e| io(&e))?
+    {
+        tracing::info!("staged restore cancelled");
+    }
+    list(State(app)).await
 }
 
 #[utoipa::path(
