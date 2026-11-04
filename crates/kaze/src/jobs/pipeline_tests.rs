@@ -72,6 +72,7 @@ async fn start_full(
             .flaresolverr(),
         anilist,
         backups: library.path().join(".backups"),
+        logs: crate::logs::RecentLogs::new(16),
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),
@@ -829,23 +830,25 @@ async fn metadata_comes_from_anilist_once_linked() {
     .await;
     let id = h.follow(Monitor::None).await;
 
-    let record = h.series_once(id, |r| r.metadata_checked_at.is_some()).await;
+    // Not just "checked": the startup lookup may check it before the
+    // source's id links it.
+    let record = h.series_once(id, |r| r.title == "From AniList").await;
     assert_eq!(record.anilist_id, Some(kaze_core::AniListId(42)));
     assert_eq!(record.metadata_link, crate::library::MetadataLink::Auto);
     assert_eq!(record.title, "From AniList");
     assert_eq!(record.description.as_deref(), Some("From AniList."));
     assert_eq!(record.authors.0, ["Mangaka"], "story & art: writer…");
     assert_eq!(record.artists.0, ["Mangaka"], "…and artist");
-    // The cover is saved after the metadata, so it may land a moment later.
+    // The cover is saved after the metadata, and the old one removed after
+    // the new one is written, so wait for both.
     let folder = h.library.path().join("Test Series");
     let replaced = tokio::time::timeout(Duration::from_secs(5), async {
-        while !folder.join("cover.png").exists() {
+        while !folder.join("cover.png").exists() || folder.join("cover.jpg").exists() {
             tokio::time::sleep(Duration::from_millis(20)).await;
         }
     })
     .await;
     assert!(replaced.is_ok(), "AniList's cover replaces the source's");
-    assert!(!folder.join("cover.jpg").exists());
 
     let record = h.refresh_again(id).await;
     assert_eq!(
