@@ -20,6 +20,7 @@ use kaze::{
     jobs::RetryPolicy,
     logs::RecentLogs,
     settings::SettingsStore,
+    updates::{self, Updates},
 };
 use kaze_core::{ChapterInfo, Series, SeriesHit, Source, UrlTarget};
 use kaze_sources::{
@@ -185,6 +186,7 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         anilist: AniList::new(&http),
         backups,
         logs,
+        updates: Updates::new(Url::parse(updates::RELEASES).context("release URL")?),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

@@ -204,6 +204,24 @@
 					</label>
 				{/each}
 			</div>
+			<label class="flex items-start gap-3">
+				<input
+					type="checkbox"
+					bind:checked={form.check_updates}
+					disabled={locked('check_updates')}
+					class="mt-1"
+				/>
+				<span class="flex flex-col gap-0.5">
+					<span class="flex items-center gap-2 font-medium">
+						Check for updates
+						{#if locked('check_updates')}<span class="lock">set in kaze.toml</span>{/if}
+					</span>
+					<span class="text-[13px] text-muted"
+						>Once a day, ask GitHub for the latest kaze release; the health panel says when one is
+						out. Nothing but kaze's version is sent.</span
+					>
+				</span>
+			</label>
 		</section>
 
 		<section class="flex flex-col gap-4" aria-labelledby="cf-heading">

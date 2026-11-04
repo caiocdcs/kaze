@@ -59,6 +59,8 @@ pub enum Job {
     RefreshMetadata { series_id: i64 },
     /// Save a database backup and delete the oldest beyond `backup_keep`.
     Backup,
+    /// Ask GitHub for the latest kaze release.
+    CheckUpdate,
 }
 
 impl Job {
@@ -73,6 +75,7 @@ impl Job {
             Self::MeasureLibrary => "measure_library",
             Self::RefreshMetadata { .. } => "refresh_metadata",
             Self::Backup => "backup",
+            Self::CheckUpdate => "check_update",
         }
     }
 
@@ -101,6 +104,7 @@ impl Job {
             Self::MeasureLibrary => "measure".into(),
             Self::RefreshMetadata { series_id } => format!("metadata:{series_id}"),
             Self::Backup => "backup".into(),
+            Self::CheckUpdate => "update".into(),
         }
     }
 
@@ -116,7 +120,8 @@ impl Job {
             | Self::ScanLibrary { .. }
             | Self::MeasureLibrary
             | Self::RefreshMetadata { .. }
-            | Self::Backup => None,
+            | Self::Backup
+            | Self::CheckUpdate => None,
         }
     }
 }

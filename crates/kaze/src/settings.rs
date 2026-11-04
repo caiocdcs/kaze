@@ -57,6 +57,8 @@ pub struct Settings {
     pub backup_days: u64,
     /// Scheduled and manual backups kept; older ones are deleted.
     pub backup_keep: usize,
+    /// Ask GitHub once a day whether a newer kaze is out.
+    pub check_updates: bool,
 }
 
 impl Default for Settings {
@@ -74,6 +76,7 @@ impl Default for Settings {
             default_language: "en".into(),
             backup_days: 7,
             backup_keep: 4,
+            check_updates: true,
         }
     }
 }

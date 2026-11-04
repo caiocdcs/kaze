@@ -47,8 +47,7 @@ async fn start_full(
     let events = Events::new(1024);
     let receiver = events.subscribe();
     // Keep the scheduler quiet after its startup run; tests queue work themselves.
-    let quiet =
-        serde_json::json!({ "sync_latest_minutes": 600, "refresh_hours": 2000, "backup_days": 0 });
+    let quiet = serde_json::json!({ "sync_latest_minutes": 600, "refresh_hours": 2000, "backup_days": 0, "check_updates": false });
     let ctx = Context {
         settings: SettingsStore::load(db.clone(), quiet.as_object().unwrap().clone())
             .await
@@ -73,6 +72,8 @@ async fn start_full(
         anilist,
         backups: library.path().join(".backups"),
         logs: crate::logs::RecentLogs::new(16),
+        // Never GitHub from tests; the check is off there anyway.
+        updates: crate::updates::Updates::new("http://127.0.0.1:9/".parse().unwrap()),
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),

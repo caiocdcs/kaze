@@ -20,6 +20,8 @@ pub enum HealthState {
     Slow,
     Down,
     Off,
+    /// Worth a look, not a fault (a new kaze is out).
+    Notice,
 }
 
 #[derive(Debug, Serialize, TS, ToSchema)]
@@ -29,6 +31,10 @@ pub struct HealthCheck {
     pub kind: &'static str,
     pub state: HealthState,
     pub detail: String,
+    /// Where to read more, e.g. release notes.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[ts(optional)]
+    pub link: Option<String>,
 }
 
 const SLOW: Duration = Duration::from_secs(3);
@@ -79,6 +85,7 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
                 kind: "source",
                 state,
                 detail,
+                link: None,
             }
         }
     });
@@ -97,9 +104,46 @@ pub async fn check(State(app): State<AppState>) -> ApiResult<Json<Vec<HealthChec
         kind: "flaresolverr",
         state,
         detail,
+        link: None,
     });
     checks.extend(stored_checks(&app).await?);
+    checks.push(update_check(&app));
     Ok(Json(checks))
+}
+
+/// The update check's last result. Not in `problems`: a new version is
+/// news, not a fault.
+fn update_check(app: &AppState) -> HealthCheck {
+    let current = env!("CARGO_PKG_VERSION");
+    let latest = app.ctx.updates.latest();
+    let (state, detail, link) = if app.ctx.settings.current().check_updates {
+        match latest {
+            Some(r) if r.is_newer_than(current) => (
+                HealthState::Notice,
+                format!("{current}: {} is out", r.tag),
+                Some(r.url.to_string()),
+            ),
+            Some(_) => (HealthState::Ok, format!("{current}, up to date"), None),
+            None => (
+                HealthState::Off,
+                format!("{current}; not checked yet"),
+                None,
+            ),
+        }
+    } else {
+        (
+            HealthState::Off,
+            format!("{current}; update check off"),
+            None,
+        )
+    };
+    HealthCheck {
+        name: "kaze".into(),
+        kind: "update",
+        state,
+        detail,
+        link,
+    }
 }
 
 #[utoipa::path(
@@ -146,6 +190,7 @@ async fn known_source_state(
         kind: "source",
         state,
         detail,
+        link: None,
     }))
 }
 
@@ -170,6 +215,7 @@ async fn stored_checks(app: &AppState) -> sqlx::Result<Vec<HealthCheck>> {
                 || "can't read free space".into(),
                 |b| format!("{} free", size(b)),
             ),
+            link: None,
         });
     }
 
@@ -189,6 +235,7 @@ async fn stored_checks(app: &AppState) -> sqlx::Result<Vec<HealthCheck>> {
             kind: "integration",
             state,
             detail,
+            link: None,
         });
     }
     Ok(checks)

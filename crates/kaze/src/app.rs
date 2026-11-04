@@ -37,6 +37,8 @@ pub struct Context {
     pub backups: std::path::PathBuf,
     /// The last log lines, for the UI.
     pub logs: crate::logs::RecentLogs,
+    /// The latest kaze release seen.
+    pub updates: crate::updates::Updates,
 }
 
 /// The running application.

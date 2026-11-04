@@ -2923,6 +2923,13 @@
           "kind": {
             "type": "string"
           },
+          "link": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Where to read more, e.g. release notes."
+          },
           "name": {
             "type": "string"
           },
@@ -2937,7 +2944,8 @@
           "ok",
           "slow",
           "down",
-          "off"
+          "off",
+          "notice"
         ]
       },
       "HistoryEntry": {
@@ -3282,6 +3290,21 @@
                 "type": "string",
                 "enum": [
                   "backup"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "description": "Ask GitHub for the latest kaze release.",
+            "required": [
+              "type"
+            ],
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "check_update"
                 ]
               }
             }
@@ -4243,6 +4266,11 @@
             "default": 4,
             "minimum": 0
           },
+          "check_updates": {
+            "type": "boolean",
+            "description": "Ask GitHub once a day whether a newer kaze is out.",
+            "default": true
+          },
           "concurrency": {
             "type": "integer",
             "description": "Source jobs (downloads, refreshes) running at once.",
@@ -4440,7 +4468,8 @@
           "refresh_series",
           "measure_library",
           "refresh_metadata",
-          "backup"
+          "backup",
+          "check_update"
         ]
       },
       "TaskInfo": {

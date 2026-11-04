@@ -30,6 +30,7 @@ const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
 const MEASURE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 /// Metadata changes slowly: each series is looked up on AniList weekly.
 const METADATA_EVERY: chrono::TimeDelta = chrono::TimeDelta::days(7);
+const UPDATE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
 /// The first measure waits for startup work (sync, refreshes) to settle.
 const MEASURE_FIRST_AFTER: Duration = Duration::from_secs(5 * 60);
 
@@ -49,15 +50,18 @@ pub enum Task {
     RefreshMetadata,
     /// Back up the database every `backup_days` ("run now": at once).
     Backup,
+    /// Ask GitHub whether a newer kaze is out, unless `check_updates` is off.
+    CheckUpdate,
 }
 
 impl Task {
-    const ALL: [Self; 5] = [
+    const ALL: [Self; 6] = [
         Self::SyncLatest,
         Self::RefreshSeries,
         Self::MeasureLibrary,
         Self::RefreshMetadata,
         Self::Backup,
+        Self::CheckUpdate,
     ];
 
     fn name(self) -> &'static str {
@@ -67,6 +71,7 @@ impl Task {
             Self::MeasureLibrary => "Measure library",
             Self::RefreshMetadata => "Refresh metadata",
             Self::Backup => "Back up database",
+            Self::CheckUpdate => "Check for updates",
         }
     }
 }
@@ -167,6 +172,7 @@ pub async fn run(
     // The first tick of a fresh interval fires at once: sync on startup.
     let mut latest = every(latest_period, true);
     let mut refresh = every(REFRESH_CHECK_EVERY, true);
+    let mut update = every(UPDATE_EVERY, true);
     let mut measure = interval_at(Instant::now() + MEASURE_FIRST_AFTER, MEASURE_EVERY);
     measure.set_missed_tick_behavior(MissedTickBehavior::Skip);
 
@@ -193,6 +199,12 @@ pub async fn run(
                 backup_due(&ctx, &queue).await;
                 tasks.record(Task::Backup, REFRESH_CHECK_EVERY, true);
             }
+            _ = update.tick() => {
+                if ctx.settings.current().check_updates {
+                    submit(&queue, Job::CheckUpdate).await;
+                }
+                tasks.record(Task::CheckUpdate, UPDATE_EVERY, true);
+            }
             _ = measure.tick() => {
                 submit(&queue, Job::MeasureLibrary).await;
                 tasks.record(Task::MeasureLibrary, MEASURE_EVERY, true);
@@ -204,6 +216,7 @@ pub async fn run(
                     Task::MeasureLibrary => submit(&queue, Job::MeasureLibrary).await,
                     Task::RefreshMetadata => metadata_due(&ctx, &queue, Utc::now()).await,
                     Task::Backup => submit(&queue, Job::Backup).await,
+                    Task::CheckUpdate => submit(&queue, Job::CheckUpdate).await,
                 }
                 let mut status = tasks.status.lock().unwrap_or_else(PoisonError::into_inner);
                 status.entry(task).or_default().last_run = Some(Utc::now());

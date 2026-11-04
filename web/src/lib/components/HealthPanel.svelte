@@ -22,7 +22,8 @@
 		ok: ['OK', 'bg-ok-wash text-ok'],
 		slow: ['Slow', 'bg-wanted-wash text-wanted'],
 		down: ['Down', 'bg-bad-wash text-bad'],
-		off: ['Off', 'bg-raised text-muted']
+		off: ['Off', 'bg-raised text-muted'],
+		notice: ['New', 'bg-seal-wash text-seal']
 	} as const;
 </script>
 
@@ -43,7 +44,17 @@
 						>{label}</span
 					>
 					<span class="min-w-0 flex-1 truncate">{c.name}</span>
-					<span class="max-w-[50%] truncate text-xs text-muted" title={c.detail}>{c.detail}</span>
+					{#if c.link}
+						<a
+							href={c.link}
+							target="_blank"
+							rel="noreferrer"
+							class="max-w-[50%] truncate text-xs"
+							title={c.detail}>{c.detail} ↗</a
+						>
+					{:else}
+						<span class="max-w-[50%] truncate text-xs text-muted" title={c.detail}>{c.detail}</span>
+					{/if}
 				</li>
 			{/each}
 		</ul>

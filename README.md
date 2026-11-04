@@ -151,6 +151,7 @@ Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
   - the API key
   - the FlareSolverr URL
   - the default language
+  - the daily update check (`check_updates`, on by default): it asks GitHub's releases API for the latest kaze and says so in the health panel; nothing but kaze's version is sent
   - the backup schedule (`backup_days`, `backup_keep`): copies of the database in `data_dir/backups`, also made by hand under Settings → System. A backup (or an uploaded database) restored from there replaces the database on kaze's next start; the one it replaces is kept as a backup.
 - **Locked settings:** a value set under `[settings]` in `kaze.toml`, or as `KAZE_SETTINGS__*` in the environment, wins over the UI. The UI shows it as locked. This keeps declarative setups (NixOS, compose files) the source of truth.
 

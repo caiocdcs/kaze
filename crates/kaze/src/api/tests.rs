@@ -54,8 +54,9 @@ async fn api_full(
     let settings = SettingsStore::load(db.clone(), locked.as_object().unwrap().clone())
         .await
         .unwrap();
-    // No scheduled backups from tests; saved, not locked, so tests see no locks.
-    let no_backups = json!({ "backup_days": 0 });
+    // No scheduled backups or update checks from tests; saved, not locked,
+    // so tests see no locks.
+    let no_backups = json!({ "backup_days": 0, "check_updates": false });
     settings
         .update(no_backups.as_object().unwrap().clone())
         .await
@@ -73,6 +74,8 @@ async fn api_full(
         anilist,
         backups: library.path().join(".backups"),
         logs: crate::logs::RecentLogs::new(16),
+        // Never GitHub from tests; the check is off there anyway.
+        updates: crate::updates::Updates::new("http://127.0.0.1:9/".parse().unwrap()),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -1170,6 +1173,35 @@ async fn recent_logs_are_served_by_level() {
     assert_eq!(
         api.get("/api/v1/logs?level=loud").await.0,
         StatusCode::BAD_REQUEST
+    );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn the_update_check_shows_in_health_but_is_no_problem() {
+    let api = api(None).await;
+    let (_, checks) = api.get("/api/v1/health").await;
+    let kaze = checks
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|c| c["kind"] == "update")
+        .cloned()
+        .unwrap();
+    assert_eq!(kaze["state"], "off", "turned off in tests");
+    assert!(
+        kaze["detail"]
+            .as_str()
+            .unwrap()
+            .ends_with("update check off")
+    );
+    let (_, problems) = api.get("/api/v1/health/problems").await;
+    assert!(
+        problems
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|p| p["kind"] != "update")
     );
     api.app.shutdown().await;
 }

@@ -82,6 +82,8 @@ export function jobLabel(j: JobRecord): string {
 			return `${series} · metadata`;
 		case 'backup':
 			return 'Back up database';
+		case 'check_update':
+			return 'Check for updates';
 	}
 }
 

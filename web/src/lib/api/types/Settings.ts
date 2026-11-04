@@ -48,4 +48,8 @@ backup_days: number,
 /**
  * Scheduled and manual backups kept; older ones are deleted.
  */
-backup_keep: number, };
+backup_keep: number, 
+/**
+ * Ask GitHub once a day whether a newer kaze is out.
+ */
+check_updates: boolean, };
