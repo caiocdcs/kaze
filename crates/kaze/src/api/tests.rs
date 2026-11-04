@@ -591,6 +591,22 @@ async fn chapter_copies_across_sources() {
         )
         .await;
     let id = created["id"].as_i64().unwrap();
+    // Chapter 1 on disk from "fake" first: if "other" listed it before
+    // "fake" did, kaze would rightly fill the gap from "other".
+    let on_disk = tokio::time::timeout(Duration::from_secs(5), async {
+        loop {
+            let detail = api.get(&format!("/api/v1/series/{id}")).await.1;
+            let first = detail["chapters"]
+                .as_array()
+                .and_then(|c| c.iter().find(|c| c["number"] == "1").cloned());
+            if first.is_some_and(|c| c["file_path"].is_string()) {
+                return;
+            }
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await;
+    assert!(on_disk.is_ok(), "chapter 1 downloaded from the primary");
     api.call(
         Method::POST,
         &format!("/api/v1/series/{id}/sources"),
@@ -598,7 +614,7 @@ async fn chapter_copies_across_sources() {
     )
     .await;
 
-    // Wait for both chapter lists and chapter 1's download from "fake".
+    // Wait for both chapter lists.
     let mut copies = Value::Null;
     for _ in 0..100 {
         let detail = api.get(&format!("/api/v1/series/{id}")).await.1;
