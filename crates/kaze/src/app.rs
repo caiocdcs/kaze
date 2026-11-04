@@ -35,6 +35,8 @@ pub struct Context {
     pub anilist: AniList,
     /// Database backups (`data_dir/backups`).
     pub backups: std::path::PathBuf,
+    /// The last log lines, for the UI.
+    pub logs: crate::logs::RecentLogs,
 }
 
 /// The running application.

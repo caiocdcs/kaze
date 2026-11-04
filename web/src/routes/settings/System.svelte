@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import { api, type BackupFile, type Backups, type TaskInfo } from '#lib/api/index.ts';
 	import HealthPanel from '#lib/components/HealthPanel.svelte';
+	import Logs from './Logs.svelte';
 	import Icon from '#lib/components/Icon.svelte';
 	import { ago, bytes, dateTime, errorMessage, every } from '#lib/format.ts';
 	import { live } from '#lib/live.svelte.ts';
@@ -237,6 +238,7 @@
 				{/if}
 			</div>
 		</section>
+		<Logs />
 	</div>
 	<div class="flex-[1_1_300px]"><HealthPanel /></div>
 </div>

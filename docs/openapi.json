@@ -957,6 +957,41 @@
         }
       }
     },
+    "/api/v1/logs": {
+      "get": {
+        "tags": [
+          "system"
+        ],
+        "summary": "The last log lines kaze kept in memory, newest first",
+        "operationId": "logs_recent",
+        "parameters": [
+          {
+            "name": "level",
+            "in": "query",
+            "description": "Only lines at this level or more severe; all of them without it.",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/LogLevel"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/LogLine"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/lookup": {
       "get": {
         "tags": [
@@ -3446,6 +3481,47 @@
             }
           }
         ]
+      },
+      "LogLevel": {
+        "type": "string",
+        "description": "Most severe first, so `level <= wanted` keeps the more severe ones.",
+        "enum": [
+          "error",
+          "warn",
+          "info",
+          "debug",
+          "trace"
+        ]
+      },
+      "LogLine": {
+        "type": "object",
+        "required": [
+          "time",
+          "level",
+          "target",
+          "message",
+          "spans"
+        ],
+        "properties": {
+          "level": {
+            "$ref": "#/components/schemas/LogLevel"
+          },
+          "message": {
+            "type": "string",
+            "description": "The message, then its fields as `key=value`."
+          },
+          "spans": {
+            "type": "string",
+            "description": "The spans it happened in, outermost first, e.g. `job{job_id=7}`."
+          },
+          "target": {
+            "type": "string"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
       },
       "Lookup": {
         "type": "object",

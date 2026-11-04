@@ -18,6 +18,7 @@ use kaze::{
     },
     events::Events,
     jobs::RetryPolicy,
+    logs::RecentLogs,
     settings::SettingsStore,
 };
 use kaze_core::{ChapterInfo, Series, SeriesHit, Source, UrlTarget};
@@ -95,9 +96,9 @@ enum Command {
 }
 
 impl Cli {
-    pub async fn run(self) -> anyhow::Result<()> {
+    pub async fn run(self, logs: RecentLogs) -> anyhow::Result<()> {
         if let Command::Serve { config } = &self.command {
-            return serve(config.as_deref()).await;
+            return serve(config.as_deref(), logs).await;
         }
         let http = Http::new(HttpConfig::default()).context("building HTTP client")?;
         let registry = Registry::new(&http);
@@ -146,7 +147,7 @@ impl Cli {
     }
 }
 
-async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
+async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyhow::Result<()> {
     let config = Config::load(config_file).context("reading configuration")?;
     let libraries = config.libraries().map_err(anyhow::Error::msg)?;
     let dirs = std::iter::once(config.data_dir.as_path()).chain(libraries.roots().map(|(_, r)| r));
@@ -183,6 +184,7 @@ async fn serve(config_file: Option<&std::path::Path>) -> anyhow::Result<()> {
         flaresolverr: http.flaresolverr(),
         anilist: AniList::new(&http),
         backups,
+        logs,
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

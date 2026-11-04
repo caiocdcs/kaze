@@ -72,6 +72,7 @@ async fn api_full(
             .flaresolverr(),
         anilist,
         backups: library.path().join(".backups"),
+        logs: crate::logs::RecentLogs::new(16),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -1143,5 +1144,32 @@ async fn restores_are_staged_checked_and_cancelled() {
     bytes.resize(3 * 1024 * 1024, 0);
     assert_eq!(upload(bytes).await, StatusCode::OK);
     assert_eq!(staged().await, true);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn recent_logs_are_served_by_level() {
+    let api = api(None).await;
+    let logs = &api.app.ctx.logs;
+    let subscriber = tracing_subscriber::layer::SubscriberExt::with(
+        tracing_subscriber::registry(),
+        logs.layer(),
+    );
+    tracing::subscriber::with_default(subscriber, || {
+        tracing::info!("hello");
+        tracing::warn!("careful");
+    });
+
+    let (status, all) = api.get("/api/v1/logs").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(all[0]["message"], "careful");
+    assert_eq!(all[0]["level"], "warn");
+    assert_eq!(all[1]["message"], "hello");
+    let (_, warnings) = api.get("/api/v1/logs?level=warn").await;
+    assert_eq!(warnings.as_array().unwrap().len(), 1);
+    assert_eq!(
+        api.get("/api/v1/logs?level=loud").await.0,
+        StatusCode::BAD_REQUEST
+    );
     api.app.shutdown().await;
 }

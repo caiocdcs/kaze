@@ -18,6 +18,8 @@ import type { FollowRequest } from './types/FollowRequest.ts';
 import type { HistoryEntry } from './types/HistoryEntry.ts';
 import type { JobRecord } from './types/JobRecord.ts';
 import type { LinkedSource } from './types/LinkedSource.ts';
+import type { LogLevel } from './types/LogLevel.ts';
+import type { LogLine } from './types/LogLine.ts';
 import type { Lookup } from './types/Lookup.ts';
 import type { SeriesDetail } from './types/SeriesDetail.ts';
 import type { SeriesSummary } from './types/SeriesSummary.ts';
@@ -89,6 +91,7 @@ export const api = {
 	deleteBackup: (name: string) => http.del<void>(`/backups/${encodeURIComponent(name)}`),
 	health: () => http.get<HealthCheck[]>('/health'),
 	healthProblems: () => http.get<HealthCheck[]>('/health/problems'),
+	logs: (level: LogLevel) => http.get<LogLine[]>('/logs', { level }),
 
 	importCandidates: () => http.get<Candidate[]>('/import'),
 	importMatches: (folder: string) => http.get<Match[]>('/import/match', { folder }),
@@ -127,6 +130,8 @@ export type {
 	HistoryEntry,
 	JobRecord,
 	LinkedSource,
+	LogLevel,
+	LogLine,
 	Lookup,
 	SeriesDetail,
 	SeriesSummary,
