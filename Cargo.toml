@@ -29,7 +29,7 @@ fs4 = "1"
 http = "1"
 http-body-util = "0.1"
 regex = "1"
-scraper = "0.27"
+scraper = "0.29"
 # Fuzzy title matching for library import.
 strsim = "0.11"
 governor = "0.10"
