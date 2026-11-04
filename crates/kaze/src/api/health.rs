@@ -34,7 +34,7 @@ pub struct HealthCheck {
     /// Where to read more, e.g. release notes.
     #[serde(skip_serializing_if = "Option::is_none")]
     #[ts(optional)]
-    pub link: Option<String>,
+    pub link: Option<url::Url>,
 }
 
 const SLOW: Duration = Duration::from_secs(3);
@@ -121,7 +121,7 @@ fn update_check(app: &AppState) -> HealthCheck {
             Some(r) if r.is_newer_than(current) => (
                 HealthState::Notice,
                 format!("{current}: {} is out", r.tag),
-                Some(r.url.to_string()),
+                Some(r.url),
             ),
             Some(_) => (HealthState::Ok, format!("{current}, up to date"), None),
             None => (

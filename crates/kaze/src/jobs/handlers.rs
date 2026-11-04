@@ -32,8 +32,6 @@ pub enum JobError {
     Integration(#[from] IntegrationError),
     #[error("backup: {0}")]
     Backup(#[from] BackupError),
-    #[error("update check: {0}")]
-    UpdateCheck(#[from] reqwest::Error),
     /// Something the job needs no longer exists; retrying will not help.
     #[error("{0}")]
     Gone(String),
@@ -46,12 +44,7 @@ impl JobError {
             // A page that is not an image is usually a transient CDN error.
             Self::Download(DownloadError::NotAnImage { .. }) | Self::Db(_) => true,
             Self::Integration(e) => e.is_retryable(),
-            // Daily: the next day's check is the retry.
-            Self::Download(_)
-            | Self::Queue(_)
-            | Self::Gone(_)
-            | Self::Backup(_)
-            | Self::UpdateCheck(_) => false,
+            Self::Download(_) | Self::Queue(_) | Self::Gone(_) | Self::Backup(_) => false,
         }
     }
 
@@ -105,9 +98,14 @@ async fn check_update(ctx: &Context) -> Result<(), JobError> {
     if !ctx.settings.current().check_updates {
         return Ok(());
     }
-    let latest = ctx.updates.check(&ctx.http).await?;
-    if latest.is_newer_than(env!("CARGO_PKG_VERSION")) {
-        tracing::info!(version = latest.tag, url = %latest.url, "a newer kaze is out");
+    // Best effort: kaze may run without internet access, and a failed
+    // job every day would only be noise. Tomorrow's check is the retry.
+    match ctx.updates.check(&ctx.http).await {
+        Ok(latest) if latest.is_newer_than(env!("CARGO_PKG_VERSION")) => {
+            tracing::info!(version = latest.tag, url = %latest.url, "a newer kaze is out");
+        }
+        Ok(_) => {}
+        Err(err) => tracing::warn!("could not check for updates: {err}"),
     }
     Ok(())
 }

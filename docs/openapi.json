@@ -2928,6 +2928,7 @@
               "string",
               "null"
             ],
+            "format": "uri",
             "description": "Where to read more, e.g. release notes."
           },
           "name": {
