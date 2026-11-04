@@ -136,6 +136,16 @@ impl Tasks {
         }
         entry.next_run = Some(now + chrono::Duration::from_std(every).unwrap_or_default());
     }
+
+    /// A task whose first run comes `first_in` from now, not at once:
+    /// shown as scheduled before it ever ticks.
+    fn scheduled(&self, task: Task, every: Duration, first_in: Duration) {
+        let mut status = self.status.lock().unwrap_or_else(PoisonError::into_inner);
+        let entry = status.entry(task).or_default();
+        entry.every = every;
+        entry.next_run =
+            Some(Utc::now() + chrono::Duration::from_std(first_in).unwrap_or_default());
+    }
 }
 
 fn every(period: Duration, start_now: bool) -> Interval {
@@ -175,6 +185,7 @@ pub async fn run(
     let mut update = every(UPDATE_EVERY, true);
     let mut measure = interval_at(Instant::now() + MEASURE_FIRST_AFTER, MEASURE_EVERY);
     measure.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    tasks.scheduled(Task::MeasureLibrary, MEASURE_EVERY, MEASURE_FIRST_AFTER);
 
     loop {
         tokio::select! {
@@ -299,6 +310,24 @@ mod tests {
         library::Monitor,
         testing::FakeSource,
     };
+
+    #[test]
+    fn a_delayed_task_shows_its_schedule_before_it_runs() {
+        let (tasks, _run_now) = channel();
+        tasks.scheduled(Task::MeasureLibrary, MEASURE_EVERY, MEASURE_FIRST_AFTER);
+        let measure = tasks
+            .list()
+            .into_iter()
+            .find(|t| t.task == Task::MeasureLibrary)
+            .unwrap();
+        assert_eq!(measure.every_secs, MEASURE_EVERY.as_secs());
+        assert_eq!(measure.last_run, None);
+        let next = measure.next_run.unwrap() - Utc::now();
+        assert!(
+            next > Hours::minutes(4) && next <= Hours::minutes(5),
+            "{next}"
+        );
+    }
 
     #[tokio::test]
     async fn per_series_refresh_interval() {
