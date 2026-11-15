@@ -1,5 +1,12 @@
 # kaze with the services it can work with. Copy to compose.yml, drop what
-# you don't need, then `docker compose up -d` and open http://localhost:6531.
+# you don't need, then:
+#
+#   mkdir -p data library komga   # else Docker creates them owned by root
+#   docker compose up -d
+#
+# and open http://localhost:6531 right away: the first browser gets the API
+# key kaze generates. The containers run as 1000:1000; change `user:` if
+# `id -u` says otherwise.
 #
 # In kaze → Settings:
 #   General → FlareSolverr URL: http://flaresolverr:8191

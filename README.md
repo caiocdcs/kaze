@@ -52,16 +52,22 @@ Each source is a cargo feature, on by default. Build with `--no-default-features
 
 ```sh
 cp compose.example.yml compose.yml   # remove the services you don't need
+mkdir -p data library komga          # before the first start, so they are yours
 docker compose up -d
 ```
 
-Open <http://localhost:6531>. Data goes to `./data` and chapters to `./library`.
+Create the folders first: Docker would create missing ones owned by root, and the containers run as `1000:1000`, so kaze couldn't open its database. If your user isn't 1000 (`id -u`), change `user:` in `compose.yml` to match.
+
+Open <http://localhost:6531> right away: the first browser gets the API key kaze generates (see [The API key](#the-api-key)). Data goes to `./data` and chapters to `./library`.
 
 ### Nix
 
 ```sh
-nix run github:caiocdcs/kaze -- serve
+nix run github:caiocdcs/kaze -- serve          # the latest commit
+nix run github:caiocdcs/kaze/v0.8.0 -- serve   # a tagged release
 ```
+
+Without a config, kaze keeps its data in `./data` and chapters in `./library`, in the folder you run it from. There's no binary cache, so the first run compiles kaze, which takes a few minutes.
 
 On NixOS:
 
@@ -76,6 +82,8 @@ On NixOS:
     libraryDir = "/srv/manga";
     openFirewall = true;
     settings.settings.flaresolverr_url = "http://127.0.0.1:8191";
+    # Your own API key, kept out of the Nix store; without one, kaze makes one.
+    # environmentFile = "/run/secrets/kaze.env";   # KAZE_SETTINGS__API_KEY=...
   };
 }
 ```
