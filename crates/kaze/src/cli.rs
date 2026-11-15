@@ -175,6 +175,16 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
     let settings = SettingsStore::load(db.clone(), config.settings.clone())
         .await
         .context("invalid [settings] in the configuration")?;
+    if settings
+        .ensure_api_key()
+        .await
+        .context("generating an API key")?
+    {
+        tracing::warn!(
+            "generated an API key: the first browser to open kaze gets it; \
+             set api_key = \"\" under [settings] to run without one"
+        );
+    }
     let ctx = Context {
         db,
         sources: Registry::new(&http),

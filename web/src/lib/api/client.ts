@@ -32,6 +32,18 @@ export function setApiKey(key: string | null) {
 	}
 }
 
+/** The key kaze generated on its first start, if no browser has taken it yet. */
+export async function claimApiKey(): Promise<string | null> {
+	try {
+		const res = await fetch(url('/api-key/claim'), { method: 'POST' });
+		if (!res.ok) return null;
+		const body: { api_key?: unknown } = await res.json();
+		return typeof body.api_key === 'string' ? body.api_key : null;
+	} catch {
+		return null;
+	}
+}
+
 type Query = Record<string, string | number | boolean | undefined | null>;
 
 export function url(path: string, query?: Query): string {

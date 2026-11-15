@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO unclaimed_api_key (id) VALUES (1)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "196dd2c0f3cb645b31821fad9ed74901f41fddbcc6000c51104b7e28823c4bde"
+}

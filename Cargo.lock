@@ -1603,6 +1603,7 @@ dependencies = [
  "figment",
  "fs4",
  "futures-util",
+ "getrandom 0.3.4",
  "http-body-util",
  "kaze-core",
  "kaze-sources",

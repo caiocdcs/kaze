@@ -17,6 +17,7 @@ clap.workspace = true
 figment.workspace = true
 fs4.workspace = true
 futures-util.workspace = true
+getrandom.workspace = true
 lettre.workspace = true
 minijinja.workspace = true
 regex.workspace = true

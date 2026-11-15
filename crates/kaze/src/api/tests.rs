@@ -361,6 +361,33 @@ async fn settings_can_be_read_and_changed() {
 }
 
 #[tokio::test]
+async fn the_first_browser_claims_the_generated_key() {
+    let db = db::memory().await;
+    let first_start = SettingsStore::load(db.clone(), serde_json::Map::new())
+        .await
+        .unwrap();
+    assert!(first_start.ensure_api_key().await.unwrap());
+    let api = api_with(None, db).await;
+    assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::UNAUTHORIZED);
+
+    let (status, body) = api.call(Method::POST, "/api/v1/api-key/claim", None).await;
+    assert_eq!(status, StatusCode::OK);
+    let key = body["api_key"].as_str().unwrap();
+    assert_eq!(
+        api.get(&format!("/api/v1/sources?apikey={key}")).await.0,
+        StatusCode::OK
+    );
+    assert_eq!(
+        api.call(Method::POST, "/api/v1/api-key/claim", None)
+            .await
+            .0,
+        StatusCode::NOT_FOUND,
+        "handed out once"
+    );
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
 async fn locked_settings_cannot_be_changed() {
     let api = api(Some("s3cret-key")).await;
     let (status, _) = api

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM unclaimed_api_key",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "93b261643932fbcaac0ad44873d945b8c1e4e957d14331a4a806d83def00e0bc"
+}

@@ -32,3 +32,19 @@ pub async fn save(db: &SqlitePool, changes: &Map<String, Value>) -> sqlx::Result
     }
     tx.commit().await
 }
+
+/// Mark the generated API key as not yet handed out.
+pub async fn mark_key_unclaimed(db: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    sqlx::query!("INSERT OR IGNORE INTO unclaimed_api_key (id) VALUES (1)")
+        .execute(db)
+        .await?;
+    Ok(())
+}
+
+/// Take the unclaimed mark; only the first caller gets `true`.
+pub async fn claim_key(db: impl SqliteExecutor<'_>) -> sqlx::Result<bool> {
+    let claimed = sqlx::query!("DELETE FROM unclaimed_api_key")
+        .execute(db)
+        .await?;
+    Ok(claimed.rows_affected() > 0)
+}

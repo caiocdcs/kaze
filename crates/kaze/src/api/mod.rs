@@ -27,7 +27,7 @@ use axum::{
     http::Method,
     middleware::{self, Next},
     response::{Redirect, Response},
-    routing::get,
+    routing::{get, post},
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use utoipa::{
@@ -180,6 +180,7 @@ pub fn router(app: AppState, base: &UrlBase) -> Router {
             "/api/v1/openapi.json",
             get(move || std::future::ready(Json(spec.clone()))),
         )
+        .route("/api/v1/api-key/claim", post(auth::claim))
         .route("/healthz", get(|| async { "ok" }))
         .fallback_service({
             let base = base.as_str().to_owned();

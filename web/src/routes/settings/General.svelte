@@ -43,7 +43,9 @@
 		for (const k of Object.keys(form) as Key[]) {
 			// Set from the Sources tab.
 			if (k === 'paused_sources') continue;
-			const a = form[k] === '' ? null : form[k];
+			let a = form[k] === '' ? null : form[k];
+			// A removed key is saved empty, or kaze would make a new one on restart.
+			if (k === 'api_key' && a === null && view.settings.api_key !== null) a = '';
 			if (!locked(k) && a !== view.settings[k]) out[k] = a;
 		}
 		return out;

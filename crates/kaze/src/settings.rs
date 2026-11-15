@@ -15,7 +15,7 @@
 //! channel: the scheduler and the dispatcher hold receivers and react
 //! to changes without a restart.
 
-use std::sync::Arc;
+use std::{fmt::Write as _, sync::Arc};
 use ts_rs::TS;
 use utoipa::ToSchema;
 
@@ -89,6 +89,8 @@ pub enum SettingsError {
     Invalid(String),
     #[error(transparent)]
     Db(#[from] sqlx::Error),
+    #[error("generating an API key: {0}")]
+    Random(#[from] getrandom::Error),
 }
 
 impl Settings {
@@ -153,8 +155,17 @@ impl Settings {
                 merged.insert(key.clone(), value.clone());
             }
         }
-        let settings: Self = serde_json::from_value(Value::Object(merged))
+        let mut settings: Self = serde_json::from_value(Value::Object(merged))
             .map_err(|e| SettingsError::Invalid(e.to_string()))?;
+        // An empty key is saved on purpose: no authentication, and no new
+        // key generated on the next start.
+        if settings
+            .api_key
+            .as_deref()
+            .is_some_and(|k| k.trim().is_empty())
+        {
+            settings.api_key = None;
+        }
         settings.check()?;
         Ok(settings)
     }
@@ -239,6 +250,35 @@ impl SettingsStore {
         self.current.send_replace(Arc::clone(&settings));
         Ok(settings)
     }
+
+    /// On the first start, generate an API key, as Sonarr and Radarr do,
+    /// for the first browser to claim. Returns whether one was made. Any
+    /// `api_key`, saved or locked, even an empty one, keeps it from running.
+    pub async fn ensure_api_key(&self) -> Result<bool, SettingsError> {
+        if self.locked.contains_key("api_key") || self.saved.lock().await.contains_key("api_key") {
+            return Ok(false);
+        }
+        let mut bytes = [0u8; 18];
+        getrandom::fill(&mut bytes)?;
+        let key = bytes.iter().fold(String::from("kz_"), |mut key, b| {
+            let _ = write!(key, "{b:02x}");
+            key
+        });
+        // Marked first: a crash before the key is saved just makes a new one.
+        db::settings::mark_key_unclaimed(&self.db).await?;
+        let mut changes = Map::new();
+        changes.insert("api_key".into(), Value::String(key));
+        self.update(changes).await?;
+        Ok(true)
+    }
+
+    /// The API key, once, for the first browser after it was generated.
+    pub async fn claim_api_key(&self) -> Result<Option<String>, SettingsError> {
+        if !db::settings::claim_key(&self.db).await? {
+            return Ok(None);
+        }
+        Ok(self.current().api_key.clone())
+    }
 }
 
 #[cfg(test)]
@@ -307,6 +347,42 @@ mod tests {
                 ..Settings::default()
             }
         );
+    }
+
+    #[tokio::test]
+    async fn first_start_generates_a_key_to_claim_once() {
+        let db = db::memory().await;
+        let store = SettingsStore::load(db.clone(), Map::new()).await.unwrap();
+        assert!(store.ensure_api_key().await.unwrap());
+        let key = store.current().api_key.clone().unwrap();
+        assert!(key.starts_with("kz_") && key.len() == 39, "{key}");
+
+        assert_eq!(store.claim_api_key().await.unwrap(), Some(key.clone()));
+        assert_eq!(store.claim_api_key().await.unwrap(), None, "claimed once");
+
+        // The saved key survives a restart and is not replaced.
+        let reloaded = SettingsStore::load(db, Map::new()).await.unwrap();
+        assert!(!reloaded.ensure_api_key().await.unwrap());
+        assert_eq!(reloaded.current().api_key, Some(key));
+    }
+
+    #[tokio::test]
+    async fn an_empty_key_opts_out_of_generation() {
+        let locked = SettingsStore::load(db::memory().await, map(json!({ "api_key": "" })))
+            .await
+            .unwrap();
+        assert!(!locked.ensure_api_key().await.unwrap());
+        assert_eq!(locked.current().api_key, None);
+
+        // Removing the key in the UI saves it empty, so it stays removed.
+        let db = db::memory().await;
+        let store = SettingsStore::load(db.clone(), Map::new()).await.unwrap();
+        store.ensure_api_key().await.unwrap();
+        store.update(map(json!({ "api_key": "" }))).await.unwrap();
+        assert_eq!(store.current().api_key, None);
+        let reloaded = SettingsStore::load(db, Map::new()).await.unwrap();
+        assert!(!reloaded.ensure_api_key().await.unwrap());
+        assert_eq!(reloaded.current().api_key, None);
     }
 
     #[tokio::test]

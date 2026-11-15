@@ -1,4 +1,5 @@
 use axum::{
+    Json,
     extract::{Request, State},
     middleware::Next,
     response::{IntoResponse, Response},
@@ -7,7 +8,7 @@ use axum::{
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 
-use super::AppState;
+use super::{ApiError, ApiResult, AppState};
 
 /// When an API key is set, require it as the `X-Api-Key` header or an
 /// `apikey` query parameter (for `<img>` and `EventSource`, which cannot
@@ -46,5 +47,26 @@ pub async fn require_api_key(
 /// Compares digests in constant time, so neither the key's contents nor its
 /// length show in the response time.
 fn keys_match(given: &str, expected: &str) -> bool {
-    Sha256::digest(given).ct_eq(&Sha256::digest(expected)).into()
+    Sha256::digest(given)
+        .ct_eq(&Sha256::digest(expected))
+        .into()
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct ClaimedKey {
+    api_key: String,
+}
+
+/// Outside the API key: hands the key kaze generated on its first start to
+/// the first browser that asks, like Radarr's first-run setup. Later calls
+/// get 404.
+pub async fn claim(State(app): State<AppState>) -> ApiResult<Json<ClaimedKey>> {
+    let api_key = app
+        .ctx
+        .settings
+        .claim_api_key()
+        .await?
+        .ok_or(ApiError::NotFound("unclaimed API key"))?;
+    tracing::info!("a browser claimed the generated API key");
+    Ok(Json(ClaimedKey { api_key }))
 }

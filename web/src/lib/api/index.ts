@@ -33,7 +33,7 @@ import type { Upcoming } from './types/Upcoming.ts';
 import type { UpdateSeries } from './types/UpdateSeries.ts';
 import type { WantedChapter } from './types/WantedChapter.ts';
 
-export { ApiError, apiKey, setApiKey } from './client.ts';
+export { ApiError, apiKey, claimApiKey, setApiKey } from './client.ts';
 
 /** Every endpoint of `/api/v1`, typed with the structs ts-rs exports. */
 export const api = {

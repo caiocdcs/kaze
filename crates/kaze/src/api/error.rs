@@ -155,6 +155,10 @@ impl From<SettingsError> for ApiError {
             SettingsError::Locked(_) => Self::Conflict(err.to_string()),
             SettingsError::Invalid(_) => Self::BadRequest(err.to_string()),
             SettingsError::Db(e) => e.into(),
+            SettingsError::Random(e) => {
+                tracing::error!("{e}");
+                Self::Internal
+            }
         }
     }
 }
