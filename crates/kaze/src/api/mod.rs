@@ -199,5 +199,14 @@ pub fn router(app: AppState, base: &UrlBase) -> Router {
             .route(&format!("{}/", base.as_str()), get(to_home))
             .route("/healthz", get(|| async { "ok" }))
     };
-    routes.layer(TraceLayer::new_for_http())
+    // The default span records the full URI, which can carry `?apikey=`.
+    routes.layer(TraceLayer::new_for_http().make_span_with(
+        |request: &axum::http::Request<axum::body::Body>| {
+            tracing::debug_span!(
+                "request",
+                method = %request.method(),
+                path = request.uri().path(),
+            )
+        },
+    ))
 }
