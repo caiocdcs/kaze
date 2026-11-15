@@ -137,7 +137,31 @@ In kaze under **Settings → Connect**, give the Komga or Kavita server each lan
 
 ## API
 
-Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec is served at `/api/v1/openapi.json`, without the API key, and kept in [`docs/openapi.json`](docs/openapi.json). Send the key, when one is set, as an `X-Api-Key` header or an `apikey` query parameter.
+Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec is served at `/api/v1/openapi.json`, without the API key, and kept in [`docs/openapi.json`](docs/openapi.json). Send the key as an `X-Api-Key` header or an `apikey` query parameter, as with Sonarr and Radarr.
+
+### The API key
+
+Like Sonarr and Radarr, kaze generates an API key on its first start. The first browser to open kaze gets it, saves it, and shows it once so you can copy it into other apps. After that, the key is under **Settings → General**, where you can change it or generate a new one.
+
+- To pick your own key, set `api_key` in `kaze.toml` or `KAZE_SETTINGS__API_KEY`.
+- To run without a key on a trusted network, set `api_key = ""`, or clear the key in Settings.
+
+### Behind a reverse proxy with SSO
+
+kaze has no login of its own. For single sign-on (Authelia, Authentik, oauth2-proxy), use forward auth at the reverse proxy, the way the *arr apps do. Leave `/api/v1` and `/healthz` outside it, so other apps reach the API with the key. With Caddy and Authelia:
+
+```caddy
+kaze.example.com {
+	@sso not path /api/v1/* /healthz
+	forward_auth @sso authelia:9091 {
+		uri /api/authz/forward-auth
+		copy_headers Remote-User Remote-Groups
+	}
+	reverse_proxy kaze:6531
+}
+```
+
+Keep the API key set: forward auth protects only the routes it covers, and the key protects the API.
 
 ## Configuration
 
@@ -162,7 +186,7 @@ Logs go to stderr, and the last 2,000 lines are also under Settings → System �
 - **While running:** each download, failed job, integration send or scan, and change made through the API gets a line.
 
 > [!WARNING]
-> Out of the box the API has no authentication, so kaze is meant for a trusted network. To require an API key, set `api_key` in Settings or in `kaze.toml`. To reach kaze from outside, put a reverse proxy with TLS in front of it. See [SECURITY.md](SECURITY.md).
+> kaze requires the API key it generates on first start, unless you set `api_key = ""`. To reach kaze from outside, put a reverse proxy with TLS in front of it. See [SECURITY.md](SECURITY.md).
 
 ## Development
 

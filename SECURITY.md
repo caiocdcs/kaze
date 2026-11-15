@@ -8,6 +8,7 @@ Fixes go into the latest release only.
 
 ## Running kaze safely
 
-- kaze is meant for a trusted network. Out of the box the API has no authentication: set `api_key` in Settings or in `kaze.toml` to require one.
+- On its first start kaze generates an API key and requires it. The first browser to open kaze gets the key, so open kaze yourself right after you install it. `api_key = ""` turns the key off, which is only safe on a trusted network.
+- For single sign-on, use forward auth at the reverse proxy (see the README). kaze has no login of its own.
 - To reach kaze from the internet, put a reverse proxy with TLS in front of it.
 - Saved secrets (tokens, passwords, API keys, webhook paths, Apprise URLs) stay on the server and the UI only shows them masked. They are stored unencrypted in the SQLite database under `data_dir`, so keep that folder and its backups private.
