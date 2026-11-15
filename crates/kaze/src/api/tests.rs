@@ -40,6 +40,12 @@ async fn api_full(
     db: sqlx::SqlitePool,
     anilist: kaze_sources::anilist::AniList,
 ) -> Api {
+    // A 500 only says "internal error": show the logged cause in a failing
+    // test's output. Fails harmlessly when another test installed it first.
+    let _ = tracing_subscriber::fmt()
+        .with_env_filter("kaze=warn")
+        .with_test_writer()
+        .try_init();
     let library = tempfile::tempdir().unwrap();
     let source = Arc::new(FakeSource::new().with_chapters(&["1", "2"]));
     let other = Arc::new(
