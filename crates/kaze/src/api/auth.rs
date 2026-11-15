@@ -4,6 +4,9 @@ use axum::{
     response::{IntoResponse, Response},
 };
 
+use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
+
 use super::AppState;
 
 /// When an API key is set, require it as the `X-Api-Key` header or an
@@ -27,7 +30,7 @@ pub async fn require_api_key(
             .map(|(_, v)| v.into_owned())
     });
     let given = from_header.map(ToOwned::to_owned).or(from_query);
-    if given.as_deref() == Some(expected.as_str()) {
+    if given.is_some_and(|given| keys_match(&given, &expected)) {
         next.run(request).await
     } else {
         (
@@ -38,4 +41,10 @@ pub async fn require_api_key(
         )
             .into_response()
     }
+}
+
+/// Compares digests in constant time, so neither the key's contents nor its
+/// length show in the response time.
+fn keys_match(given: &str, expected: &str) -> bool {
+    Sha256::digest(given).ct_eq(&Sha256::digest(expected)).into()
 }

@@ -289,6 +289,11 @@ async fn api_key_is_enforced_when_configured() {
         StatusCode::UNAUTHORIZED
     );
     assert_eq!(
+        api.get("/api/v1/sources?apikey=s3cret").await.0,
+        StatusCode::UNAUTHORIZED,
+        "a prefix of the key is not the key"
+    );
+    assert_eq!(
         api.get("/api/v1/sources?apikey=s3cret-key").await.0,
         StatusCode::OK
     );
