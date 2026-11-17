@@ -21,6 +21,7 @@ futures-util.workspace = true
 getrandom.workspace = true
 lettre.workspace = true
 minijinja.workspace = true
+openidconnect.workspace = true
 regex.workspace = true
 reqwest.workspace = true
 rust-embed.workspace = true

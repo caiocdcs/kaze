@@ -1,5 +1,7 @@
 //! Signing in: the local account's password and browser sessions.
 
+pub mod oidc;
+
 use std::fmt::{self, Write as _};
 
 use argon2::{

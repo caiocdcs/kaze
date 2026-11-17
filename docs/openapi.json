@@ -70,6 +70,88 @@
         ]
       }
     },
+    "/api/v1/auth/oidc/callback": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Where the OpenID Connect provider sends the browser back",
+        "description": "Signs the browser in and goes to the UI; on failure, to the UI with `?oidc_error=`.",
+        "operationId": "auth_oidc_callback",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "state",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "error",
+            "in": "query",
+            "description": "Set instead of `code` when the provider refused.",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "To the UI"
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/auth/oidc/login": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign in with the OpenID Connect provider",
+        "operationId": "auth_oidc_login",
+        "responses": {
+          "303": {
+            "description": "To the provider's sign-in page"
+          },
+          "404": {
+            "description": "OIDC is not configured",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "The provider can't be reached",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/api/v1/auth/password": {
       "put": {
         "tags": [
@@ -2230,6 +2312,13 @@
           "account": {
             "type": "boolean",
             "description": "Whether the account exists; until then the UI offers to create it."
+          },
+          "oidc": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The OpenID Connect provider's name, when signing in with it is on."
           },
           "signed_in": {
             "type": "boolean",

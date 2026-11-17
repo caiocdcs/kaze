@@ -8,4 +8,8 @@ account: boolean,
 /**
  * Whether this browser's session cookie is valid.
  */
-signed_in: boolean, };
+signed_in: boolean, 
+/**
+ * The OpenID Connect provider's name, when signing in with it is on.
+ */
+oidc: string | null, };

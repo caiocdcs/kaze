@@ -74,6 +74,7 @@ async fn start_full(
         logs: crate::logs::RecentLogs::new(16),
         // Never GitHub from tests; the check is off there anyway.
         updates: crate::updates::Updates::new("http://127.0.0.1:9/".parse().unwrap()),
+        oidc: None,
     };
     let retry = RetryPolicy {
         base: Duration::from_millis(20),

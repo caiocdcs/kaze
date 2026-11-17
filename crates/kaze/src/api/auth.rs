@@ -5,21 +5,21 @@ use std::net::SocketAddr;
 
 use axum::{
     Extension, Json,
-    extract::{ConnectInfo, Request, State},
+    extract::{ConnectInfo, Query, Request, State},
     http::{HeaderMap, HeaderValue, StatusCode, Uri, header},
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::{IntoResponse, Redirect, Response},
 };
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
 use ts_rs::TS;
-use utoipa::ToSchema;
+use utoipa::{IntoParams, ToSchema};
 
 use super::{ApiError, ApiResult, AppState};
 use crate::{
     app::App,
-    auth::{self, AuthError, NewPassword, SESSION_DAYS, SessionToken},
+    auth::{self, AuthError, NewPassword, SESSION_DAYS, SessionToken, oidc::OidcError},
     config::UrlBase,
     db,
 };
@@ -85,24 +85,31 @@ fn session(headers: &HeaderMap) -> Option<SessionToken> {
 /// `HttpOnly` keeps the token from scripts; `SameSite=Lax` keeps other
 /// sites from sending it with their requests. Not `Secure`: kaze is often
 /// reached over plain HTTP at home.
-fn cookie(base: &UrlBase, value: &str, max_age: i64) -> Response {
-    let path = if base.as_str().is_empty() {
+fn cookie(base: &UrlBase, value: &str, max_age: i64) -> ApiResult<HeaderValue> {
+    let cookie = format!(
+        "{COOKIE}={value}; Path={}; Max-Age={max_age}; HttpOnly; SameSite=Lax",
+        home(base)
+    );
+    HeaderValue::from_str(&cookie).map_err(|_| ApiError::Internal)
+}
+
+/// The UI's home: the URL base, or the root.
+fn home(base: &UrlBase) -> &str {
+    if base.as_str().is_empty() {
         "/"
     } else {
         base.as_str()
-    };
-    let cookie =
-        format!("{COOKIE}={value}; Path={path}; Max-Age={max_age}; HttpOnly; SameSite=Lax");
-    match HeaderValue::from_str(&cookie) {
-        Ok(cookie) => (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response(),
-        Err(_) => ApiError::Internal.into_response(),
     }
 }
 
-/// Sign the browser in: a new session in its cookie.
-async fn signed_in(app: &App, base: &UrlBase) -> ApiResult<Response> {
+/// Sign the browser in: the `Set-Cookie` for a new session.
+async fn signed_in(app: &App, base: &UrlBase) -> ApiResult<HeaderValue> {
     let token = auth::start_session(&app.ctx.db).await?;
-    Ok(cookie(base, token.as_str(), SESSION_DAYS * 24 * 60 * 60))
+    cookie(base, token.as_str(), SESSION_DAYS * 24 * 60 * 60)
+}
+
+fn no_content_with(cookie: HeaderValue) -> Response {
+    (StatusCode::NO_CONTENT, [(header::SET_COOKIE, cookie)]).into_response()
 }
 
 #[derive(Debug, Serialize, TS, ToSchema)]
@@ -112,6 +119,8 @@ pub struct AuthStatus {
     pub account: bool,
     /// Whether this browser's session cookie is valid.
     pub signed_in: bool,
+    /// The OpenID Connect provider's name, when signing in with it is on.
+    pub oidc: Option<String>,
 }
 
 #[utoipa::path(
@@ -134,6 +143,7 @@ pub async fn status(
     Ok(Json(AuthStatus {
         account: db::auth::has_account(&app.ctx.db).await?,
         signed_in,
+        oidc: app.ctx.oidc.as_ref().map(|oidc| oidc.name().to_owned()),
     }))
 }
 
@@ -187,7 +197,7 @@ pub async fn setup(
     }
     tx.commit().await?;
     tracing::info!(username, "account created");
-    signed_in(&app, &base).await
+    Ok(no_content_with(signed_in(&app, &base).await?))
 }
 
 #[utoipa::path(
@@ -228,7 +238,7 @@ pub async fn login(
         );
         return Err(ApiError::Unauthorized("wrong username or password"));
     }
-    signed_in(&app, &base).await
+    Ok(no_content_with(signed_in(&app, &base).await?))
 }
 
 #[utoipa::path(
@@ -248,7 +258,102 @@ pub async fn logout(
     if let Some(token) = session(&headers) {
         db::auth::delete_session(&app.ctx.db, &token.hash()).await?;
     }
-    Ok(cookie(&base, "", 0))
+    Ok(no_content_with(cookie(&base, "", 0)?))
+}
+
+#[utoipa::path(
+    operation_id = "auth_oidc_login",
+    summary = "Sign in with the OpenID Connect provider",
+    get,
+    path = "/auth/oidc/login",
+    tag = "auth",
+    security(()),
+    responses(
+        (status = 303, description = "To the provider's sign-in page"),
+        (status = 404, description = "OIDC is not configured", body = super::ErrorBody),
+        (status = 502, description = "The provider can't be reached", body = super::ErrorBody),
+    )
+)]
+pub async fn oidc_login(State(app): State<AppState>) -> ApiResult<Redirect> {
+    let oidc = app
+        .ctx
+        .oidc
+        .as_ref()
+        .ok_or(ApiError::NotFound("OIDC provider"))?;
+    let url = oidc
+        .begin()
+        .await
+        .map_err(|e| ApiError::Integration(e.to_string()))?;
+    Ok(Redirect::to(url.as_str()))
+}
+
+/// What the provider sends the browser back with.
+#[derive(Debug, Deserialize, IntoParams)]
+#[into_params(parameter_in = Query)]
+pub struct OidcCallback {
+    code: Option<String>,
+    state: Option<String>,
+    /// Set instead of `code` when the provider refused.
+    error: Option<String>,
+}
+
+#[utoipa::path(
+    operation_id = "auth_oidc_callback",
+    summary = "Where the OpenID Connect provider sends the browser back",
+    description = "Signs the browser in and goes to the UI; on failure, to the UI with \
+                   `?oidc_error=`.",
+    get,
+    path = "/auth/oidc/callback",
+    tag = "auth",
+    security(()),
+    params(OidcCallback),
+    responses((status = 303, description = "To the UI"))
+)]
+pub async fn oidc_callback(
+    State(app): State<AppState>,
+    Extension(base): Extension<UrlBase>,
+    Query(callback): Query<OidcCallback>,
+) -> ApiResult<Response> {
+    let oidc = app
+        .ctx
+        .oidc
+        .as_ref()
+        .ok_or(ApiError::NotFound("OIDC provider"))?;
+    let finished = match callback {
+        OidcCallback {
+            error: Some(error), ..
+        } => Err(OidcError::Refused(error)),
+        OidcCallback {
+            code: Some(code),
+            state: Some(state),
+            ..
+        } => oidc.finish(code, &state).await,
+        _ => Err(OidcError::UnknownLogin),
+    };
+    let home = home(&base);
+    match finished {
+        Ok(identity) => {
+            tracing::info!(
+                subject = identity.subject,
+                email = identity.email,
+                "signed in with OIDC"
+            );
+            let cookie = signed_in(&app, &base).await?;
+            Ok((
+                StatusCode::SEE_OTHER,
+                [(header::SET_COOKIE, cookie)],
+                Redirect::to(home),
+            )
+                .into_response())
+        }
+        Err(err) => {
+            tracing::warn!("OIDC sign-in failed: {err}");
+            let query = url::form_urlencoded::Serializer::new(String::new())
+                .append_pair("oidc_error", &err.to_string())
+                .finish();
+            Ok(Redirect::to(&format!("{home}?{query}")).into_response())
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, TS, ToSchema)]

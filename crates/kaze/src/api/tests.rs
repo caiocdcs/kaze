@@ -32,13 +32,14 @@ async fn api(api_key: Option<&str>) -> Api {
 }
 
 async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
-    api_full(api_key, db, crate::testing::empty_anilist().await).await
+    api_full(api_key, db, crate::testing::empty_anilist().await, None).await
 }
 
 async fn api_full(
     api_key: Option<&str>,
     db: sqlx::SqlitePool,
     anilist: kaze_sources::anilist::AniList,
+    oidc: Option<crate::auth::oidc::Oidc>,
 ) -> Api {
     // A 500 only says "internal error": show the logged cause in a failing
     // test's output. Fails harmlessly when another test installed it first.
@@ -82,6 +83,7 @@ async fn api_full(
         logs: crate::logs::RecentLogs::new(16),
         // Never GitHub from tests; the check is off there anyway.
         updates: crate::updates::Updates::new("http://127.0.0.1:9/".parse().unwrap()),
+        oidc,
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -407,7 +409,10 @@ async fn the_first_browser_creates_the_account() {
     assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::UNAUTHORIZED);
     let (status, body) = api.get("/api/v1/auth/status").await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, json!({ "account": false, "signed_in": false }));
+    assert_eq!(
+        body,
+        json!({ "account": false, "signed_in": false, "oidc": null })
+    );
 
     let (status, _) = api
         .call(Method::POST, "/api/v1/auth/setup", Some(me("short")))
@@ -428,7 +433,10 @@ async fn the_first_browser_creates_the_account() {
         .call_with(Method::GET, "/api/v1/auth/status", None, &cookie)
         .await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, json!({ "account": true, "signed_in": true }));
+    assert_eq!(
+        body,
+        json!({ "account": true, "signed_in": true, "oidc": null })
+    );
     let (status, _, _) = api
         .call_with(Method::GET, "/api/v1/sources", None, &cookie)
         .await;
@@ -574,6 +582,200 @@ async fn sign_in_out_and_change_the_password() {
         "the cookie is cleared"
     );
     assert_eq!(sources(&laptop).await, StatusCode::UNAUTHORIZED);
+    api.app.shutdown().await;
+}
+
+/// An OpenID Connect provider that signs in whoever the test hands it an
+/// ID token for, signed with the client secret (HS256), so no key pairs.
+struct FakeIdp {
+    issuer: String,
+    /// What the token endpoint answers with next.
+    id_token: Arc<std::sync::Mutex<Option<String>>>,
+}
+
+const IDP_SECRET: &str = "client-secret";
+
+impl FakeIdp {
+    async fn start() -> Self {
+        use axum::{
+            Json,
+            routing::{get, post},
+        };
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let issuer = format!("http://{}/", listener.local_addr().unwrap());
+        let id_token = Arc::new(std::sync::Mutex::new(None::<String>));
+        let discovery = json!({
+            "issuer": issuer,
+            "authorization_endpoint": format!("{issuer}authorize"),
+            "token_endpoint": format!("{issuer}token"),
+            "jwks_uri": format!("{issuer}jwks"),
+            "response_types_supported": ["code"],
+            "subject_types_supported": ["public"],
+            "id_token_signing_alg_values_supported": ["HS256"],
+        });
+        let app = axum::Router::new()
+            .route(
+                "/.well-known/openid-configuration",
+                get(move || std::future::ready(Json(discovery.clone()))),
+            )
+            .route("/jwks", get(|| async { Json(json!({ "keys": [] })) }))
+            .route(
+                "/token",
+                post({
+                    let id_token = Arc::clone(&id_token);
+                    move |form: String| {
+                        assert!(form.contains("code_verifier="), "PKCE: {form}");
+                        let id_token = id_token.lock().unwrap().take();
+                        async move {
+                            Json(json!({
+                                "access_token": "at",
+                                "token_type": "Bearer",
+                                "id_token": id_token,
+                            }))
+                        }
+                    }
+                }),
+            );
+        tokio::spawn(async move { axum::serve(listener, app).await.unwrap() });
+        Self { issuer, id_token }
+    }
+
+    fn oidc(&self, allowed: &[&str]) -> crate::auth::oidc::Oidc {
+        let config = crate::auth::oidc::OidcConfig {
+            issuer: self.issuer.clone(),
+            client_id: "kaze".into(),
+            client_secret: IDP_SECRET.into(),
+            public_url: "https://kaze.example.com".parse().unwrap(),
+            name: Some("Fake ID".into()),
+            allowed: allowed.iter().map(ToString::to_string).collect(),
+        };
+        crate::auth::oidc::Oidc::new(config, &crate::config::UrlBase::default()).unwrap()
+    }
+
+    /// The next sign-in is `email`, for the given nonce.
+    fn will_sign_in(&self, email: &str, nonce: &str) {
+        use openidconnect::{
+            Audience, EmptyAdditionalClaims, EndUserEmail, IssuerUrl, Nonce, StandardClaims,
+            SubjectIdentifier,
+            core::{CoreHmacKey, CoreIdToken, CoreIdTokenClaims, CoreJwsSigningAlgorithm},
+        };
+        let now = chrono::Utc::now();
+        let claims = CoreIdTokenClaims::new(
+            IssuerUrl::new(self.issuer.clone()).unwrap(),
+            vec![Audience::new("kaze".into())],
+            now + chrono::TimeDelta::hours(1),
+            now,
+            StandardClaims::new(SubjectIdentifier::new(format!("sub-{email}")))
+                .set_email(Some(EndUserEmail::new(email.into()))),
+            EmptyAdditionalClaims {},
+        )
+        .set_nonce(Some(Nonce::new(nonce.into())));
+        let token = CoreIdToken::new(
+            claims,
+            &CoreHmacKey::new(IDP_SECRET),
+            CoreJwsSigningAlgorithm::HmacSha256,
+            None,
+            None,
+        )
+        .unwrap();
+        *self.id_token.lock().unwrap() = Some(token.to_string());
+    }
+}
+
+/// Start a sign-in: the `state` and `nonce` kaze sent the provider.
+async fn begin_oidc(api: &Api) -> (String, String) {
+    let (status, headers, _) = api
+        .call_with(Method::GET, "/api/v1/auth/oidc/login", None, &[])
+        .await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    let to: url::Url = headers[header::LOCATION].to_str().unwrap().parse().unwrap();
+    assert!(to.path().ends_with("/authorize"));
+    let param = |name: &str| {
+        to.query_pairs()
+            .find(|(k, _)| k == name)
+            .map(|(_, v)| v.into_owned())
+            .unwrap()
+    };
+    assert_eq!(
+        param("redirect_uri"),
+        "https://kaze.example.com/api/v1/auth/oidc/callback"
+    );
+    assert_eq!(param("code_challenge_method"), "S256");
+    (param("state"), param("nonce"))
+}
+
+/// Come back from the provider: where kaze sends the browser, and the
+/// session cookie if it signed in.
+async fn finish_oidc(api: &Api, query: &str) -> (String, Option<String>) {
+    let uri = format!("/api/v1/auth/oidc/callback?{query}");
+    let (status, headers, _) = api.call_with(Method::GET, &uri, None, &[]).await;
+    assert_eq!(status, StatusCode::SEE_OTHER);
+    let to = headers[header::LOCATION].to_str().unwrap().to_owned();
+    let cookie = headers
+        .contains_key(header::SET_COOKIE)
+        .then(|| session_cookie(&headers));
+    (to, cookie)
+}
+
+#[tokio::test]
+async fn sign_in_with_oidc() {
+    let idp = FakeIdp::start().await;
+    let api = api_full(
+        Some("s3cret-key"),
+        db::memory().await,
+        crate::testing::empty_anilist().await,
+        Some(idp.oidc(&["me@example.com"])),
+    )
+    .await;
+    assert_eq!(api.get("/api/v1/auth/status").await.1["oidc"], "Fake ID");
+
+    let (state, nonce) = begin_oidc(&api).await;
+    idp.will_sign_in("me@example.com", &nonce);
+    let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
+    assert_eq!(to, "/");
+    let cookie = cookie.expect("signed in");
+    let (status, _, _) = api
+        .call_with(
+            Method::GET,
+            "/api/v1/sources",
+            None,
+            &[(header::COOKIE, &cookie)],
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
+    assert!(
+        to.starts_with("/?oidc_error=") && cookie.is_none(),
+        "a state works once"
+    );
+
+    let (state, _) = begin_oidc(&api).await;
+    idp.will_sign_in("me@example.com", "another nonce");
+    let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
+    assert!(
+        to.starts_with("/?oidc_error=") && cookie.is_none(),
+        "wrong nonce"
+    );
+
+    let (state, nonce) = begin_oidc(&api).await;
+    idp.will_sign_in("someone@example.com", &nonce);
+    let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
+    assert!(to.contains("may+not+sign+in") && cookie.is_none(), "{to}");
+
+    let (to, cookie) = finish_oidc(&api, "error=access_denied").await;
+    assert!(to.contains("access_denied") && cookie.is_none(), "{to}");
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn oidc_is_off_unless_configured() {
+    let api = api(None).await;
+    assert_eq!(api.get("/api/v1/auth/status").await.1["oidc"], Value::Null);
+    assert_eq!(
+        api.get("/api/v1/auth/oidc/login").await.0,
+        StatusCode::NOT_FOUND
+    );
     api.app.shutdown().await;
 }
 
@@ -1145,7 +1347,7 @@ async fn shows_title(api: &Api, id: i64, expected: &str) -> bool {
 #[tokio::test]
 async fn metadata_is_searched_and_linked_by_hand() {
     let anilist = crate::testing::anilist_with("From AniList").await;
-    let api = api_full(None, db::memory().await, anilist).await;
+    let api = api_full(None, db::memory().await, anilist, None).await;
 
     let (status, hits) = api.get("/api/v1/metadata/search?q=anything").await;
     assert_eq!(status, StatusCode::OK);

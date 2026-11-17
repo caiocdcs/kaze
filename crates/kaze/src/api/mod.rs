@@ -165,6 +165,8 @@ fn public_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(auth::setup))
         .routes(routes!(auth::login))
         .routes(routes!(auth::logout))
+        .routes(routes!(auth::oidc_login))
+        .routes(routes!(auth::oidc_callback))
 }
 
 /// The OpenAPI document of `/api/v1`.

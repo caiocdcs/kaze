@@ -39,6 +39,8 @@ pub struct Context {
     pub logs: crate::logs::RecentLogs,
     /// The latest kaze release seen.
     pub updates: crate::updates::Updates,
+    /// Signing in with an OpenID Connect provider, when configured.
+    pub oidc: Option<crate::auth::oidc::Oidc>,
 }
 
 /// The running application.

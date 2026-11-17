@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use kaze::{
     api,
     app::{App, Context},
-    auth::NewPassword,
+    auth::{NewPassword, oidc::Oidc},
     backup,
     config::Config,
     db,
@@ -199,6 +199,15 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
     {
         tracing::warn!("generated an API key: the first browser to open kaze creates the account");
     }
+    let oidc = config
+        .auth
+        .oidc
+        .clone()
+        .map(|oidc| Oidc::new(oidc, &config.url_base))
+        .transpose()?;
+    if let Some(oidc) = &oidc {
+        tracing::info!(callback = oidc.redirect_url(), "OIDC sign-in on");
+    }
     let ctx = Context {
         db,
         sources: Registry::new(&http),
@@ -211,6 +220,7 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         backups,
         logs,
         updates: Updates::new(Url::parse(updates::RELEASES).context("release URL")?),
+        oidc,
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

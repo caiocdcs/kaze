@@ -15,7 +15,7 @@ use figment::{
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
-use crate::library::Libraries;
+use crate::{auth::oidc::OidcConfig, library::Libraries};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -32,6 +32,7 @@ pub struct Config {
     /// listed use `library_dir`.
     pub library_dirs: BTreeMap<String, PathBuf>,
     pub http: HttpConfig,
+    pub auth: AuthConfig,
     /// Locked settings; validated by `SettingsStore::load`.
     pub settings: Map<String, Value>,
 }
@@ -75,6 +76,13 @@ impl From<UrlBase> for String {
     }
 }
 
+/// Ways to sign in besides the local account.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct AuthConfig {
+    pub oidc: Option<OidcConfig>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct HttpConfig {
@@ -91,6 +99,7 @@ impl Default for Config {
             library_dir: "library".into(),
             library_dirs: BTreeMap::new(),
             http: HttpConfig::default(),
+            auth: AuthConfig::default(),
             settings: Map::new(),
         }
     }
