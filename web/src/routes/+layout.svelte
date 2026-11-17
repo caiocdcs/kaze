@@ -1,7 +1,7 @@
 <script lang="ts">
 	import '../app.css';
 	import { onMount } from 'svelte';
-	import ApiKeyPrompt from '#lib/components/ApiKeyPrompt.svelte';
+	import LoginGate from '#lib/components/LoginGate.svelte';
 	import Nav from '#lib/components/Nav.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import { live } from '#lib/live.svelte.ts';
@@ -26,4 +26,4 @@
 	</main>
 </div>
 <Toasts />
-<ApiKeyPrompt />
+<LoginGate />

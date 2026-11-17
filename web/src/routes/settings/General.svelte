@@ -1,14 +1,8 @@
 <script lang="ts">
-	import {
-		api,
-		apiKey,
-		setApiKey,
-		type Settings,
-		type SettingsView,
-		type SourceInfo
-	} from '#lib/api/index.ts';
+	import { api, type Settings, type SettingsView, type SourceInfo } from '#lib/api/index.ts';
 	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
+	import Account from './Account.svelte';
 
 	type Key = keyof Settings;
 
@@ -56,10 +50,7 @@
 		event.preventDefault();
 		saving = true;
 		try {
-			const keyChanged = 'api_key' in changed;
 			set(await api.updateSettings(changed as Parameters<typeof api.updateSettings>[0]));
-			// Keep this browser working when the key it needs just changed.
-			if (keyChanged) setApiKey(view?.settings.api_key ?? null);
 			toasts.show('Settings saved');
 		} catch (e) {
 			toasts.error(e);
@@ -277,8 +268,8 @@
 					{/if}
 				</div>
 				<span class="text-[13px] text-muted">
-					When set, every API request must send it as <code class="font-mono">X-Api-Key</code>.
-					Leave empty on a trusted LAN. {#if apiKey()}This browser has a key saved.{/if}
+					For scripts and integrations: they send it as <code class="font-mono">X-Api-Key</code>.
+					Browsers sign in with the account instead.
 				</span>
 			</div>
 		</section>
@@ -292,6 +283,7 @@
 			{/if}
 		</div>
 	</form>
+	<Account />
 {:else}
 	<div class="mt-6 h-64 max-w-3xl animate-pulse rounded-[14px] bg-surface"></div>
 {/if}

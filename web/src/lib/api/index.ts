@@ -1,14 +1,17 @@
-import { http, url } from './client.ts';
+import { http, legacyKeyHeader, url } from './client.ts';
+import type { AuthStatus } from './types/AuthStatus.ts';
 import type { BackupFile } from './types/BackupFile.ts';
 import type { Backups } from './types/Backups.ts';
 import type { ChapterCopy } from './types/ChapterCopy.ts';
 import type { ChapterRecord } from './types/ChapterRecord.ts';
 import type { Candidate } from './types/Candidate.ts';
 import type { Config } from './types/Config.ts';
+import type { Credentials } from './types/Credentials.ts';
 import type { ImportRequest } from './types/ImportRequest.ts';
 import type { Imported } from './types/Imported.ts';
 import type { Match } from './types/Match.ts';
 import type { MetadataHit } from './types/MetadataHit.ts';
+import type { PasswordChange } from './types/PasswordChange.ts';
 import type { HealthCheck } from './types/HealthCheck.ts';
 import type { Integration } from './types/Integration.ts';
 import type { IntegrationInput } from './types/IntegrationInput.ts';
@@ -33,10 +36,18 @@ import type { Upcoming } from './types/Upcoming.ts';
 import type { UpdateSeries } from './types/UpdateSeries.ts';
 import type { WantedChapter } from './types/WantedChapter.ts';
 
-export { ApiError, apiKey, claimApiKey, setApiKey } from './client.ts';
+export { ApiError, forgetLegacyKey } from './client.ts';
 
 /** Every endpoint of `/api/v1`, typed with the structs ts-rs exports. */
 export const api = {
+	authStatus: () => http.get<AuthStatus>('/auth/status'),
+	/** `key`: the API key, needed once a browser has claimed it. */
+	setup: (c: Credentials, key?: string) =>
+		http.post<void>('/auth/setup', c, key ? { 'X-Api-Key': key } : legacyKeyHeader()),
+	login: (c: Credentials) => http.post<void>('/auth/login', c),
+	logout: () => http.post<void>('/auth/logout'),
+	changePassword: (c: PasswordChange) => http.put<void>('/auth/password', c),
+
 	sources: () => http.get<SourceInfo[]>('/sources'),
 	search: (q: string, source?: string, language?: string) =>
 		http.get<SourceResults[]>('/search', { q, source, language }),
@@ -114,6 +125,7 @@ export const api = {
 export type { SmtpSecurity } from './types/SmtpSecurity.ts';
 
 export type {
+	AuthStatus,
 	BackupFile,
 	Backups,
 	Candidate,

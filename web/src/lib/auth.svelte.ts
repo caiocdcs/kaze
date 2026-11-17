@@ -1,4 +1,4 @@
-/** Set when the server rejects our API key; the layout then asks for one. */
+/** Set when the server turns a request away; the layout then asks to sign in. */
 class Auth {
 	needed = $state(false);
 }

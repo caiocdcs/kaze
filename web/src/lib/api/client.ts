@@ -4,7 +4,8 @@ import { resolve } from '$app/paths';
 
 // `resolve('/')` carries the URL base kaze is served under, if any.
 const BASE = `${resolve('/').replace(/\/$/, '')}/api/v1`;
-const KEY_STORAGE = 'kaze.apiKey';
+// Where kaze UIs before sign-in kept the API key.
+const LEGACY_KEY = 'kaze.apiKey';
 
 export class ApiError extends Error {
 	constructor(
@@ -15,32 +16,24 @@ export class ApiError extends Error {
 	}
 }
 
-export function apiKey(): string | null {
+/**
+ * The API key an older kaze UI saved in this browser: sent once to create
+ * the account after an upgrade, so it needn't be typed in.
+ */
+export function legacyKeyHeader(): Record<string, string> {
 	try {
-		return localStorage.getItem(KEY_STORAGE);
+		const key = localStorage.getItem(LEGACY_KEY);
+		return key ? { 'X-Api-Key': key } : {};
 	} catch {
-		return null;
+		return {};
 	}
 }
 
-export function setApiKey(key: string | null) {
+export function forgetLegacyKey() {
 	try {
-		if (key) localStorage.setItem(KEY_STORAGE, key);
-		else localStorage.removeItem(KEY_STORAGE);
+		localStorage.removeItem(LEGACY_KEY);
 	} catch {
-		// Private mode: the key lives only as long as the page.
-	}
-}
-
-/** The key kaze generated on its first start, if no browser has taken it yet. */
-export async function claimApiKey(): Promise<string | null> {
-	try {
-		const res = await fetch(url('/api-key/claim'), { method: 'POST' });
-		if (!res.ok) return null;
-		const body: { api_key?: unknown } = await res.json();
-		return typeof body.api_key === 'string' ? body.api_key : null;
-	} catch {
-		return null;
+		// Private mode: nothing was kept.
 	}
 }
 
@@ -51,9 +44,6 @@ export function url(path: string, query?: Query): string {
 	for (const [k, v] of Object.entries(query ?? {})) {
 		if (v !== undefined && v !== null) params.set(k, String(v));
 	}
-	// EventSource and <img> can't send headers, so the key also goes in the query.
-	const key = apiKey();
-	if (key && (path === '/events' || path.endsWith('/cover'))) params.set('apikey', key);
 	const qs = params.toString();
 	return `${BASE}${path}${qs ? `?${qs}` : ''}`;
 }
@@ -62,11 +52,11 @@ async function send(
 	method: string,
 	path: string,
 	body?: unknown,
-	query?: Query
+	query?: Query,
+	extra: Record<string, string> = {}
 ): Promise<Response> {
-	const headers: Record<string, string> = { Accept: 'application/json' };
-	const key = apiKey();
-	if (key) headers['X-Api-Key'] = key;
+	// The session cookie goes along by itself.
+	const headers: Record<string, string> = { Accept: 'application/json', ...extra };
 	// A file goes as it is; anything else as JSON.
 	const raw = body instanceof Blob;
 	if (body !== undefined)
@@ -91,8 +81,14 @@ async function send(
 	return res;
 }
 
-async function request<T>(method: string, path: string, body?: unknown, query?: Query): Promise<T> {
-	const res = await send(method, path, body, query);
+async function request<T>(
+	method: string,
+	path: string,
+	body?: unknown,
+	query?: Query,
+	headers?: Record<string, string>
+): Promise<T> {
+	const res = await send(method, path, body, query, headers);
 	if (res.status === 204) return undefined as T;
 	const text = await res.text();
 	return (text ? JSON.parse(text) : undefined) as T;
@@ -100,7 +96,8 @@ async function request<T>(method: string, path: string, body?: unknown, query?: 
 
 export const http = {
 	get: <T>(path: string, query?: Query) => request<T>('GET', path, undefined, query),
-	post: <T>(path: string, body?: unknown) => request<T>('POST', path, body),
+	post: <T>(path: string, body?: unknown, headers?: Record<string, string>) =>
+		request<T>('POST', path, body, undefined, headers),
 	patch: <T>(path: string, body: unknown) => request<T>('PATCH', path, body),
 	put: <T>(path: string, body: unknown) => request<T>('PUT', path, body),
 	del: <T>(path: string) => request<T>('DELETE', path),
