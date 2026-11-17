@@ -11,6 +11,17 @@
 	let error = $state<string | null>(null);
 	let busy = $state(false);
 
+	// The OIDC callback comes back here with what went wrong.
+	$effect(() => {
+		const params = new URLSearchParams(location.search);
+		const failed = params.get('oidc_error');
+		if (failed === null) return;
+		error = failed;
+		params.delete('oidc_error');
+		const rest = params.toString();
+		history.replaceState(history.state, '', location.pathname + (rest ? `?${rest}` : ''));
+	});
+
 	// On load, and again whenever a request is turned away (signed out
 	// elsewhere, session expired).
 	$effect(() => {
@@ -98,6 +109,9 @@
 			<button type="submit" class="btn-primary" disabled={busy || !username.trim() || !password}>
 				{setup ? 'Create account' : 'Sign in'}
 			</button>
+			{#if !setup && status?.oidc}
+				<a class="btn-ghost" href={api.oidcLoginUrl()}>Sign in with {status.oidc}</a>
+			{/if}
 		</form>
 	</div>
 {/if}

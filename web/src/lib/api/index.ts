@@ -47,6 +47,8 @@ export const api = {
 	login: (c: Credentials) => http.post<void>('/auth/login', c),
 	logout: () => http.post<void>('/auth/logout'),
 	changePassword: (c: PasswordChange) => http.put<void>('/auth/password', c),
+	/** A page to navigate to, not a fetch: it goes on to the provider. */
+	oidcLoginUrl: () => url('/auth/oidc/login'),
 
 	sources: () => http.get<SourceInfo[]>('/sources'),
 	search: (q: string, source?: string, language?: string) =>
