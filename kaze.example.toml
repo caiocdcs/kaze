@@ -26,6 +26,17 @@ library_dir = "library"
 timeout_secs = 30
 # user_agent = "..."
 
+# --- Single sign-on --------------------------------------------------------
+# Sign in with an OpenID Connect provider besides the password. Register the
+# callback {public_url}{url_base}/api/v1/auth/oidc/callback with it.
+# [auth.oidc]
+# issuer = "https://auth.example.com/"   # exactly as the provider names itself
+# client_id = "kaze"
+# client_secret = "..."                  # better: KAZE_AUTH__OIDC__CLIENT_SECRET
+# public_url = "https://kaze.example.com"
+# name = "Pocket ID"                     # on the sign-in button
+# allowed = ["me@example.com"]           # emails or subject ids; empty = anyone the provider lets in
+
 # --- Settings -------------------------------------------------------------
 # These can all be changed in the UI (Settings). Anything set here instead
 # wins and shows as locked in the UI, which keeps declarative setups
@@ -33,7 +44,7 @@ timeout_secs = 30
 
 [settings]
 # naming_template = "%M - ?V(Vol.%V )Ch.%C?T( - %T)"  # %M series, %V volume, %C chapter, %T title, %A author, %Y year
-# api_key = "change-me-please"   # X-Api-Key / ?apikey=; generated on first start if unset, "" for none
+# api_key = "change-me-please"   # for scripts: X-Api-Key / ?apikey=; generated on first start if unset, "" for none
 # concurrency = 4                # jobs at once
 # per_source = 2                 # jobs at once against one site
 # page_concurrency = 4           # pages of one chapter fetched at once

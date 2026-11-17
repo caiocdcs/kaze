@@ -8,7 +8,8 @@ Fixes go into the latest release only.
 
 ## Running kaze safely
 
-- On its first start kaze generates an API key and requires it. The first browser to open kaze gets the key, so open kaze yourself right after you install it. `api_key = ""` turns the key off, which is only safe on a trusted network.
-- For single sign-on, use forward auth at the reverse proxy (see the README). kaze has no login of its own.
+- kaze has one account, and until it exists the first browser to open kaze creates it. Open kaze yourself right after you install it.
+- Browsers sign in with the password or an OpenID Connect provider (see the README) and get a session cookie (`HttpOnly`, `SameSite=Lax`). Only a hash of each session is stored. Failed sign-ins are logged with the client's address.
+- Scripts and other apps use the API key kaze generates on its first start. `api_key = ""` turns it off.
 - To reach kaze from the internet, put a reverse proxy with TLS in front of it.
 - Saved secrets (tokens, passwords, API keys, webhook paths, Apprise URLs) stay on the server and the UI only shows them masked. They are stored unencrypted in the SQLite database under `data_dir`, so keep that folder and its backups private.

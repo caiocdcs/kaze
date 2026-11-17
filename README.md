@@ -58,7 +58,7 @@ docker compose up -d
 
 Create the folders first: Docker would create missing ones owned by root, and the containers run as `1000:1000`, so kaze couldn't open its database. If your user isn't 1000 (`id -u`), change `user:` in `compose.yml` to match.
 
-Open <http://localhost:6531> right away: the first browser gets the API key kaze generates (see [The API key](#the-api-key)). Data goes to `./data` and chapters to `./library`.
+Open <http://localhost:6531> right away and create your account: until it exists, the first browser to open kaze may create it (see [Signing in](#signing-in)). Data goes to `./data` and chapters to `./library`.
 
 ### Nix
 
@@ -82,8 +82,8 @@ On NixOS:
     libraryDir = "/srv/manga";
     openFirewall = true;
     settings.settings.flaresolverr_url = "http://127.0.0.1:8191";
-    # Your own API key, kept out of the Nix store; without one, kaze makes one.
-    # environmentFile = "/run/secrets/kaze.env";   # KAZE_SETTINGS__API_KEY=...
+    # Secrets kept out of the Nix store, e.g. KAZE_AUTH__OIDC__CLIENT_SECRET=...
+    # environmentFile = "/run/secrets/kaze.env";
   };
 }
 ```
@@ -143,20 +143,37 @@ Put the folders beside each other, never one inside another: Komga and Kavita sc
 
 In kaze under **Settings → Connect**, give the Komga or Kavita server each language's library ID. A download then scans only that language's library; languages without one use the server's library ID, or every library.
 
-## API
+## Signing in
 
-Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec is served at `/api/v1/openapi.json`, without the API key, and kept in [`docs/openapi.json`](docs/openapi.json). Send the key as an `X-Api-Key` header or an `apikey` query parameter, as with Sonarr and Radarr.
+kaze has one account. On the first start, the first browser to open kaze creates it with a username and a password; after that, every browser signs in. A sign-in lasts 30 days. Changing the password (under **Settings → General**) signs out every other browser.
 
-### The API key
+Lost the password? Set a new one from the command line; it signs every browser out:
 
-Like Sonarr and Radarr, kaze generates an API key on its first start. The first browser to open kaze gets it, saves it, and shows it once so you can copy it into other apps. After that, the key is under **Settings → General**, where you can change it or generate a new one.
+```sh
+echo 'a new password' | kaze reset-password --config kaze.toml
+echo 'a new password' | docker compose exec -T kaze kaze reset-password
+```
 
-- To pick your own key, set `api_key` in `kaze.toml` or `KAZE_SETTINGS__API_KEY`.
-- To run without a key on a trusted network, set `api_key = ""`, or clear the key in Settings.
+> [!NOTE]
+> Upgrading from 0.8: a browser that had the API key creates the account without typing it, and other browsers are asked for the key. A kaze that ran without a key (`api_key = ""`) asks for an account too.
 
-### Behind a reverse proxy with SSO
+### Single sign-on (OIDC)
 
-kaze has no login of its own. For single sign-on (Authelia, Authentik, oauth2-proxy), use forward auth at the reverse proxy, the way the *arr apps do. Leave `/api/v1` and `/healthz` outside it, so other apps reach the API with the key. With Caddy and Authelia:
+kaze can also sign you in with an OpenID Connect provider such as Pocket ID, Authentik, Authelia or Keycloak. Create a confidential client there with the callback `https://kaze.example.com/api/v1/auth/oidc/callback` (with your `url_base`, if any, before `/api`), then:
+
+```toml
+[auth.oidc]
+issuer = "https://auth.example.com/"   # exactly as the provider names itself
+client_id = "kaze"
+client_secret = "..."                  # or KAZE_AUTH__OIDC__CLIENT_SECRET
+public_url = "https://kaze.example.com"
+name = "Pocket ID"                     # on the sign-in button
+allowed = ["me@example.com"]           # emails or subject ids; empty = whoever the provider lets in
+```
+
+The sign-in page then offers **Sign in with Pocket ID**. The password still works, for when the provider is down.
+
+Forward auth at the reverse proxy (Authelia, Authentik, oauth2-proxy) works too, in front of kaze's own sign-in. Leave `/api/v1` and `/healthz` outside it, so other apps reach the API with the key. With Caddy and Authelia:
 
 ```caddy
 kaze.example.com {
@@ -169,7 +186,16 @@ kaze.example.com {
 }
 ```
 
-Keep the API key set: forward auth protects only the routes it covers, and the key protects the API.
+## API
+
+Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec is served at `/api/v1/openapi.json`, without signing in, and kept in [`docs/openapi.json`](docs/openapi.json). Scripts and other apps send the API key as an `X-Api-Key` header or an `apikey` query parameter, as with Sonarr and Radarr.
+
+### The API key
+
+Like Sonarr and Radarr, kaze generates an API key on its first start. It's under **Settings → General**, where you can copy it, change it or generate a new one.
+
+- To pick your own key, set `api_key` in `kaze.toml` or `KAZE_SETTINGS__API_KEY`.
+- To allow no scripts at all, set `api_key = ""`, or clear the key in Settings: then only signed-in browsers get in.
 
 ## Configuration
 
@@ -194,7 +220,7 @@ Logs go to stderr, and the last 2,000 lines are also under Settings → System �
 - **While running:** each download, failed job, integration send or scan, and change made through the API gets a line.
 
 > [!WARNING]
-> kaze requires the API key it generates on first start, unless you set `api_key = ""`. To reach kaze from outside, put a reverse proxy with TLS in front of it. See [SECURITY.md](SECURITY.md).
+> Until the account exists, the first browser to open kaze can create it, so do that right after you install it. To reach kaze from outside, put a reverse proxy with TLS in front of it. See [SECURITY.md](SECURITY.md).
 
 ## Development
 
