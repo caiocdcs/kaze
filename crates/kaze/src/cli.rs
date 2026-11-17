@@ -8,6 +8,7 @@ use clap::{Parser, Subcommand};
 use kaze::{
     api,
     app::{App, Context},
+    auth::NewPassword,
     backup,
     config::Config,
     db,
@@ -94,6 +95,17 @@ enum Command {
         #[arg(long, default_value = download::naming::DEFAULT_TEMPLATE)]
         template: Template,
     },
+
+    /// Set the account's password, read from stdin, and sign every browser
+    /// out. For when the password is lost.
+    ResetPassword {
+        /// Config file (TOML), to find the database.
+        #[arg(long, short, env = "KAZE_CONFIG")]
+        config: Option<PathBuf>,
+        /// Also rename the account; needed when there is none yet.
+        #[arg(long, short)]
+        username: Option<String>,
+    },
 }
 
 impl Cli {
@@ -101,11 +113,16 @@ impl Cli {
         if let Command::Serve { config } = &self.command {
             return serve(config.as_deref(), logs).await;
         }
+        if let Command::ResetPassword { config, username } = &self.command {
+            return reset_password(config.as_deref(), username.as_deref()).await;
+        }
         let http = Http::new(HttpConfig::default()).context("building HTTP client")?;
         let registry = Registry::new(&http);
 
         match self.command {
-            Command::Serve { .. } => unreachable!("handled above"),
+            Command::Serve { .. } | Command::ResetPassword { .. } => {
+                unreachable!("handled above")
+            }
             Command::Sources => {
                 for source in registry.iter() {
                     let meta = source.meta();
@@ -225,6 +242,44 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         })
         .await?;
     app.shutdown().await;
+    Ok(())
+}
+
+async fn reset_password(
+    config_file: Option<&std::path::Path>,
+    username: Option<&str>,
+) -> anyhow::Result<()> {
+    let config = Config::load(config_file).context("reading configuration")?;
+    let db = db::connect(&config.database_path())
+        .await
+        .context("opening database")?;
+    eprintln!(
+        "New password (at least {} characters):",
+        NewPassword::MIN_LEN
+    );
+    let mut line = String::new();
+    std::io::stdin()
+        .read_line(&mut line)
+        .context("reading the password")?;
+    let password = line.trim_end_matches(['\r', '\n']).to_owned();
+    let Some(password) = NewPassword::new(password) else {
+        bail!(
+            "the password needs at least {} characters",
+            NewPassword::MIN_LEN
+        );
+    };
+    let hash = password.hash().await?;
+    match username.map(str::trim) {
+        Some("") => bail!("the username is empty"),
+        Some(username) => db::auth::set_account(&db, username, &hash).await?,
+        None => {
+            if !db::auth::set_password(&db, &hash).await? {
+                bail!("there is no account yet: pass --username to create it");
+            }
+        }
+    }
+    db::auth::delete_sessions(&db, None).await?;
+    eprintln!("Password set; every browser was signed out.");
     Ok(())
 }
 
