@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT expires_at AS \"expires_at: DateTime<Utc>\" FROM sessions WHERE token_hash = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "expires_at: DateTime<Utc>",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "sessions",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "0e0c7d7a4acc2b11d5c1a1eabb52b60b27ea18a02d69a3676004732a20a2210f"
+}

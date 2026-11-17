@@ -22,12 +22,12 @@ mod ui;
 use std::{sync::Arc, time::Instant};
 
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{DefaultBodyLimit, Request},
     http::Method,
     middleware::{self, Next},
     response::{Redirect, Response},
-    routing::{get, post},
+    routing::get,
 };
 use tower_http::{compression::CompressionLayer, trace::TraceLayer};
 use utoipa::{
@@ -72,18 +72,18 @@ async fn log_request(request: Request, next: Next) -> Response {
 #[openapi(
     info(
         title = "kaze",
-        description = "A self-hosted manga downloader. Send the API key, when one is set, \
-                       as `X-Api-Key` or as `?apikey=`."
+        description = "A self-hosted manga downloader. Scripts send the API key as \
+                       `X-Api-Key` or as `?apikey=`; the UI signs in for a session cookie."
     ),
     servers((url = "/", description = "This kaze instance")),
-    modifiers(&ApiKeySchemes),
-    security(("api_key_header" = []), ("api_key_query" = []))
+    modifiers(&SecuritySchemes),
+    security(("api_key_header" = []), ("api_key_query" = []), ("session" = []))
 )]
 struct ApiDoc;
 
-struct ApiKeySchemes;
+struct SecuritySchemes;
 
-impl Modify for ApiKeySchemes {
+impl Modify for SecuritySchemes {
     fn modify(&self, openapi: &mut utoipa::openapi::OpenApi) {
         let components = openapi.components.get_or_insert_with(Default::default);
         components.add_security_scheme(
@@ -94,6 +94,10 @@ impl Modify for ApiKeySchemes {
         components.add_security_scheme(
             "api_key_query",
             SecurityScheme::ApiKey(ApiKey::Query(ApiKeyValue::new("apikey"))),
+        );
+        components.add_security_scheme(
+            "session",
+            SecurityScheme::ApiKey(ApiKey::Cookie(ApiKeyValue::new("kaze_session"))),
         );
     }
 }
@@ -148,16 +152,26 @@ fn api_routes() -> OpenApiRouter<AppState> {
         .routes(routes!(integrations::replace, integrations::remove))
         .routes(routes!(integrations::test_saved))
         .routes(routes!(jobs::run_task))
+        .routes(routes!(auth::change_password))
         // Compressing an event stream would buffer it; only compress the rest.
         .layer(CompressionLayer::new())
         .routes(routes!(events::stream))
+}
+
+/// Signing in, open to everyone.
+fn public_routes() -> OpenApiRouter<AppState> {
+    OpenApiRouter::new()
+        .routes(routes!(auth::status))
+        .routes(routes!(auth::setup))
+        .routes(routes!(auth::login))
+        .routes(routes!(auth::logout))
 }
 
 /// The OpenAPI document of `/api/v1`.
 #[must_use]
 pub fn openapi() -> utoipa::openapi::OpenApi {
     OpenApiRouter::with_openapi(ApiDoc::openapi())
-        .nest("/api/v1", api_routes())
+        .nest("/api/v1", api_routes().merge(public_routes()))
         .into_openapi()
 }
 
@@ -167,8 +181,9 @@ pub fn router(app: AppState, base: &UrlBase) -> Router {
     let api = api_routes()
         .layer(middleware::from_fn_with_state(
             Arc::clone(&app),
-            auth::require_api_key,
+            auth::require_auth,
         ))
+        .merge(public_routes())
         .layer(middleware::from_fn(log_request));
     let (routes, spec) = OpenApiRouter::with_openapi(ApiDoc::openapi())
         .nest("/api/v1", api)
@@ -180,14 +195,15 @@ pub fn router(app: AppState, base: &UrlBase) -> Router {
             "/api/v1/openapi.json",
             get(move || std::future::ready(Json(spec.clone()))),
         )
-        .route("/api/v1/api-key/claim", post(auth::claim))
         .route("/healthz", get(|| async { "ok" }))
         .fallback_service({
             let base = base.as_str().to_owned();
             get(move |uri: axum::http::Uri| std::future::ready(ui::serve(&uri, &base)))
                 .layer(CompressionLayer::new())
         })
-        .with_state(app);
+        .with_state(app)
+        // For the session cookie's path.
+        .layer(Extension(base.clone()));
     let routes = if base.as_str().is_empty() {
         routes
     } else {

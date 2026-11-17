@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "kaze",
-    "description": "A self-hosted manga downloader. Send the API key, when one is set, as `X-Api-Key` or as `?apikey=`.",
+    "description": "A self-hosted manga downloader. Scripts send the API key as `X-Api-Key` or as `?apikey=`; the UI signs in for a session cookie.",
     "license": {
       "name": "GPL-3.0-or-later",
       "identifier": "GPL-3.0-or-later"
@@ -16,6 +16,177 @@
     }
   ],
   "paths": {
+    "/api/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign in",
+        "operationId": "auth_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Signed in; the session is in a cookie"
+          },
+          "401": {
+            "description": "Wrong username or password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign out this browser",
+        "operationId": "auth_logout",
+        "responses": {
+          "204": {
+            "description": "Signed out"
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/auth/password": {
+      "put": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Change the password",
+        "description": "Signs out every other browser.",
+        "operationId": "auth_change_password",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasswordChange"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Changed"
+          },
+          "400": {
+            "description": "Wrong current password or short new one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/setup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create the account and sign in",
+        "description": "Only while there is no account, and only for the first browser after kaze generated its API key, or with the API key.",
+        "operationId": "auth_setup",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Credentials"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Created and signed in; the session is in a cookie"
+          },
+          "400": {
+            "description": "Empty username or short password",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Needs the API key",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The account exists",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorBody"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
+    "/api/v1/auth/status": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Whether the account exists and this browser is signed in",
+        "operationId": "auth_status",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthStatus"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {}
+        ]
+      }
+    },
     "/api/v1/backup": {
       "get": {
         "tags": [
@@ -2049,6 +2220,23 @@
           }
         }
       },
+      "AuthStatus": {
+        "type": "object",
+        "required": [
+          "account",
+          "signed_in"
+        ],
+        "properties": {
+          "account": {
+            "type": "boolean",
+            "description": "Whether the account exists; until then the UI offers to create it."
+          },
+          "signed_in": {
+            "type": "boolean",
+            "description": "Whether this browser's session cookie is valid."
+          }
+        }
+      },
       "BackupFile": {
         "type": "object",
         "description": "A saved backup as the API shows it.",
@@ -2442,6 +2630,21 @@
           }
         ],
         "description": "Where an integration sends things, and how."
+      },
+      "Credentials": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "password": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        }
       },
       "DeleteFiles": {
         "type": "object",
@@ -3756,6 +3959,21 @@
           }
         }
       },
+      "PasswordChange": {
+        "type": "object",
+        "required": [
+          "current",
+          "new"
+        ],
+        "properties": {
+          "current": {
+            "type": "string"
+          },
+          "new": {
+            "type": "string"
+          }
+        }
+      },
       "Preset": {
         "type": "object",
         "description": "A ready-made webhook setup for a popular service.",
@@ -4739,6 +4957,11 @@
         "type": "apiKey",
         "in": "query",
         "name": "apikey"
+      },
+      "session": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "kaze_session"
       }
     }
   },
@@ -4748,6 +4971,9 @@
     },
     {
       "api_key_query": []
+    },
+    {
+      "session": []
     }
   ]
 }

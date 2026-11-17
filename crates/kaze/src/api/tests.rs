@@ -93,7 +93,22 @@ async fn api_full(
 
 impl Api {
     async fn call(&self, method: Method, uri: &str, body: Option<Value>) -> (StatusCode, Value) {
+        let (status, _, json) = self.call_with(method, uri, body, &[]).await;
+        (status, json)
+    }
+
+    /// A request with extra headers; the response's headers come back too.
+    async fn call_with(
+        &self,
+        method: Method,
+        uri: &str,
+        body: Option<Value>,
+        headers: &[(header::HeaderName, &str)],
+    ) -> (StatusCode, header::HeaderMap, Value) {
         let mut request = Request::builder().method(method).uri(uri);
+        for (name, value) in headers {
+            request = request.header(name, *value);
+        }
         let body = match body {
             Some(json) => {
                 request = request.header("content-type", "application/json");
@@ -109,9 +124,10 @@ impl Api {
             .await
             .unwrap();
         let status = response.status();
+        let headers = response.headers().clone();
         let bytes = response.into_body().collect().await.unwrap().to_bytes();
         let json = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-        (status, json)
+        (status, headers, json)
     }
 
     async fn get(&self, uri: &str) -> (StatusCode, Value) {
@@ -366,8 +382,22 @@ async fn settings_can_be_read_and_changed() {
     api.app.shutdown().await;
 }
 
+/// The `name=value` part of the session cookie a response set.
+fn session_cookie(headers: &header::HeaderMap) -> String {
+    let set = headers[header::SET_COOKIE].to_str().unwrap();
+    assert!(
+        set.contains("HttpOnly") && set.contains("SameSite=Lax"),
+        "{set}"
+    );
+    set.split(';').next().unwrap().to_owned()
+}
+
+fn me(password: &str) -> Value {
+    json!({ "username": "me", "password": password })
+}
+
 #[tokio::test]
-async fn the_first_browser_claims_the_generated_key() {
+async fn the_first_browser_creates_the_account() {
     let db = db::memory().await;
     let first_start = SettingsStore::load(db.clone(), serde_json::Map::new())
         .await
@@ -375,21 +405,175 @@ async fn the_first_browser_claims_the_generated_key() {
     assert!(first_start.ensure_api_key().await.unwrap());
     let api = api_with(None, db).await;
     assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::UNAUTHORIZED);
-
-    let (status, body) = api.call(Method::POST, "/api/v1/api-key/claim", None).await;
+    let (status, body) = api.get("/api/v1/auth/status").await;
     assert_eq!(status, StatusCode::OK);
-    let key = body["api_key"].as_str().unwrap();
-    assert_eq!(
-        api.get(&format!("/api/v1/sources?apikey={key}")).await.0,
-        StatusCode::OK
-    );
-    assert_eq!(
-        api.call(Method::POST, "/api/v1/api-key/claim", None)
+    assert_eq!(body, json!({ "account": false, "signed_in": false }));
+
+    let (status, _) = api
+        .call(Method::POST, "/api/v1/auth/setup", Some(me("short")))
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, headers, _) = api
+        .call_with(
+            Method::POST,
+            "/api/v1/auth/setup",
+            Some(me("long enough")),
+            &[],
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let cookie = session_cookie(&headers);
+    let cookie = [(header::COOKIE, cookie.as_str())];
+    let (status, _, body) = api
+        .call_with(Method::GET, "/api/v1/auth/status", None, &cookie)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body, json!({ "account": true, "signed_in": true }));
+    let (status, _, _) = api
+        .call_with(Method::GET, "/api/v1/sources", None, &cookie)
+        .await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (status, _) = api
+        .call(Method::POST, "/api/v1/auth/setup", Some(me("long enough")))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "the claim is used up");
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn a_claimed_key_is_needed_to_create_the_account() {
+    let api = api(Some("s3cret-key")).await;
+    let (status, _) = api
+        .call(Method::POST, "/api/v1/auth/setup", Some(me("long enough")))
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let key = [(header::HeaderName::from_static("x-api-key"), "s3cret-key")];
+    let (status, _, _) = api
+        .call_with(
+            Method::POST,
+            "/api/v1/auth/setup",
+            Some(me("long enough")),
+            &key,
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    let (status, _, _) = api
+        .call_with(
+            Method::POST,
+            "/api/v1/auth/setup",
+            Some(me("other one")),
+            &key,
+        )
+        .await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn an_open_kaze_closes_once_the_account_exists() {
+    let api = api(None).await;
+    assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::OK);
+    api.call(Method::POST, "/api/v1/auth/setup", Some(me("long enough")))
+        .await;
+    assert_eq!(api.get("/api/v1/sources").await.0, StatusCode::UNAUTHORIZED);
+    api.app.shutdown().await;
+}
+
+#[tokio::test]
+async fn sign_in_out_and_change_the_password() {
+    let api = api(Some("s3cret-key")).await;
+    let key = [(header::HeaderName::from_static("x-api-key"), "s3cret-key")];
+    api.call_with(
+        Method::POST,
+        "/api/v1/auth/setup",
+        Some(me("first pass")),
+        &key,
+    )
+    .await;
+
+    let login = |password: &'static str| {
+        let api = &api;
+        async move {
+            let (status, headers, _) = api
+                .call_with(Method::POST, "/api/v1/auth/login", Some(me(password)), &[])
+                .await;
+            (status == StatusCode::NO_CONTENT).then(|| session_cookie(&headers))
+        }
+    };
+    assert!(login("wrong pass").await.is_none());
+    let (status, _) = api
+        .call(
+            Method::POST,
+            "/api/v1/auth/login",
+            Some(json!({ "username": "you", "password": "first pass" })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let laptop = login("first pass").await.unwrap();
+    let phone = login("first pass").await.unwrap();
+    let sources = |cookie: &str| {
+        let api = &api;
+        let cookie = cookie.to_owned();
+        async move {
+            api.call_with(
+                Method::GET,
+                "/api/v1/sources",
+                None,
+                &[(header::COOKIE, &cookie)],
+            )
             .await
-            .0,
-        StatusCode::NOT_FOUND,
-        "handed out once"
+            .0
+        }
+    };
+    assert_eq!(sources(&laptop).await, StatusCode::OK);
+    assert_eq!(
+        sources("kaze_session=forged").await,
+        StatusCode::UNAUTHORIZED
     );
+
+    let change = |current: &str, new: &str| Some(json!({ "current": current, "new": new }));
+    let (status, _, _) = api
+        .call_with(
+            Method::PUT,
+            "/api/v1/auth/password",
+            change("wrong pass", "second pass"),
+            &[(header::COOKIE, &laptop)],
+        )
+        .await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    let (status, _, _) = api
+        .call_with(
+            Method::PUT,
+            "/api/v1/auth/password",
+            change("first pass", "second pass"),
+            &[(header::COOKIE, &laptop)],
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert_eq!(sources(&laptop).await, StatusCode::OK, "this browser stays");
+    assert_eq!(
+        sources(&phone).await,
+        StatusCode::UNAUTHORIZED,
+        "others are out"
+    );
+    assert!(login("first pass").await.is_none());
+    assert!(login("second pass").await.is_some());
+
+    let (status, headers, _) = api
+        .call_with(
+            Method::POST,
+            "/api/v1/auth/logout",
+            None,
+            &[(header::COOKIE, &laptop)],
+        )
+        .await;
+    assert_eq!(status, StatusCode::NO_CONTENT);
+    assert!(
+        session_cookie(&headers).ends_with('='),
+        "the cookie is cleared"
+    );
+    assert_eq!(sources(&laptop).await, StatusCode::UNAUTHORIZED);
     api.app.shutdown().await;
 }
 
@@ -936,6 +1120,13 @@ async fn the_spec_is_served_without_the_api_key() {
     let schemes = &spec["components"]["securitySchemes"];
     assert_eq!(schemes["api_key_header"]["name"], "X-Api-Key");
     assert_eq!(schemes["api_key_query"]["in"], "query");
+    assert_eq!(schemes["session"]["in"], "cookie");
+    assert!(
+        spec["paths"]["/api/v1/auth/login"]["post"]["security"]
+            .as_array()
+            .is_some(),
+        "signing in needs no key"
+    );
     api.app.shutdown().await;
 }
 

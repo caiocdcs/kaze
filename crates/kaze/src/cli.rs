@@ -180,10 +180,7 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         .await
         .context("generating an API key")?
     {
-        tracing::warn!(
-            "generated an API key: the first browser to open kaze gets it; \
-             set api_key = \"\" under [settings] to run without one"
-        );
+        tracing::warn!("generated an API key: the first browser to open kaze creates the account");
     }
     let ctx = Context {
         db,
@@ -216,7 +213,10 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
     log_setup(&app).await;
 
     let shutdown = app.shutdown_token();
-    axum::serve(listener, api::router(Arc::clone(&app), &config.url_base))
+    // The peer address names the client in failed sign-in warnings.
+    let router = api::router(Arc::clone(&app), &config.url_base)
+        .into_make_service_with_connect_info::<std::net::SocketAddr>();
+    axum::serve(listener, router)
         .with_graceful_shutdown(async move {
             shutdown_signal().await;
             tracing::info!("shutting down");

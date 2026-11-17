@@ -28,6 +28,8 @@ pub enum ApiError {
     #[error("{0} not found")]
     NotFound(&'static str),
     #[error("{0}")]
+    Unauthorized(&'static str),
+    #[error("{0}")]
     BadRequest(String),
     #[error("{0}")]
     Conflict(String),
@@ -45,6 +47,7 @@ impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         let status = match self {
             Self::NotFound(_) => StatusCode::NOT_FOUND,
+            Self::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             Self::BadRequest(_) => StatusCode::BAD_REQUEST,
             Self::Conflict(_) => StatusCode::CONFLICT,
             Self::Upstream(_) | Self::Integration(_) => StatusCode::BAD_GATEWAY,

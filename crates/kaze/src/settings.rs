@@ -251,9 +251,10 @@ impl SettingsStore {
         Ok(settings)
     }
 
-    /// On the first start, generate an API key, as Sonarr and Radarr do,
-    /// for the first browser to claim. Returns whether one was made. Any
-    /// `api_key`, saved or locked, even an empty one, keeps it from running.
+    /// On the first start, generate an API key, as Sonarr and Radarr do;
+    /// until it is claimed, the first browser may create the account.
+    /// Returns whether one was made. Any `api_key`, saved or locked, even
+    /// an empty one, keeps it from running.
     pub async fn ensure_api_key(&self) -> Result<bool, SettingsError> {
         if self.locked.contains_key("api_key") || self.saved.lock().await.contains_key("api_key") {
             return Ok(false);
@@ -270,14 +271,6 @@ impl SettingsStore {
         changes.insert("api_key".into(), Value::String(key));
         self.update(changes).await?;
         Ok(true)
-    }
-
-    /// The API key, once, for the first browser after it was generated.
-    pub async fn claim_api_key(&self) -> Result<Option<String>, SettingsError> {
-        if !db::settings::claim_key(&self.db).await? {
-            return Ok(None);
-        }
-        Ok(self.current().api_key.clone())
     }
 }
 
@@ -357,8 +350,8 @@ mod tests {
         let key = store.current().api_key.clone().unwrap();
         assert!(key.starts_with("kz_") && key.len() == 39, "{key}");
 
-        assert_eq!(store.claim_api_key().await.unwrap(), Some(key.clone()));
-        assert_eq!(store.claim_api_key().await.unwrap(), None, "claimed once");
+        assert!(db::settings::claim_key(&db).await.unwrap());
+        assert!(!db::settings::claim_key(&db).await.unwrap(), "claimed once");
 
         // The saved key survives a restart and is not replaced.
         let reloaded = SettingsStore::load(db, Map::new()).await.unwrap();

@@ -5,6 +5,7 @@
 //! can pass the pool or a transaction (`&mut *tx`). Those that need several
 //! statements take the pool and open their own transaction.
 
+pub mod auth;
 pub mod chapters;
 pub mod events;
 pub mod integrations;

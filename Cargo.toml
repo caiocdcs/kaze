@@ -16,6 +16,8 @@ kaze-sources = { path = "crates/kaze-sources" }
 
 # shared third-party (added milestone by milestone)
 anyhow = "1"
+# Password hashing for the local account.
+argon2 = { version = "0.5", features = ["std"] }
 async-trait = "0.1"
 axum = "0.8"
 backon = { version = "1", default-features = false }
@@ -81,6 +83,13 @@ doc_markdown = "allow" # flags proper names like WeebCentral
 # Production code returns errors; tests may panic (see clippy.toml).
 unwrap_used = "deny"
 expect_used = "deny"
+
+# Password hashing is slow on purpose; unoptimized, tests take seconds per hash.
+[profile.dev.package.argon2]
+opt-level = 3
+
+[profile.dev.package.blake2]
+opt-level = 3
 
 [profile.release]
 lto = "thin"
