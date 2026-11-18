@@ -229,13 +229,11 @@ pub async fn login(
         None => false,
     };
     if !ok {
-        // The client address, for fail2ban; behind a proxy, what it forwarded.
-        let forwarded = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
+        // For fail2ban. Both, apart: anyone reaching kaze directly can send
+        // any X-Forwarded-For, so only trust it when a proxy sets it.
+        let forwarded_for = headers.get("x-forwarded-for").and_then(|v| v.to_str().ok());
         let peer = peer.map(|Extension(ConnectInfo(peer))| peer.ip().to_string());
-        tracing::warn!(
-            client = forwarded.map(ToOwned::to_owned).or(peer),
-            "failed sign-in"
-        );
+        tracing::warn!(peer, forwarded_for, "failed sign-in");
         return Err(ApiError::Unauthorized("wrong username or password"));
     }
     Ok(no_content_with(signed_in(&app, &base).await?))
