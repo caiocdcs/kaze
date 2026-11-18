@@ -22,11 +22,14 @@ ENV SQLX_OFFLINE=true
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/src/target \
     cargo build --release --locked --package kaze \
-    && cp target/release/kaze /kaze
+    && cp target/release/kaze /kaze \
+    && mkdir -p /rootfs/data /rootfs/library
 
 # --- Runtime --------------------------------------------------------------
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /kaze /usr/local/bin/kaze
+# Owned by the image's user, so a volume Docker creates for them is too.
+COPY --from=build --chown=65532:65532 /rootfs/ /
 ENV KAZE_LISTEN=0.0.0.0:6531 \
     KAZE_DATA_DIR=/data \
     KAZE_LIBRARY_DIR=/library
