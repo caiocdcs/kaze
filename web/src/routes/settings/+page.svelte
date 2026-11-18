@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
 	import { page } from '$app/state';
+	import Account from './Account.svelte';
 	import Connect from './Connect.svelte';
 	import General from './General.svelte';
 	import Sources from './Sources.svelte';
@@ -8,6 +9,7 @@
 
 	const tabs = [
 		{ id: 'general', label: 'General' },
+		{ id: 'account', label: 'Account' },
 		{ id: 'sources', label: 'Sources' },
 		{ id: 'connect', label: 'Connect' },
 		{ id: 'system', label: 'System' }
@@ -44,6 +46,8 @@
 <div role="tabpanel">
 	{#if tab === 'general'}
 		<General />
+	{:else if tab === 'account'}
+		<Account />
 	{:else if tab === 'sources'}
 		<Sources />
 	{:else if tab === 'connect'}

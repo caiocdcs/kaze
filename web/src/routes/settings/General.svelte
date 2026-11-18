@@ -2,7 +2,6 @@
 	import { api, type Settings, type SettingsView, type SourceInfo } from '#lib/api/index.ts';
 	import { errorMessage, languageName, offeredLanguages } from '#lib/format.ts';
 	import { toasts } from '#lib/toast.svelte.ts';
-	import Account from './Account.svelte';
 
 	type Key = keyof Settings;
 
@@ -10,7 +9,6 @@
 	let form = $state<Settings | null>(null);
 	let error = $state<string | null>(null);
 	let saving = $state(false);
-	let revealKey = $state(false);
 	let sources = $state<SourceInfo[]>([]);
 	const languages = $derived(offeredLanguages(sources));
 
@@ -36,10 +34,8 @@
 		const out: Record<string, unknown> = {};
 		for (const k of Object.keys(form) as Key[]) {
 			// Set from their own tabs.
-			if (k === 'paused_sources' || k === 'oidc') continue;
-			let a = form[k] === '' ? null : form[k];
-			// A removed key is saved empty, or kaze would make a new one on restart.
-			if (k === 'api_key' && a === null && view.settings.api_key !== null) a = '';
+			if (k === 'paused_sources' || k === 'oidc' || k === 'api_key') continue;
+			const a = form[k] === '' ? null : form[k];
 			if (!locked(k) && a !== view.settings[k]) out[k] = a;
 		}
 		return out;
@@ -56,23 +52,6 @@
 			toasts.error(e);
 		} finally {
 			saving = false;
-		}
-	}
-
-	function generateKey() {
-		if (!form) return;
-		const bytes = crypto.getRandomValues(new Uint8Array(18));
-		form.api_key = 'kz_' + [...bytes].map((b) => b.toString(16).padStart(2, '0')).join('');
-		revealKey = true;
-	}
-
-	async function copyKey() {
-		if (!form?.api_key) return;
-		try {
-			await navigator.clipboard.writeText(form.api_key);
-			toasts.show('API key copied');
-		} catch {
-			toasts.show('Copy failed; select the key and copy it by hand', 'error');
 		}
 	}
 
@@ -240,40 +219,6 @@
 			</label>
 		</section>
 
-		<section class="flex flex-col gap-4" aria-labelledby="access-heading">
-			<h2 id="access-heading" class="section-title text-lg">Access</h2>
-			<div class="flex flex-col gap-1.5">
-				<label for="api-key" class="flex items-center gap-2 font-medium">
-					API key
-					{#if locked('api_key')}<span class="lock">set in kaze.toml</span>{/if}
-				</label>
-				<div class="flex flex-wrap gap-2">
-					<input
-						id="api-key"
-						type={revealKey ? 'text' : 'password'}
-						bind:value={form.api_key}
-						disabled={locked('api_key')}
-						placeholder="Not required"
-						autocomplete="off"
-						class="field min-w-0 flex-[1_1_280px] font-mono text-sm"
-					/>
-					<button type="button" class="btn-ghost" onclick={() => (revealKey = !revealKey)}>
-						{revealKey ? 'Hide' : 'Show'}
-					</button>
-					<button type="button" class="btn-ghost" onclick={copyKey} disabled={!form.api_key}
-						>Copy</button
-					>
-					{#if !locked('api_key')}
-						<button type="button" class="btn-ghost" onclick={generateKey}>Generate</button>
-					{/if}
-				</div>
-				<span class="text-[13px] text-muted">
-					For scripts and integrations: they send it as <code class="font-mono">X-Api-Key</code>.
-					Browsers sign in with the account instead.
-				</span>
-			</div>
-		</section>
-
 		<div class="sticky bottom-24 flex items-center gap-3 bg-ground py-3 md:bottom-0">
 			<button type="submit" class="btn-primary" disabled={!dirty || saving}>
 				{saving ? 'Saving…' : 'Save changes'}
@@ -283,7 +228,6 @@
 			{/if}
 		</div>
 	</form>
-	<Account />
 {:else}
 	<div class="mt-6 h-64 max-w-3xl animate-pulse rounded-[14px] bg-surface"></div>
 {/if}
