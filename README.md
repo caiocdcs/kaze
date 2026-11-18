@@ -83,7 +83,7 @@ On NixOS:
     libraryDir = "/srv/manga";
     openFirewall = true;
     settings.settings.flaresolverr_url = "http://127.0.0.1:8191";
-    # Secrets kept out of the Nix store, e.g. KAZE_AUTH__OIDC__CLIENT_SECRET=...
+    # Secrets kept out of the Nix store, e.g. KAZE_SETTINGS__OIDC__CLIENT_SECRET=...
     # environmentFile = "/run/secrets/kaze.env";
   };
 }
@@ -146,7 +146,7 @@ In kaze under **Settings → Connect**, give the Komga or Kavita server each lan
 
 ## Signing in
 
-kaze has one account. On the first start, the first browser to open kaze creates it with a username and a password; after that, every browser signs in. A sign-in lasts 30 days. Changing the password (under **Settings → General**) signs out every other browser.
+kaze has one account. On the first start, the first browser to open kaze creates it with a username and a password; after that, every browser signs in. A sign-in lasts 30 days. Changing the password (under **Settings → Account**) signs out every other browser. Sign out from the sidebar or from Settings → Account.
 
 Lost the password? Set a new one from the command line; it signs every browser out:
 
@@ -167,19 +167,23 @@ echo 'a new password' | sudo -u kaze KAZE_DATA_DIR=/var/lib/kaze "$kaze" reset-p
 
 ### Single sign-on (OIDC)
 
-kaze can also sign you in with an OpenID Connect provider such as Pocket ID, Authentik, Authelia or Keycloak. Create a confidential client there with the callback `https://kaze.example.com/api/v1/auth/oidc/callback` (with your `url_base`, if any, before `/api`), then:
+kaze can also sign you in with an OpenID Connect provider such as Pocket ID, Authentik, Authelia or Keycloak. Create a confidential client there, then fill in **Settings → Account → Single sign-on**: the issuer, client ID and secret, kaze's address, a button name, and who may sign in. The form shows the callback URL to register with the provider, `https://kaze.example.com/api/v1/auth/oidc/callback` (with your `url_base`, if any, before `/api`). It applies at once, no restart needed.
+
+The sign-in page then offers **Sign in with Pocket ID**. The password still works, for when the provider is down.
+
+To keep it in configuration instead, set it under `[settings]`, which locks the form:
 
 ```toml
-[auth.oidc]
+[settings.oidc]
 issuer = "https://auth.example.com/"   # exactly as the provider names itself
 client_id = "kaze"
-client_secret = "..."                  # or KAZE_AUTH__OIDC__CLIENT_SECRET
+client_secret = "..."                  # or KAZE_SETTINGS__OIDC__CLIENT_SECRET
 public_url = "https://kaze.example.com"
 name = "Pocket ID"                     # on the sign-in button
 allowed = ["me@example.com"]           # emails or subject ids; empty = whoever the provider lets in
 ```
 
-The sign-in page then offers **Sign in with Pocket ID**. The password still works, for when the provider is down.
+`[auth.oidc]`, from 0.9, still works the same way.
 
 With Authelia, the client looks like this, and kaze's `issuer` is `https://auth.example.com`, without a trailing slash. Authelia keeps the email out of the ID token, so kaze reads it from UserInfo to check `allowed`.
 
@@ -218,7 +222,7 @@ Everything the UI does goes through a JSON API under `/api/v1`. Its OpenAPI spec
 
 ### The API key
 
-Like Sonarr and Radarr, kaze generates an API key on its first start. It's under **Settings → General**, where you can copy it, change it or generate a new one.
+Like Sonarr and Radarr, kaze generates an API key on its first start. It's under **Settings → Account**, where you can copy it, change it or generate a new one.
 
 - To pick your own key, set `api_key` in `kaze.toml` or `KAZE_SETTINGS__API_KEY`.
 - To allow no scripts at all, set `api_key = ""`, or clear the key in Settings: then only signed-in browsers get in.
@@ -232,8 +236,8 @@ Everything is optional. See [`kaze.example.toml`](kaze.example.toml).
   - the naming template
   - concurrency
   - check intervals
-  - the API key
-  - the FlareSolverr URL
+  - the API key and single sign-on (Settings → Account)
+  - the FlareSolverr URL (Settings → Sources)
   - the default language
   - the daily update check (`check_updates`, on by default): it asks GitHub's releases API for the latest kaze and says so in the health panel; nothing but kaze's version is sent
   - the backup schedule (`backup_days`, `backup_keep`): copies of the database in `data_dir/backups`, also made by hand under Settings → System. A backup (or an uploaded database) restored from there replaces the database on kaze's next start; the one it replaces is kept as a backup.

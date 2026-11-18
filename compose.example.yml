@@ -9,7 +9,7 @@
 # `id -u` says otherwise.
 #
 # In kaze → Settings:
-#   General → FlareSolverr URL: http://flaresolverr:8191
+#   Sources → FlareSolverr URL: http://flaresolverr:8191
 #   Connect → Komga: URL http://komga:25600 and an API key from Komga
 #     (in Komga, add /data as a library)
 #   Connect → ntfy, Gotify or Email need nothing below; Apprise (for other

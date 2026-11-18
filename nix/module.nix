@@ -127,7 +127,7 @@ in
       example = "/run/secrets/kaze.env";
       description = ''
         File with `KAZE_*` variables kept out of the Nix store, such as
-        `KAZE_SETTINGS__API_KEY=...` or `KAZE_AUTH__OIDC__CLIENT_SECRET=...`.
+        `KAZE_SETTINGS__API_KEY=...` or `KAZE_SETTINGS__OIDC__CLIENT_SECRET=...`.
       '';
     };
   };

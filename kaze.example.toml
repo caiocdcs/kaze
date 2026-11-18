@@ -27,12 +27,13 @@ timeout_secs = 30
 # user_agent = "..."
 
 # --- Single sign-on --------------------------------------------------------
-# Sign in with an OpenID Connect provider besides the password. Register the
-# callback {public_url}{url_base}/api/v1/auth/oidc/callback with it.
-# [auth.oidc]
+# Sign in with an OpenID Connect provider besides the password; also under
+# Settings → Account in the UI, which this locks. Register the callback
+# {public_url}{url_base}/api/v1/auth/oidc/callback with the provider.
+# [settings.oidc]
 # issuer = "https://auth.example.com/"   # exactly as the provider names itself
 # client_id = "kaze"
-# client_secret = "..."                  # better: KAZE_AUTH__OIDC__CLIENT_SECRET
+# client_secret = "..."                  # better: KAZE_SETTINGS__OIDC__CLIENT_SECRET
 # public_url = "https://kaze.example.com"
 # name = "Pocket ID"                     # on the sign-in button
 # allowed = ["me@example.com"]           # emails or subject ids; empty = anyone the provider lets in
