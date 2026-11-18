@@ -303,7 +303,7 @@
 		</div>
 	</div>
 
-	<div class="flex flex-[1_1_300px] flex-col gap-4">
+	<div class="flex min-w-0 flex-[1_1_300px] flex-col gap-4">
 		<HealthPanel {version} />
 	</div>
 </div>

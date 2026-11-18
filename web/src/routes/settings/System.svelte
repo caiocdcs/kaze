@@ -240,5 +240,5 @@
 		</section>
 		<Logs />
 	</div>
-	<div class="flex-[1_1_300px]"><HealthPanel /></div>
+	<div class="min-w-0 flex-[1_1_300px]"><HealthPanel /></div>
 </div>
