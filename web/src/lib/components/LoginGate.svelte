@@ -28,7 +28,11 @@
 		void auth.needed;
 		api
 			.authStatus()
-			.then((s) => (status = s))
+			.then((s) => {
+				status = s;
+				// Signed in, however: the API key an older UI kept is no longer needed here.
+				if (s.signed_in) forgetLegacyKey();
+			})
 			.catch(() => {});
 	});
 
@@ -43,7 +47,6 @@
 			const credentials = { username: username.trim(), password };
 			if (setup) {
 				await api.setup(credentials, key?.trim());
-				forgetLegacyKey();
 			} else {
 				await api.login(credentials);
 			}
