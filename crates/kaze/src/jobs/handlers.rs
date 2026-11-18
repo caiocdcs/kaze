@@ -415,6 +415,12 @@ async fn download_chapter(
             return Err(err.into());
         }
     };
+    // Another source's copy of this number may have written the file meanwhile.
+    if matches!(outcome, Outcome::AlreadyExists(_))
+        && db::chapters::number_on_disk(&ctx.db, chapter_id).await?
+    {
+        return Ok(());
+    }
     let size = library::file_size(outcome.path()).await;
     let path = outcome.path().to_string_lossy().into_owned();
     db::chapters::mark_downloaded(&ctx.db, chapter_id, &path, size).await?;
