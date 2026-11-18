@@ -609,6 +609,7 @@ impl FakeIdp {
             "authorization_endpoint": format!("{issuer}authorize"),
             "token_endpoint": format!("{issuer}token"),
             "jwks_uri": format!("{issuer}jwks"),
+            "userinfo_endpoint": format!("{issuer}userinfo"),
             "response_types_supported": ["code"],
             "subject_types_supported": ["public"],
             "id_token_signing_alg_values_supported": ["HS256"],
@@ -619,6 +620,18 @@ impl FakeIdp {
                 get(move || std::future::ready(Json(discovery.clone()))),
             )
             .route("/jwks", get(|| async { Json(json!({ "keys": [] })) }))
+            // Whoever asks is the user who signs in without an email in the
+            // ID token.
+            .route(
+                "/userinfo",
+                get(|| async {
+                    Json(json!({
+                        "sub": "sub-me@example.com",
+                        "email": "me@example.com",
+                        "email_verified": true,
+                    }))
+                }),
+            )
             .route(
                 "/token",
                 post({
@@ -652,8 +665,9 @@ impl FakeIdp {
         crate::auth::oidc::Oidc::new(config, &crate::config::UrlBase::default()).unwrap()
     }
 
-    /// The next sign-in is `email`, for the given nonce.
-    fn will_sign_in(&self, email: &str, nonce: &str) {
+    /// The next sign-in is `email`, for the given nonce; with `in_token`
+    /// false, the ID token leaves the email to UserInfo.
+    fn will_sign_in(&self, email: &str, nonce: &str, in_token: bool) {
         use openidconnect::{
             Audience, EmptyAdditionalClaims, EndUserEmail, IssuerUrl, Nonce, StandardClaims,
             SubjectIdentifier,
@@ -666,7 +680,7 @@ impl FakeIdp {
             now + chrono::TimeDelta::hours(1),
             now,
             StandardClaims::new(SubjectIdentifier::new(format!("sub-{email}")))
-                .set_email(Some(EndUserEmail::new(email.into()))),
+                .set_email(in_token.then(|| EndUserEmail::new(email.into()))),
             EmptyAdditionalClaims {},
         )
         .set_nonce(Some(Nonce::new(nonce.into())));
@@ -730,7 +744,7 @@ async fn sign_in_with_oidc() {
     assert_eq!(api.get("/api/v1/auth/status").await.1["oidc"], "Fake ID");
 
     let (state, nonce) = begin_oidc(&api).await;
-    idp.will_sign_in("me@example.com", &nonce);
+    idp.will_sign_in("me@example.com", &nonce, true);
     let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
     assert_eq!(to, "/");
     let cookie = cookie.expect("signed in");
@@ -751,7 +765,7 @@ async fn sign_in_with_oidc() {
     );
 
     let (state, _) = begin_oidc(&api).await;
-    idp.will_sign_in("me@example.com", "another nonce");
+    idp.will_sign_in("me@example.com", "another nonce", true);
     let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
     assert!(
         to.starts_with("/?oidc_error=") && cookie.is_none(),
@@ -759,9 +773,17 @@ async fn sign_in_with_oidc() {
     );
 
     let (state, nonce) = begin_oidc(&api).await;
-    idp.will_sign_in("someone@example.com", &nonce);
+    idp.will_sign_in("someone@example.com", &nonce, true);
     let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
     assert!(to.contains("may+not+sign+in") && cookie.is_none(), "{to}");
+
+    let (state, nonce) = begin_oidc(&api).await;
+    idp.will_sign_in("me@example.com", &nonce, false);
+    let (to, cookie) = finish_oidc(&api, &format!("code=c&state={state}")).await;
+    assert!(
+        to == "/" && cookie.is_some(),
+        "the email from UserInfo: {to}"
+    );
 
     let (to, cookie) = finish_oidc(&api, "error=access_denied").await;
     assert!(to.contains("access_denied") && cookie.is_none(), "{to}");

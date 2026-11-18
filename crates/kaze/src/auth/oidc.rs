@@ -10,10 +10,11 @@ use std::{
 
 use futures_util::future::BoxFuture;
 use openidconnect::{
-    AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndpointMaybeSet, EndpointNotSet,
-    EndpointSet, HttpRequest, HttpResponse, IssuerUrl, Nonce, PkceCodeChallenge, PkceCodeVerifier,
-    RedirectUrl, Scope, TokenResponse as _,
-    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata},
+    AuthorizationCode, ClientId, ClientSecret, CsrfToken, EndUserEmail, EndpointMaybeSet,
+    EndpointNotSet, EndpointSet, HttpRequest, HttpResponse, IssuerUrl, Nonce,
+    OAuth2TokenResponse as _, PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, Scope,
+    TokenResponse as _,
+    core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata, CoreUserInfoClaims},
 };
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -250,16 +251,25 @@ impl Oidc {
         let claims = id_token
             .claims(&client.id_token_verifier(), &pending.nonce)
             .map_err(|e| OidcError::Token(e.to_string()))?;
-        // An address the provider says it hasn't checked can't name anyone.
-        let email = claims
-            .email()
-            .filter(|_| claims.email_verified() != Some(false))
-            .map(|e| e.as_str().to_owned());
+        let mut email = checked_email(claims.email(), claims.email_verified());
+        let allowed = &self.config.allowed;
+        // Some providers (Authelia since 4.39) keep the email out of the ID
+        // token and hand it out on UserInfo instead.
+        if email.is_none()
+            && !allowed.is_empty()
+            && let Ok(request) =
+                client.user_info(token.access_token().clone(), Some(claims.subject().clone()))
+        {
+            let info: CoreUserInfoClaims = request
+                .request_async(&http)
+                .await
+                .map_err(|e| OidcError::Token(error_chain(&e)))?;
+            email = checked_email(info.email(), info.email_verified());
+        }
         let identity = Identity {
             subject: claims.subject().as_str().to_owned(),
             email,
         };
-        let allowed = &self.config.allowed;
         if !allowed.is_empty()
             && !allowed
                 .iter()
@@ -271,6 +281,13 @@ impl Oidc {
         }
         Ok(identity)
     }
+}
+
+/// An address the provider says it hasn't checked can't name anyone.
+fn checked_email(email: Option<&EndUserEmail>, verified: Option<bool>) -> Option<String> {
+    email
+        .filter(|_| verified != Some(false))
+        .map(|e| e.as_str().to_owned())
 }
 
 /// openidconnect's HTTP, over our reqwest (it was built for an older one).
