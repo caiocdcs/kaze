@@ -173,6 +173,24 @@ allowed = ["me@example.com"]           # emails or subject ids; empty = whoever 
 
 The sign-in page then offers **Sign in with Pocket ID**. The password still works, for when the provider is down.
 
+With Authelia, the client looks like this, and kaze's `issuer` is `https://auth.example.com`, without a trailing slash. Authelia keeps the email out of the ID token, so kaze reads it from UserInfo to check `allowed`.
+
+```yaml
+identity_providers:
+  oidc:
+    clients:
+      - client_id: 'kaze'
+        client_name: 'kaze'
+        client_secret: '$pbkdf2-sha512$...'   # authelia crypto hash generate pbkdf2
+        authorization_policy: 'one_factor'
+        require_pkce: true
+        pkce_challenge_method: 'S256'
+        redirect_uris:
+          - 'https://kaze.example.com/api/v1/auth/oidc/callback'
+        scopes: ['openid', 'email', 'profile']
+        token_endpoint_auth_method: 'client_secret_basic'
+```
+
 Forward auth at the reverse proxy (Authelia, Authentik, oauth2-proxy) works too, in front of kaze's own sign-in. Leave `/api/v1` and `/healthz` outside it, so other apps reach the API with the key. With Caddy and Authelia:
 
 ```caddy
