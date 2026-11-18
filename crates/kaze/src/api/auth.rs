@@ -157,8 +157,9 @@ pub struct Credentials {
 #[utoipa::path(
     operation_id = "auth_setup",
     summary = "Create the account and sign in",
-    description = "Only while there is no account, and only for the first browser after \
-                   kaze generated its API key, or with the API key.",
+    description = "Only while there is no account: for the first browser after kaze \
+                   generated its API key, for any browser when kaze has no key, or with \
+                   the API key.",
     post,
     path = "/auth/setup",
     tag = "auth",

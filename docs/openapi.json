@@ -193,7 +193,7 @@
           "auth"
         ],
         "summary": "Create the account and sign in",
-        "description": "Only while there is no account, and only for the first browser after kaze generated its API key, or with the API key.",
+        "description": "Only while there is no account: for the first browser after kaze generated its API key, for any browser when kaze has no key, or with the API key.",
         "operationId": "auth_setup",
         "requestBody": {
           "content": {
