@@ -2,7 +2,9 @@
 	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import type { RouteId } from '$app/types';
+	import { api } from '#lib/api/index.ts';
 	import { live } from '#lib/live.svelte.ts';
+	import { toasts } from '#lib/toast.svelte.ts';
 	import { jobLabel, num } from '#lib/format.ts';
 	import type { IconName } from '#lib/icons.ts';
 	import Icon from './Icon.svelte';
@@ -30,6 +32,15 @@
 	const problemList = $derived(live.problems.map((p) => `${p.name}: ${p.detail}`).join('\n'));
 	const current = $derived(live.running[0]);
 	const currentProgress = $derived(current ? live.progress.get(current.id) : undefined);
+
+	async function signOut() {
+		try {
+			await api.logout();
+			location.reload();
+		} catch (e) {
+			toasts.error(e);
+		}
+	}
 </script>
 
 <!-- Desktop: a side rail. -->
@@ -65,9 +76,18 @@
 		</a>
 	{/each}
 
+	<button
+		type="button"
+		onclick={signOut}
+		class="mt-auto mb-2 flex min-h-11 cursor-pointer items-center gap-3 rounded-[9px] border-0 bg-transparent px-3 text-left text-ink-2 hover:bg-surface hover:text-ink"
+	>
+		<Icon name="signOut" />
+		<span class="flex-1">Sign out</span>
+	</button>
+
 	<a
 		href={resolve('/activity')}
-		class="mt-auto flex flex-col gap-2 rounded-[10px] border border-line bg-surface-2 p-3.5 text-ink no-underline hover:text-ink"
+		class="flex flex-col gap-2 rounded-[10px] border border-line bg-surface-2 p-3.5 text-ink no-underline hover:text-ink"
 	>
 		<span class="flex justify-between text-xs text-muted">
 			<span>{current ? 'Downloading' : live.connected ? 'Idle' : 'Offline'}</span>

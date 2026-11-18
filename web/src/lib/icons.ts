@@ -15,7 +15,8 @@ export const icons = {
 	play: 'M7 5l12 7-12 7z',
 	copy: 'M9 9h11v11H9zM5 15H4V4h11v1',
 	trash: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',
-	calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5'
+	calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
+	signOut: 'M14 4h6v16h-6M10 8l-4 4 4 4M6 12h10'
 } as const;
 
 export type IconName = keyof typeof icons;
