@@ -6,6 +6,34 @@
 	import { toasts } from '#lib/toast.svelte.ts';
 
 	let sources = $state<SourceInfo[] | null>(null);
+	let flaresolverr = $state('');
+	let flaresolverrSaved = $state('');
+	let flaresolverrLocked = $state(false);
+	let saving = $state(false);
+
+	$effect(() => {
+		api
+			.settings()
+			.then((v) => {
+				flaresolverr = flaresolverrSaved = v.settings.flaresolverr_url ?? '';
+				flaresolverrLocked = v.locked.includes('flaresolverr_url');
+			})
+			.catch(() => {});
+	});
+
+	async function saveFlaresolverr(event: SubmitEvent) {
+		event.preventDefault();
+		saving = true;
+		try {
+			const v = await api.updateSettings({ flaresolverr_url: flaresolverr.trim() || null });
+			flaresolverr = flaresolverrSaved = v.settings.flaresolverr_url ?? '';
+			toasts.show('FlareSolverr URL saved');
+		} catch (e) {
+			toasts.error(e);
+		} finally {
+			saving = false;
+		}
+	}
 	let error = $state<string | null>(null);
 
 	function load() {
@@ -47,6 +75,36 @@
 </script>
 
 <div class="flex max-w-3xl flex-col gap-4 pt-6">
+	<form class="card flex flex-col gap-3 p-4" onsubmit={saveFlaresolverr}>
+		<label class="flex flex-col gap-1.5">
+			<span class="flex items-center gap-2 font-medium">
+				FlareSolverr URL
+				{#if flaresolverrLocked}<span class="lock">set in kaze.toml</span>{/if}
+			</span>
+			<span class="flex flex-wrap gap-2">
+				<input
+					type="url"
+					bind:value={flaresolverr}
+					disabled={flaresolverrLocked}
+					placeholder="http://flaresolverr:8191"
+					class="field min-w-0 flex-[1_1_280px] font-mono text-sm"
+				/>
+				{#if !flaresolverrLocked}
+					<button
+						type="submit"
+						class="btn-primary"
+						disabled={saving || flaresolverr.trim() === flaresolverrSaved}>Save</button
+					>
+				{/if}
+			</span>
+			<span class="text-[13px] text-muted">
+				Optional. When a site answers with a Cloudflare challenge, kaze asks
+				<a href="https://github.com/FlareSolverr/FlareSolverr" target="_blank" rel="noreferrer"
+					>FlareSolverr</a
+				> to get through, then keeps the cookie it earns.
+			</span>
+		</label>
+	</form>
 	<p class="m-0 text-ink-2">
 		Sites kaze can download from. Each is compiled in as a cargo feature; build without one to leave
 		it out.
@@ -102,3 +160,14 @@
 		</ul>
 	{/if}
 </div>
+
+<style>
+	.lock {
+		font-size: 12px;
+		font-weight: 500;
+		padding: 1px 8px;
+		border-radius: 999px;
+		background: var(--color-raised);
+		color: var(--color-muted);
+	}
+</style>

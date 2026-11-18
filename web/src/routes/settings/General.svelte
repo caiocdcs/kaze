@@ -34,7 +34,7 @@
 		const out: Record<string, unknown> = {};
 		for (const k of Object.keys(form) as Key[]) {
 			// Set from their own tabs.
-			if (k === 'paused_sources' || k === 'oidc' || k === 'api_key') continue;
+			if (['paused_sources', 'oidc', 'api_key', 'flaresolverr_url'].includes(k)) continue;
 			const a = form[k] === '' ? null : form[k];
 			if (!locked(k) && a !== view.settings[k]) out[k] = a;
 		}
@@ -192,29 +192,6 @@
 						>Once a day, ask GitHub for the latest kaze release; the health panel says when one is
 						out. Nothing but kaze's version is sent.</span
 					>
-				</span>
-			</label>
-		</section>
-
-		<section class="flex flex-col gap-4" aria-labelledby="cf-heading">
-			<h2 id="cf-heading" class="section-title text-lg">Cloudflare</h2>
-			<label class="flex flex-col gap-1.5">
-				<span class="flex items-center gap-2 font-medium">
-					FlareSolverr URL
-					{#if locked('flaresolverr_url')}<span class="lock">set in kaze.toml</span>{/if}
-				</span>
-				<input
-					type="url"
-					bind:value={form.flaresolverr_url}
-					disabled={locked('flaresolverr_url')}
-					placeholder="http://flaresolverr:8191"
-					class="field max-w-md font-mono text-sm"
-				/>
-				<span class="text-[13px] text-muted">
-					Optional. When a site answers with a Cloudflare challenge, kaze asks
-					<a href="https://github.com/FlareSolverr/FlareSolverr" target="_blank" rel="noreferrer"
-						>FlareSolverr</a
-					> to get through, then keeps the cookie it earns.
 				</span>
 			</label>
 		</section>
