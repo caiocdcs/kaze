@@ -99,7 +99,13 @@ pub async fn create(
     tokio::fs::create_dir_all(dir).await?;
     let name = now.format(FORMAT).to_string();
     let path = dir.join(&name);
-    db::backup(db, &path).await?;
+    // Names keep whole seconds, and a second backup within one would fail.
+    // It happens after a restore: the replaced database is kept as a
+    // backup, then the backup job the restored file was taken during runs
+    // again. Both hold the same moment, so the first one stands.
+    if !tokio::fs::try_exists(&path).await? {
+        db::backup(db, &path).await?;
+    }
     Ok(BackupFile {
         size_bytes: tokio::fs::metadata(&path).await?.len(),
         // The name only keeps whole seconds.
@@ -264,6 +270,14 @@ mod tests {
         let kept: Vec<_> = list(dir.path()).await.unwrap();
         assert_eq!(kept, all[..2]);
         assert!(dir.path().join("notes.txt").exists(), "other files stay");
+
+        let again = create(&db, dir.path(), start + TimeDelta::minutes(3))
+            .await
+            .unwrap();
+        assert_eq!(
+            again, all[0],
+            "a second backup in the same second keeps the first"
+        );
 
         assert!(find(dir.path(), &kept[0].name).await.unwrap().is_some());
         for name in ["../kaze.db", "kaze.db", "notes.txt", &all[3].name] {
