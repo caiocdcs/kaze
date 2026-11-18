@@ -25,14 +25,14 @@ use super::{Job, JobQueue};
 use crate::{app::Context, backup, db};
 
 /// How often to look for series due a full refresh.
-const REFRESH_CHECK_EVERY: Duration = Duration::from_secs(60 * 60);
+const REFRESH_CHECK_EVERY: Duration = Duration::from_hours(1);
 /// Downloads record their own size; this catches older and outside changes.
-const MEASURE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+const MEASURE_EVERY: Duration = Duration::from_hours(24);
 /// Metadata changes slowly: each series is looked up on AniList weekly.
 const METADATA_EVERY: chrono::TimeDelta = chrono::TimeDelta::days(7);
-const UPDATE_EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+const UPDATE_EVERY: Duration = Duration::from_hours(24);
 /// The first measure waits for startup work (sync, refreshes) to settle.
-const MEASURE_FIRST_AFTER: Duration = Duration::from_secs(5 * 60);
+const MEASURE_FIRST_AFTER: Duration = Duration::from_mins(5);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]

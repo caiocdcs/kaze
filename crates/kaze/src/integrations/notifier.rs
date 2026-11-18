@@ -34,7 +34,7 @@ impl Default for Timing {
     fn default() -> Self {
         Self {
             quiet: Duration::from_secs(30),
-            max_wait: Duration::from_secs(5 * 60),
+            max_wait: Duration::from_mins(5),
         }
     }
 }

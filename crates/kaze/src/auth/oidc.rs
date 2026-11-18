@@ -88,13 +88,13 @@ type Client = CoreClient<
 >;
 
 /// How long a started sign-in may take.
-const LOGIN_TTL: Duration = Duration::from_secs(10 * 60);
+const LOGIN_TTL: Duration = Duration::from_mins(10);
 /// Sign-ins in flight; the oldest go first, so spamming the login link
 /// costs memory only up to here.
 const MAX_PENDING: usize = 64;
 /// Re-read the provider's configuration (and signing keys) this often, so
 /// rotated keys are picked up.
-const DISCOVERY_TTL: Duration = Duration::from_secs(60 * 60);
+const DISCOVERY_TTL: Duration = Duration::from_hours(1);
 
 struct Pending {
     verifier: PkceCodeVerifier,

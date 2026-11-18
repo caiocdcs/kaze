@@ -230,7 +230,7 @@ impl Default for RetryPolicy {
     fn default() -> Self {
         Self {
             base: Duration::from_secs(60),
-            max: Duration::from_secs(60 * 60),
+            max: Duration::from_hours(1),
         }
     }
 }
