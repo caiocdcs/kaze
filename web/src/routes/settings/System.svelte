@@ -117,7 +117,7 @@
 			{#if error}
 				<p class="card m-0 border-bad-line p-4 text-bad">{error}</p>
 			{:else if tasks}
-				<div class="overflow-x-auto rounded-[14px] border border-line">
+				<div class="relative overflow-x-auto rounded-[14px] border border-line">
 					<table class="w-full min-w-[560px] border-collapse text-sm">
 						<thead>
 							<tr class="bg-surface text-left text-muted">
@@ -172,7 +172,7 @@
 						<code>data/backups</code>. Library files are not included. The schedule is under
 						General.
 					</p>
-					<div class="flex gap-2">
+					<div class="flex flex-wrap gap-2">
 						<button type="button" class="btn-ghost h-10" onclick={backUpNow}>
 							<Icon name="play" size={14} /> Back up now
 						</button>
