@@ -39,8 +39,8 @@ pub struct Context {
     pub logs: crate::logs::RecentLogs,
     /// The latest kaze release seen.
     pub updates: crate::updates::Updates,
-    /// Signing in with an OpenID Connect provider, when configured.
-    pub oidc: Option<crate::auth::oidc::Oidc>,
+    /// Signing in with an OpenID Connect provider, as the settings say.
+    pub oidc: crate::auth::oidc::OidcSlot,
 }
 
 /// The running application.
@@ -156,6 +156,11 @@ impl App {
         tasks.spawn(events::record_history(
             ctx.db.clone(),
             ctx.events.subscribe(),
+            shutdown.clone(),
+        ));
+        tasks.spawn(apply_oidc(
+            ctx.settings.subscribe(),
+            Arc::clone(&ctx),
             shutdown.clone(),
         ));
         tasks.spawn(apply_flaresolverr(
@@ -498,6 +503,21 @@ impl App {
 }
 
 /// Keep the sources' FlareSolverr URL in step with the settings.
+async fn apply_oidc(
+    mut settings: tokio::sync::watch::Receiver<Arc<crate::settings::Settings>>,
+    ctx: Arc<Context>,
+    shutdown: CancellationToken,
+) {
+    loop {
+        let oidc = settings.borrow_and_update().oidc.clone();
+        ctx.oidc.apply(oidc.as_ref());
+        tokio::select! {
+            () = shutdown.cancelled() => return,
+            changed = settings.changed() => if changed.is_err() { return },
+        }
+    }
+}
+
 async fn apply_flaresolverr(
     mut settings: tokio::sync::watch::Receiver<Arc<crate::settings::Settings>>,
     flaresolverr: FlareSolverr,

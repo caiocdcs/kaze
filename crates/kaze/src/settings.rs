@@ -24,7 +24,7 @@ use serde_json::{Map, Value};
 use sqlx::SqlitePool;
 use tokio::sync::{Mutex, watch};
 
-use crate::{db, download::naming::Template};
+use crate::{auth::oidc::OidcConfig, db, download::naming::Template, integrations::MASK};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -59,6 +59,8 @@ pub struct Settings {
     pub backup_keep: usize,
     /// Ask GitHub once a day whether a newer kaze is out.
     pub check_updates: bool,
+    /// Signing in with an OpenID Connect provider, besides the password.
+    pub oidc: Option<OidcConfig>,
 }
 
 impl Default for Settings {
@@ -77,6 +79,7 @@ impl Default for Settings {
             backup_days: 7,
             backup_keep: 4,
             check_updates: true,
+            oidc: None,
         }
     }
 }
@@ -136,6 +139,9 @@ impl Settings {
             return Err(SettingsError::Invalid(
                 "default_language must be a language tag like en or pt-BR".into(),
             ));
+        }
+        if let Some(oidc) = &self.oidc {
+            oidc.check().map_err(SettingsError::Invalid)?;
         }
         if self.api_key.as_ref().is_some_and(|k| k.trim().len() < 8) {
             return Err(SettingsError::Invalid(
@@ -218,10 +224,15 @@ impl SettingsStore {
         self.current.subscribe()
     }
 
+    /// The OIDC client secret reads as [`MASK`], like integration secrets.
     #[must_use]
     pub fn view(&self) -> SettingsView {
+        let mut settings = (*self.current()).clone();
+        if let Some(oidc) = &mut settings.oidc {
+            MASK.clone_into(&mut oidc.client_secret);
+        }
         SettingsView {
-            settings: (*self.current()).clone(),
+            settings,
             locked: self.locked.keys().cloned().collect(),
         }
     }
@@ -229,10 +240,20 @@ impl SettingsStore {
     /// Apply changes from the UI. `null` resets a key to its default.
     pub async fn update(
         &self,
-        changes: Map<String, Value>,
+        mut changes: Map<String, Value>,
     ) -> Result<Arc<Settings>, SettingsError> {
         if let Some(key) = changes.keys().find(|k| self.locked.contains_key(*k)) {
             return Err(SettingsError::Locked(key.clone()));
+        }
+        // The form sends the masked secret back unchanged.
+        if let Some(Value::Object(oidc)) = changes.get_mut("oidc")
+            && oidc.get("client_secret").and_then(Value::as_str) == Some(MASK)
+            && let Some(stored) = &self.current().oidc
+        {
+            oidc.insert(
+                "client_secret".into(),
+                Value::String(stored.client_secret.clone()),
+            );
         }
         let mut saved = self.saved.lock().await;
         let mut next = saved.clone();
@@ -357,6 +378,50 @@ mod tests {
         let reloaded = SettingsStore::load(db, Map::new()).await.unwrap();
         assert!(!reloaded.ensure_api_key().await.unwrap());
         assert_eq!(reloaded.current().api_key, Some(key));
+    }
+
+    fn oidc(secret: &str) -> Value {
+        json!({ "oidc": {
+            "issuer": "https://auth.example.com",
+            "client_id": "kaze",
+            "client_secret": secret,
+            "public_url": "https://kaze.example.com",
+        }})
+    }
+
+    #[tokio::test]
+    async fn the_oidc_secret_stays_on_the_server() {
+        let store = SettingsStore::load(db::memory().await, Map::new())
+            .await
+            .unwrap();
+        store.update(map(oidc("s3cret"))).await.unwrap();
+        let shown = store.view().settings.oidc.unwrap();
+        assert_eq!(shown.client_secret, MASK);
+
+        // The form sends the mask back with another change: the secret stays.
+        let mut changes = oidc(MASK);
+        changes["oidc"]["name"] = json!("Authelia");
+        store.update(map(changes)).await.unwrap();
+        let saved = store.current().oidc.clone().unwrap();
+        assert_eq!(saved.client_secret, "s3cret");
+        assert_eq!(saved.name.as_deref(), Some("Authelia"));
+
+        let mut bad = oidc("s3cret");
+        bad["oidc"]["issuer"] = json!("not a url");
+        assert!(matches!(
+            store.update(map(bad)).await,
+            Err(SettingsError::Invalid(_))
+        ));
+        store.update(map(json!({ "oidc": null }))).await.unwrap();
+        assert!(store.current().oidc.is_none(), "null turns it off");
+
+        let locked = SettingsStore::load(db::memory().await, map(oidc("s3cret")))
+            .await
+            .unwrap();
+        assert!(matches!(
+            locked.update(map(oidc("other"))).await,
+            Err(SettingsError::Locked(_))
+        ));
     }
 
     #[tokio::test]

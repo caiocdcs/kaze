@@ -4,7 +4,7 @@
 use std::{
     collections::HashMap,
     fmt,
-    sync::Mutex,
+    sync::{Arc, Mutex, RwLock},
     time::{Duration, Instant},
 };
 
@@ -17,19 +17,24 @@ use openidconnect::{
     core::{CoreAuthenticationFlow, CoreClient, CoreProviderMetadata, CoreUserInfoClaims},
 };
 use serde::{Deserialize, Serialize};
+use ts_rs::TS;
 use url::Url;
+use utoipa::ToSchema;
 
 use crate::config::UrlBase;
 
-/// `[auth.oidc]` in kaze.toml.
-#[derive(Clone, Serialize, Deserialize)]
+/// The `oidc` setting: signing in with an OpenID Connect provider.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize, TS, ToSchema)]
 #[serde(deny_unknown_fields)]
+#[ts(export)]
 pub struct OidcConfig {
     /// Exactly as the provider names itself, trailing slash included.
     pub issuer: String,
     pub client_id: String,
     pub client_secret: String,
     /// Where browsers reach kaze, for the callback URL.
+    #[ts(type = "string")]
+    #[schema(value_type = String)]
     pub public_url: Url,
     /// The provider's name on the sign-in button.
     #[serde(default)]
@@ -38,6 +43,23 @@ pub struct OidcConfig {
     /// signs in for this client.
     #[serde(default)]
     pub allowed: Vec<String>,
+}
+
+impl OidcConfig {
+    /// What a provider can't work with, as a message for the settings form.
+    pub fn check(&self) -> Result<(), String> {
+        let web = |url: &Url| matches!(url.scheme(), "http" | "https");
+        if !Url::parse(&self.issuer).is_ok_and(|url| web(&url)) {
+            return Err("oidc.issuer must be an http(s) URL".into());
+        }
+        if !web(&self.public_url) {
+            return Err("oidc.public_url must be an http(s) URL".into());
+        }
+        if self.client_id.trim().is_empty() || self.client_secret.trim().is_empty() {
+            return Err("oidc needs a client_id and a client_secret".into());
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Debug for OidcConfig {
@@ -55,7 +77,7 @@ impl fmt::Debug for OidcConfig {
 
 #[derive(Debug, thiserror::Error)]
 pub enum OidcError {
-    #[error("invalid [auth.oidc] {0}")]
+    #[error("invalid OIDC setting {0}")]
     Config(String),
     #[error("couldn't read the provider's configuration: {0}")]
     Discovery(String),
@@ -288,6 +310,55 @@ fn checked_email(email: Option<&EndUserEmail>, verified: Option<bool>) -> Option
     email
         .filter(|_| verified != Some(false))
         .map(|e| e.as_str().to_owned())
+}
+
+/// The OIDC sign-in the settings currently ask for; changing the setting
+/// swaps it, and drops sign-ins in flight.
+#[derive(Debug)]
+pub struct OidcSlot {
+    base: UrlBase,
+    current: RwLock<Option<Arc<Oidc>>>,
+}
+
+impl OidcSlot {
+    #[must_use]
+    pub fn new(base: UrlBase) -> Self {
+        Self {
+            base,
+            current: RwLock::new(None),
+        }
+    }
+
+    #[must_use]
+    pub fn current(&self) -> Option<Arc<Oidc>> {
+        self.current
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    /// Follow the setting; an unchanged one keeps the client and its
+    /// sign-ins in flight.
+    pub fn apply(&self, config: Option<&OidcConfig>) {
+        let mut current = self
+            .current
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if current.as_ref().map(|oidc| &oidc.config) == config {
+            return;
+        }
+        *current = match config.map(|config| Oidc::new(config.clone(), &self.base)) {
+            None => None,
+            Some(Ok(oidc)) => {
+                tracing::info!(callback = oidc.redirect_url(), "OIDC sign-in on");
+                Some(Arc::new(oidc))
+            }
+            Some(Err(err)) => {
+                tracing::error!("OIDC sign-in off: {err}");
+                None
+            }
+        };
+    }
 }
 
 /// openidconnect's HTTP, over our reqwest (it was built for an older one).

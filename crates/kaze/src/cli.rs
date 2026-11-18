@@ -8,7 +8,7 @@ use clap::{Parser, Subcommand};
 use kaze::{
     api,
     app::{App, Context},
-    auth::{NewPassword, oidc::Oidc},
+    auth::{NewPassword, oidc::OidcSlot},
     backup,
     config::Config,
     db,
@@ -189,7 +189,10 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         .await
         .context("opening database")?;
     let http = Http::new(config.http()).context("building HTTP client")?;
-    let settings = SettingsStore::load(db.clone(), config.settings.clone())
+    if config.auth.oidc.is_some() {
+        tracing::info!("[auth.oidc] is now the oidc setting: [settings.oidc] in kaze.toml");
+    }
+    let settings = SettingsStore::load(db.clone(), config.locked_settings())
         .await
         .context("invalid [settings] in the configuration")?;
     if settings
@@ -198,15 +201,6 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         .context("generating an API key")?
     {
         tracing::warn!("generated an API key: the first browser to open kaze creates the account");
-    }
-    let oidc = config
-        .auth
-        .oidc
-        .clone()
-        .map(|oidc| Oidc::new(oidc, &config.url_base))
-        .transpose()?;
-    if let Some(oidc) = &oidc {
-        tracing::info!(callback = oidc.redirect_url(), "OIDC sign-in on");
     }
     let ctx = Context {
         db,
@@ -220,7 +214,7 @@ async fn serve(config_file: Option<&std::path::Path>, logs: RecentLogs) -> anyho
         backups,
         logs,
         updates: Updates::new(Url::parse(updates::RELEASES).context("release URL")?),
-        oidc,
+        oidc: OidcSlot::new(config.url_base.clone()),
     };
     let app = Arc::new(
         App::start(ctx, RetryPolicy::default())

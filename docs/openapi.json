@@ -4048,6 +4048,47 @@
           }
         }
       },
+      "OidcConfig": {
+        "type": "object",
+        "description": "The `oidc` setting: signing in with an OpenID Connect provider.",
+        "required": [
+          "issuer",
+          "client_id",
+          "client_secret",
+          "public_url"
+        ],
+        "properties": {
+          "allowed": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Emails or subject ids allowed in; empty lets in anyone the provider\nsigns in for this client."
+          },
+          "client_id": {
+            "type": "string"
+          },
+          "client_secret": {
+            "type": "string"
+          },
+          "issuer": {
+            "type": "string",
+            "description": "Exactly as the provider names itself, trailing slash included."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The provider's name on the sign-in button."
+          },
+          "public_url": {
+            "type": "string",
+            "description": "Where browsers reach kaze, for the callback URL."
+          }
+        },
+        "additionalProperties": false
+      },
       "PasswordChange": {
         "type": "object",
         "required": [
@@ -4603,6 +4644,18 @@
             "type": "string",
             "description": "Chapter file name template.",
             "default": "%M - ?V(Vol.%V )Ch.%C?T( - %T)"
+          },
+          "oidc": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/OidcConfig",
+                "description": "Signing in with an OpenID Connect provider, besides the password."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
           },
           "page_concurrency": {
             "type": "integer",

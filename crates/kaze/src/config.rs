@@ -76,7 +76,7 @@ impl From<UrlBase> for String {
     }
 }
 
-/// Ways to sign in besides the local account.
+/// `[auth.oidc]`, from 0.9.0: now the `oidc` setting.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct AuthConfig {
@@ -119,6 +119,20 @@ impl Default for HttpConfig {
 const NOT_CONFIG: &[&str] = &["CONFIG", "LOG", "LOG_FORMAT"];
 
 impl Config {
+    /// The `[settings]` that lock the UI's, with an old `[auth.oidc]` as
+    /// the `oidc` setting unless `[settings.oidc]` is there too.
+    #[must_use]
+    pub fn locked_settings(&self) -> Map<String, Value> {
+        let mut locked = self.settings.clone();
+        if let Some(oidc) = &self.auth.oidc
+            && !locked.contains_key("oidc")
+            && let Ok(oidc) = serde_json::to_value(oidc)
+        {
+            locked.insert("oidc".into(), oidc);
+        }
+        locked
+    }
+
     /// Load configuration; without a file it is defaults plus env.
     pub fn load(file: Option<&std::path::Path>) -> Result<Self, Box<figment::Error>> {
         let mut figment = Figment::from(Serialized::defaults(Self::default()));
@@ -155,6 +169,29 @@ mod tests {
     use figment::Jail;
 
     use super::*;
+
+    #[test]
+    #[allow(clippy::result_large_err)] // the closure type is figment::Jail's, not ours
+    fn the_old_auth_oidc_locks_the_oidc_setting() {
+        Jail::expect_with(|jail| {
+            jail.create_file(
+                "kaze.toml",
+                r#"
+                [auth.oidc]
+                issuer = "https://auth.example.com"
+                client_id = "kaze"
+                client_secret = "s3cret"
+                public_url = "https://kaze.example.com"
+                "#,
+            )?;
+            let locked = Config::load(Some("kaze.toml".as_ref()))
+                .unwrap()
+                .locked_settings();
+            assert_eq!(locked["oidc"]["client_id"], "kaze");
+            assert_eq!(locked["oidc"]["public_url"], "https://kaze.example.com/");
+            Ok(())
+        });
+    }
 
     #[test]
     fn url_base_is_normalized() {

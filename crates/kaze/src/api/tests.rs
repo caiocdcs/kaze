@@ -32,14 +32,13 @@ async fn api(api_key: Option<&str>) -> Api {
 }
 
 async fn api_with(api_key: Option<&str>, db: sqlx::SqlitePool) -> Api {
-    api_full(api_key, db, crate::testing::empty_anilist().await, None).await
+    api_full(api_key, db, crate::testing::empty_anilist().await).await
 }
 
 async fn api_full(
     api_key: Option<&str>,
     db: sqlx::SqlitePool,
     anilist: kaze_sources::anilist::AniList,
-    oidc: Option<crate::auth::oidc::Oidc>,
 ) -> Api {
     // A 500 only says "internal error": show the logged cause in a failing
     // test's output. Fails harmlessly when another test installed it first.
@@ -83,7 +82,7 @@ async fn api_full(
         logs: crate::logs::RecentLogs::new(16),
         // Never GitHub from tests; the check is off there anyway.
         updates: crate::updates::Updates::new("http://127.0.0.1:9/".parse().unwrap()),
-        oidc,
+        oidc: crate::auth::oidc::OidcSlot::new(crate::config::UrlBase::default()),
     };
     let app = Arc::new(App::start(ctx, RetryPolicy::default()).await.unwrap());
     Api {
@@ -653,16 +652,16 @@ impl FakeIdp {
         Self { issuer, id_token }
     }
 
-    fn oidc(&self, allowed: &[&str]) -> crate::auth::oidc::Oidc {
-        let config = crate::auth::oidc::OidcConfig {
-            issuer: self.issuer.clone(),
-            client_id: "kaze".into(),
-            client_secret: IDP_SECRET.into(),
-            public_url: "https://kaze.example.com".parse().unwrap(),
-            name: Some("Fake ID".into()),
-            allowed: allowed.iter().map(ToString::to_string).collect(),
-        };
-        crate::auth::oidc::Oidc::new(config, &crate::config::UrlBase::default()).unwrap()
+    /// The `oidc` setting for this provider.
+    fn setting(&self, allowed: &[&str]) -> Value {
+        json!({
+            "issuer": self.issuer,
+            "client_id": "kaze",
+            "client_secret": IDP_SECRET,
+            "public_url": "https://kaze.example.com",
+            "name": "Fake ID",
+            "allowed": allowed,
+        })
     }
 
     /// The next sign-in is `email`, for the given nonce; with `in_token`
@@ -694,6 +693,26 @@ impl FakeIdp {
         .unwrap();
         *self.id_token.lock().unwrap() = Some(token.to_string());
     }
+}
+
+/// Save the `oidc` setting and wait until the sign-in follows it.
+async fn set_oidc(api: &Api, oidc: Value) {
+    let (status, body) = api
+        .call(
+            Method::PATCH,
+            "/api/v1/settings",
+            Some(json!({ "oidc": oidc })),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let on = !oidc.is_null();
+    tokio::time::timeout(Duration::from_secs(5), async {
+        while api.get("/api/v1/auth/status").await.1["oidc"].is_null() == on {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+    })
+    .await
+    .expect("the sign-in follows the setting");
 }
 
 /// Start a sign-in: the `state` and `nonce` kaze sent the provider.
@@ -734,14 +753,15 @@ async fn finish_oidc(api: &Api, query: &str) -> (String, Option<String>) {
 #[tokio::test]
 async fn sign_in_with_oidc() {
     let idp = FakeIdp::start().await;
-    let api = api_full(
-        Some("s3cret-key"),
-        db::memory().await,
-        crate::testing::empty_anilist().await,
-        Some(idp.oidc(&["me@example.com"])),
-    )
-    .await;
+    let api = api(None).await;
+    set_oidc(&api, idp.setting(&["me@example.com"])).await;
     assert_eq!(api.get("/api/v1/auth/status").await.1["oidc"], "Fake ID");
+    let (_, view) = api.get("/api/v1/settings").await;
+    assert_eq!(
+        view["settings"]["oidc"]["client_secret"],
+        crate::integrations::MASK,
+        "the secret stays on the server"
+    );
 
     let (state, nonce) = begin_oidc(&api).await;
     idp.will_sign_in("me@example.com", &nonce, true);
@@ -787,6 +807,13 @@ async fn sign_in_with_oidc() {
 
     let (to, cookie) = finish_oidc(&api, "error=access_denied").await;
     assert!(to.contains("access_denied") && cookie.is_none(), "{to}");
+
+    set_oidc(&api, Value::Null).await;
+    assert_eq!(api.get("/api/v1/auth/status").await.1["oidc"], Value::Null);
+    assert_eq!(
+        api.get("/api/v1/auth/oidc/login").await.0,
+        StatusCode::NOT_FOUND
+    );
     api.app.shutdown().await;
 }
 
@@ -1369,7 +1396,7 @@ async fn shows_title(api: &Api, id: i64, expected: &str) -> bool {
 #[tokio::test]
 async fn metadata_is_searched_and_linked_by_hand() {
     let anilist = crate::testing::anilist_with("From AniList").await;
-    let api = api_full(None, db::memory().await, anilist, None).await;
+    let api = api_full(None, db::memory().await, anilist).await;
 
     let (status, hits) = api.get("/api/v1/metadata/search?q=anything").await;
     assert_eq!(status, StatusCode::OK);

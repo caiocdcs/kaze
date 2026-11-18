@@ -143,7 +143,7 @@ pub async fn status(
     Ok(Json(AuthStatus {
         account: db::auth::has_account(&app.ctx.db).await?,
         signed_in,
-        oidc: app.ctx.oidc.as_ref().map(|oidc| oidc.name().to_owned()),
+        oidc: app.ctx.oidc.current().map(|oidc| oidc.name().to_owned()),
     }))
 }
 
@@ -277,7 +277,7 @@ pub async fn oidc_login(State(app): State<AppState>) -> ApiResult<Redirect> {
     let oidc = app
         .ctx
         .oidc
-        .as_ref()
+        .current()
         .ok_or(ApiError::NotFound("OIDC provider"))?;
     let url = oidc
         .begin()
@@ -316,7 +316,7 @@ pub async fn oidc_callback(
     let oidc = app
         .ctx
         .oidc
-        .as_ref()
+        .current()
         .ok_or(ApiError::NotFound("OIDC provider"))?;
     let finished = match callback {
         OidcCallback {
