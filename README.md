@@ -64,7 +64,7 @@ Open <http://localhost:6531> right away and create your account: until it exists
 
 ```sh
 nix run github:caiocdcs/kaze -- serve          # the latest commit
-nix run github:caiocdcs/kaze/v0.9.0 -- serve   # a tagged release
+nix run github:caiocdcs/kaze/v0.9.1 -- serve   # a tagged release
 ```
 
 Without a config, kaze keeps its data in `./data` and chapters in `./library`, in the folder you run it from. There's no binary cache, so the first run compiles kaze, which takes a few minutes.
