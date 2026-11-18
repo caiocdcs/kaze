@@ -16,6 +16,7 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
 
 ## Features
 
+- **Sign in.** One account with a password, or single sign-on through an OpenID Connect provider (Authelia, Authentik, Pocket ID, Keycloak). Scripts use an API key.
 - **Follow series, *arr style.** For each series, pick all chapters, new ones only, or none. You can also start from a given chapter number. The **Wanted** page lists monitored chapters that aren't on disk yet.
 - **Fallback sources.** A series can use several sources in order. Later ones fill chapters the first is missing and take over when it breaks. Each chapter is downloaded once. The series page lists every copy of a chapter, by source and group, so you can pick one by hand. Per series, you can prefer scanlation groups or never download some; files already on disk are kept.
 - **Upcoming.** A page guesses when each series gets its next chapter, from how often it got one lately, and lists series with nothing new in 90 days.
@@ -25,7 +26,7 @@ It's one Rust binary with the web UI built in and SQLite for storage. It needs n
   - Failed downloads retry with backoff.
   - kaze reads each site's "latest updates" page every few minutes instead of polling every series.
 - **Metadata from AniList.** Each series is linked to its AniList entry, through MangaDex's link or by title, and takes its title, summary, genres, writers, artists and cover from there. A doubtful match stays unlinked; link or unlink by hand on the series page.
-- **Clean files.** Downloads go to `library/<Series>/<Series> - Vol.1 Ch.12.cbz`, with `ComicInfo.xml` and `cover.jpg`. The file name template can be changed.
+- **Clean files.** Downloads go to `library/<Series>/<Series> - Vol.1 Ch.12.cbz`, with `ComicInfo.xml` and `cover.jpg`. The file name template can be changed. A series' folder keeps the name it got when you followed it, while new file names use the current title, which AniList may have changed.
 - **Integrations.**
   - Komga and Kavita library scans, debounced so a backfill triggers one scan.
   - Notifications built in, with nothing else to run: ntfy, Gotify, email over SMTP, and a templated webhook (with a Discord preset).
@@ -152,6 +153,13 @@ Lost the password? Set a new one from the command line; it signs every browser o
 ```sh
 echo 'a new password' | kaze reset-password --config kaze.toml
 echo 'a new password' | docker compose exec -T kaze kaze reset-password
+```
+
+It only needs the database, which it finds through `data_dir`. The NixOS module doesn't put `kaze` on the PATH, so run the service's own binary as its user (with your `dataDir`, if you changed it):
+
+```sh
+kaze=$(systemctl show -P ExecStart kaze | grep -o '/nix/store/[^ ;]*/bin/kaze' | head -1)
+echo 'a new password' | sudo -u kaze KAZE_DATA_DIR=/var/lib/kaze "$kaze" reset-password
 ```
 
 > [!NOTE]

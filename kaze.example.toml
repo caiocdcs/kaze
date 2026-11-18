@@ -53,3 +53,6 @@ timeout_secs = 30
 # flaresolverr_url = "http://flaresolverr:8191"  # get past Cloudflare challenges
 # paused_sources = ["asura"]    # jobs of these sites wait until resumed
 # default_language = "en"        # what new series are followed in, e.g. "pt-BR"
+# backup_days = 7                # days between database backups; 0 turns them off
+# backup_keep = 4                # backups kept in data_dir/backups
+# check_updates = true           # ask GitHub once a day for the latest kaze version
