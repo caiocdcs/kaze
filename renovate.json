@@ -1,45 +1,86 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", ":semanticCommits"],
-  "timezone": "Europe/Lisbon",
-  "schedule": ["before 6am on monday"],
-  "labels": ["dependencies"],
-  "nix": { "enabled": true },
-  "lockFileMaintenance": {
-    "enabled": true,
-    "schedule": ["before 6am on monday"],
-    "automerge": true
+  "extends": [
+    "config:recommended"
+  ],
+  "enabledManagers": [
+    "cargo",
+    "nix",
+    "npm",
+    "dockerfile",
+    "docker-compose",
+    "github-actions"
+  ],
+  "nix": {
+    "enabled": true
   },
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "minimumReleaseAge": "3 days",
+  "minimumReleaseAgeBehaviour": "timestamp-optional",
+  "gitAuthor": "Caio Silva <caio@cdcs.dev>",
+  "labels": [
+    "renovate"
+  ],
+  "prHourlyLimit": 0,
+  "prConcurrentLimit": 0,
+  "dependencyDashboardApproval": true,
+  "rebaseWhen": "conflicted",
   "packageRules": [
     {
-      "description": "Patch and minor updates merge themselves once CI is green",
-      "matchUpdateTypes": ["patch", "minor", "digest"],
-      "automerge": true
+      "description": "Homelab policy: every update waits for approval and review",
+      "matchManagers": [
+        "cargo",
+        "nix",
+        "npm",
+        "dockerfile",
+        "docker-compose",
+        "github-actions"
+      ],
+      "automerge": false
     },
     {
       "groupName": "cargo",
-      "matchManagers": ["cargo"],
-      "matchUpdateTypes": ["patch", "minor"]
+      "matchManagers": [
+        "cargo"
+      ],
+      "matchUpdateTypes": [
+        "patch",
+        "minor"
+      ]
     },
     {
       "groupName": "github actions",
-      "matchManagers": ["github-actions"]
+      "matchManagers": [
+        "github-actions"
+      ]
     },
     {
       "groupName": "docker images",
-      "matchManagers": ["dockerfile", "docker-compose"]
+      "matchManagers": [
+        "dockerfile",
+        "docker-compose"
+      ]
     },
     {
-      "description": "Any pnpm-lock.yaml change needs new pnpmDeps hashes in flake.nix (one per system), so these stay manual",
+      "description": "Any pnpm-lock.yaml change needs new pnpmDeps hashes in flake.nix (one per system)",
       "groupName": "web",
-      "matchManagers": ["npm"],
-      "automerge": false,
-      "addLabels": ["needs-pnpm-hash"]
+      "matchManagers": [
+        "npm"
+      ],
+      "addLabels": [
+        "needs-pnpm-hash"
+      ]
     },
     {
       "description": "Lockfile refreshes only for Cargo.lock and flake.lock, for the same reason",
-      "matchManagers": ["npm"],
-      "matchUpdateTypes": ["lockFileMaintenance"],
+      "matchManagers": [
+        "npm"
+      ],
+      "matchUpdateTypes": [
+        "lockFileMaintenance"
+      ],
       "enabled": false
     }
   ]
