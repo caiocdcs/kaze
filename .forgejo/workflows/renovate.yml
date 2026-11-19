@@ -8,7 +8,7 @@ jobs:
   renovate:
     runs-on: alpine
     container:
-      image: renovate/renovate:latest
+      image: renovate/renovate:44.255.1@sha256:183a671d000c8f20f9dac8c3b1100677c1edb79a0b46bcf8798f1490c785d27c
     steps:
       - name: renovate
         shell: sh
